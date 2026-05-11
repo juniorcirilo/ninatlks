@@ -1,0 +1,136 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState, type FormEvent } from "react";
+import { z } from "zod";
+import { Loader2, KeyRound } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+
+export const Route = createFileRoute("/reset-password")({
+  head: () => ({
+    meta: [
+      { title: "Redefinir senha — Nina Talks" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+  component: ResetPasswordPage,
+});
+
+const passwordSchema = z
+  .string()
+  .min(8, { message: "Mínimo 8 caracteres" })
+  .max(72, { message: "Senha muito longa" });
+
+function ResetPasswordPage() {
+  const navigate = useNavigate();
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Detecta o evento PASSWORD_RECOVERY que o Supabase emite após o redirect do email
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setRecoveryReady(true);
+    });
+
+    // Se o usuário chegou direto e há hash de recovery, considera pronto
+    if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
+      setRecoveryReady(true);
+    }
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const result = passwordSchema.safeParse(password);
+    if (!result.success) {
+      setError(result.error.issues[0]?.message ?? "Senha inválida");
+      return;
+    }
+    if (password !== confirm) {
+      setError("As senhas não conferem.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password: result.data });
+      if (err) throw err;
+      navigate({ to: "/", replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível atualizar.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-glow" />
+      <div className="relative w-full max-w-md">
+        <div className="glass rounded-2xl p-7 shadow-elegant">
+          <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground shadow-glow">
+            <KeyRound className="h-5 w-5" />
+          </div>
+          <h1 className="text-xl font-semibold">Redefinir sua senha</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Escolha uma nova senha para acessar seu painel.
+          </p>
+
+          {!recoveryReady && (
+            <div className="mt-5 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+              Abra esta página pelo link enviado no seu email.
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Nova senha</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={!recoveryReady}
+                autoComplete="new-password"
+                required
+                className="h-10 w-full rounded-md border border-input bg-card/50 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">Confirmar senha</span>
+              <input
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                disabled={!recoveryReady}
+                autoComplete="new-password"
+                required
+                className="h-10 w-full rounded-md border border-input bg-card/50 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              />
+            </label>
+
+            {error && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting || !recoveryReady}
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-glow transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Atualizar senha
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

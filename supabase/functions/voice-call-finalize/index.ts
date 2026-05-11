@@ -1,0 +1,252 @@
+// deno-lint-ignore-file no-explicit-any
+//
+// voice-call-finalize
+// -------------------
+// Polls ElevenLabs Convai API for a finished conversation and persists
+// transcript + audio + summary into our voice_calls table. Then fires
+// the post-call SDR pipeline in parallel: lead-classify-from-call (sets
+// stage/score/briefing on the contact) and sentiment-analyze (call-level
+// sentiment).
+//
+// Body: { voice_call_id: uuid, force?: boolean }
+//
+// Idempotent: if status='completed' and recording_storage_path is set and
+// transcript already populated → returns early (unless force=true).
+//
+// This is the canonical post-call pipeline. The webhook elevenlabs-events
+// is now a thin trigger that just calls this; cron also calls it for any
+// stuck calls.
+
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
+import { resolveCredentialsForAccount } from "../_shared/elevenlabs/client.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const BUCKET = "voice-recordings";
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return j({ error: "method not allowed" }, 405);
+
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  let body: { voice_call_id?: string; force?: boolean };
+  try { body = await req.json(); } catch { return j({ error: "bad JSON" }, 400); }
+  if (!body.voice_call_id) return j({ error: "voice_call_id required" }, 400);
+
+  const force = body.force === true;
+
+  const { data: call, error } = await admin
+    .from("voice_calls")
+    .select(
+      "id, account_id, source_id, provider_call_sid, status, recording_storage_path, transcript, transcription_status, metadata, started_at",
+    )
+    .eq("id", body.voice_call_id)
+    .maybeSingle();
+
+  if (error || !call) return j({ error: "voice_call not found" }, 404);
+
+  const conversationId = (call.source_id as string | null) ?? null;
+  if (!conversationId) {
+    return j({ error: "no source_id (EL conversation_id) — cannot finalize" }, 422);
+  }
+
+  const transcriptIsEmpty =
+    !call.transcript ||
+    (Array.isArray(call.transcript) && (call.transcript as any[]).length === 0);
+
+  // Idempotência
+  if (
+    !force &&
+    call.status === "completed" &&
+    call.recording_storage_path &&
+    !transcriptIsEmpty
+  ) {
+    return j({ ok: true, skipped: true, reason: "already finalized" });
+  }
+
+  // ── Resolve EL key da account ────────────────────────────────
+  let elKey: string;
+  try {
+    const creds = await resolveCredentialsForAccount(admin, call.account_id);
+    elKey = creds.apiKey;
+  } catch (err) {
+    console.error("[voice-call-finalize] resolveCredentialsForAccount failed", err);
+    return j({ error: "ElevenLabs key not configured for account" }, 503);
+  }
+
+  // ── 1. Pull conversation metadata + transcript ──────────────
+  let convData: any = null;
+  try {
+    const r = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversations/${encodeURIComponent(conversationId)}`,
+      { headers: { "xi-api-key": elKey } },
+    );
+    if (r.status === 404) {
+      // Conversa pode ainda não ter terminado
+      return j({ ok: false, reason: "conversation not found in EL yet", retry_later: true }, 202);
+    }
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      console.error("[voice-call-finalize] EL convo fetch failed", r.status, t.slice(0, 300));
+      return j({ error: `EL fetch failed: ${r.status}` }, 502);
+    }
+    convData = await r.json();
+  } catch (err) {
+    console.error("[voice-call-finalize] EL convo fetch exception", err);
+    return j({ error: "EL fetch exception" }, 502);
+  }
+
+  // EL response shape (resumo):
+  // {
+  //   conversation_id, agent_id, status: 'in-progress'|'processing'|'done'|'failed',
+  //   transcript: [{ role, message, time_in_call_secs, ... }],
+  //   metadata: { call_duration_secs, start_time_unix_secs, ... },
+  //   analysis: { transcript_summary, call_successful, ... },
+  // }
+  const elStatus = (convData.status ?? "").toString().toLowerCase();
+  const transcriptArr: any[] = Array.isArray(convData.transcript) ? convData.transcript : [];
+  const summary: string | null =
+    convData.analysis?.transcript_summary ??
+    convData.transcript_summary ??
+    convData.metadata?.summary ??
+    null;
+  const durationSec: number | null =
+    convData.metadata?.call_duration_secs ??
+    convData.duration_seconds ??
+    null;
+
+  // Se EL ainda está processando: marca como completed com o que temos
+  // mas marca pra o cron tentar de novo.
+  const stillProcessing = elStatus === "in-progress" || elStatus === "processing";
+  if (stillProcessing && transcriptArr.length === 0) {
+    await admin
+      .from("voice_calls")
+      .update({
+        metadata: { ...(call.metadata as any), el_status: elStatus, last_finalize_attempt: new Date().toISOString() },
+      })
+      .eq("id", call.id);
+    return j({ ok: false, reason: "EL still processing", retry_later: true, el_status: elStatus }, 202);
+  }
+
+  // ── 2. Pull audio (best-effort) ──────────────────────────────
+  let recordingStoragePath: string | null = call.recording_storage_path ?? null;
+  let recordingSignedUrl: string | null = null;
+
+  if (!recordingStoragePath) {
+    try {
+      const ar = await fetch(
+        `https://api.elevenlabs.io/v1/convai/conversations/${encodeURIComponent(conversationId)}/audio`,
+        { headers: { "xi-api-key": elKey } },
+      );
+      if (ar.ok) {
+        const blob = await ar.blob();
+        const ym = new Date().toISOString().slice(0, 7);
+        const path = `${call.account_id}/${ym}/${call.id}.mp3`;
+        const { error: upErr } = await admin.storage
+          .from(BUCKET)
+          .upload(path, blob, {
+            contentType: ar.headers.get("content-type") ?? "audio/mpeg",
+            upsert: true,
+            cacheControl: "3600",
+          });
+        if (upErr) {
+          console.warn("[voice-call-finalize] upload failed", upErr);
+        } else {
+          recordingStoragePath = `${BUCKET}/${path}`;
+          const { data: signed } = await admin.storage
+            .from(BUCKET)
+            .createSignedUrl(path, 60 * 60 * 24 * 7);
+          recordingSignedUrl = signed?.signedUrl ?? null;
+        }
+      } else {
+        console.warn("[voice-call-finalize] audio fetch", ar.status);
+      }
+    } catch (err) {
+      console.warn("[voice-call-finalize] audio fetch exception", err);
+    }
+  }
+
+  // ── 3. Update voice_calls ────────────────────────────────────
+  const nowIso = new Date().toISOString();
+  const updates: Record<string, any> = {
+    status: "completed",
+    ended_at: nowIso,
+    metadata: {
+      ...(call.metadata as any),
+      summary,
+      el_status: elStatus,
+      finalized_at: nowIso,
+    },
+  };
+  if (transcriptArr.length > 0) updates.transcript = transcriptArr;
+  if (durationSec) updates.duration_seconds = durationSec;
+  if (recordingStoragePath) {
+    updates.recording_storage_path = recordingStoragePath;
+    updates.transcription_status = "done";
+    updates.transcription_provider = "elevenlabs";
+    updates.transcription_completed_at = new Date().toISOString();
+  }
+  if (recordingSignedUrl) updates.recording_url = recordingSignedUrl;
+
+  const { error: updErr } = await admin
+    .from("voice_calls")
+    .update(updates)
+    .eq("id", call.id);
+  if (updErr) {
+    console.error("[voice-call-finalize] update voice_calls failed", updErr);
+    return j({ error: "db update failed" }, 500);
+  }
+
+  // ── 4. Post-call SDR pipeline: classify + sentiment em paralelo ──
+  const baseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const fnHeaders = {
+    Authorization: `Bearer ${serviceKey}`,
+    "Content-Type": "application/json",
+  };
+
+  const [classifyResp, sentimentResp] = await Promise.allSettled([
+    fetch(`${baseUrl}/functions/v1/lead-classify-from-call`, {
+      method: "POST",
+      headers: fnHeaders,
+      body: JSON.stringify({ voice_call_id: call.id }),
+    }).then((r) => r.json().catch(() => ({}))),
+    fetch(`${baseUrl}/functions/v1/sentiment-analyze`, {
+      method: "POST",
+      headers: fnHeaders,
+      body: JSON.stringify({ voice_call_id: call.id }),
+    }).then((r) => r.json().catch(() => ({}))),
+  ]);
+
+  const classifyResult = classifyResp.status === "fulfilled" ? classifyResp.value : { error: String(classifyResp.reason) };
+  const sentimentResult = sentimentResp.status === "fulfilled" ? sentimentResp.value : { error: String(sentimentResp.reason) };
+
+  console.log(
+    `[voice-call-finalize] call=${call.id} convo=${conversationId} transcript=${transcriptArr.length}msgs audio=${recordingStoragePath ? "ok" : "—"} category=${(classifyResult as any)?.classification?.category ?? "—"} sentiment=${(sentimentResult as any)?.sentiment?.aggregate ?? "—"}`,
+  );
+
+  return j({
+    ok: true,
+    voice_call_id: call.id,
+    transcript_messages: transcriptArr.length,
+    duration_seconds: durationSec,
+    recording_storage_path: recordingStoragePath,
+    summary,
+    classify: classifyResult,
+    sentiment: sentimentResult,
+  });
+});
+
+function j(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}

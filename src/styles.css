@@ -1,0 +1,543 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@source "../src";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Viver de IA Design System — light navy/indigo premium.
+ * Tailwind v4 (@theme inline) + tokens HSL semânticos.
+ */
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --container-content: 1200px;
+  --container-wide: 1680px;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: 1rem;
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Core shadcn tokens */
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-ring-offset-background: hsl(var(--background));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Viver de IA — surfaces */
+  --color-bg-base: hsl(var(--bg-base));
+  --color-bg-surface-1: hsl(var(--bg-surface-1));
+  --color-bg-surface-2: hsl(var(--bg-surface-2));
+  --color-bg-elevated: hsl(var(--bg-elevated));
+  --color-bg-subtle-accent: hsl(var(--bg-subtle-accent));
+  --color-bg-dark: hsl(var(--bg-dark));
+  --color-bg-darkest: hsl(var(--bg-darkest));
+
+  /* Viver de IA — text */
+  --color-text-primary: hsl(var(--text-primary));
+  --color-text-secondary: hsl(var(--text-secondary));
+  --color-text-tertiary: hsl(var(--text-tertiary));
+  --color-text-on-dark: hsl(var(--text-on-dark));
+  --color-text-on-dark-muted: hsl(var(--text-on-dark-muted));
+
+  /* Viver de IA — accents */
+  --color-accent-hover: hsl(var(--accent-primary-hover));
+  --color-accent-light: hsl(var(--accent-primary-light));
+  --color-accent-subtle: hsl(var(--bg-subtle-accent));
+  --color-warm: hsl(var(--accent-warm));
+  --color-warm-DEFAULT: hsl(var(--accent-warm));
+
+  /* Semantic icon colors */
+  --color-icon-ai: hsl(var(--accent-primary));
+  --color-icon-human: hsl(200 90% 45%);
+  --color-icon-critical: hsl(0 84% 60%);
+  --color-icon-success: hsl(var(--accent-success));
+  --color-icon-warning: hsl(var(--accent-warm));
+
+  /* Elevation shadows */
+  --shadow-elevation-1: 0 1px 2px rgba(26, 26, 46, 0.04);
+  --shadow-elevation-2: 0 2px 8px rgba(26, 26, 46, 0.05);
+  --shadow-elevation-3: 0 4px 16px rgba(26, 26, 46, 0.07);
+  --shadow-elevation-4: 0 8px 32px rgba(26, 26, 46, 0.09);
+  --shadow-elevation-5: 0 16px 48px rgba(26, 26, 46, 0.12);
+  --shadow-accent-glow: 0 4px 16px rgba(99, 102, 241, 0.25);
+  --shadow-accent-glow-lg: 0 8px 24px rgba(99, 102, 241, 0.35);
+}
+
+/*
+ * LIGHT MODE (default) — Viver de IA navy/indigo.
+ */
+:root {
+  --radius: 0.625rem;
+
+  /* Base */
+  --background: 0 0% 93%;
+  --foreground: 213 96% 9%;
+
+  --card: 0 0% 98%;
+  --card-foreground: 213 96% 9%;
+
+  --popover: 0 0% 98%;
+  --popover-foreground: 213 96% 9%;
+
+  --primary: 213 96% 9%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 213 96% 9%;
+
+  --muted: 0 0% 89%;
+  --muted-foreground: 213 40% 30%;
+
+  --accent: 239 84% 67%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+
+  --success: 160 84% 39%;
+  --success-foreground: 0 0% 100%;
+
+  --warning: 43 96% 56%;
+  --warning-foreground: 0 0% 10%;
+
+  --border: 0 0% 82%;
+  --input: 0 0% 82%;
+  --ring: 239 84% 67%;
+
+  --chart-1: 239 84% 67%;
+  --chart-2: 213 96% 30%;
+  --chart-3: 200 90% 45%;
+  --chart-4: 160 84% 39%;
+  --chart-5: 43 96% 56%;
+
+  /* Sidebar */
+  --sidebar-background: 213 96% 6%;
+  --sidebar-foreground: 240 20% 85%;
+  --sidebar-primary: 239 84% 67%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 213 96% 9%;
+  --sidebar-accent-foreground: 240 20% 95%;
+  --sidebar-border: 0 0% 100% / 8%;
+  --sidebar-ring: 239 84% 67%;
+
+  /* Misc */
+  --dark-bg: 213 96% 9%;
+  --progress-active: 239 84% 67%;
+  --progress-inactive: 0 0% 100% / 15%;
+
+  /* Surfaces */
+  --bg-base: 0 0% 93%;
+  --bg-surface-1: 0 0% 96%;
+  --bg-surface-2: 0 0% 89%;
+  --bg-elevated: 0 0% 98%;
+  --bg-subtle-accent: 213 10% 92%;
+  --bg-dark: 213 96% 9%;
+  --bg-darkest: 213 96% 6%;
+
+  /* Text */
+  --text-primary: 213 96% 9%;
+  --text-secondary: 213 40% 30%;
+  --text-tertiary: 213 20% 50%;
+  --text-on-dark: 240 20% 95%;
+  --text-on-dark-muted: 240 10% 70%;
+
+  /* Accents */
+  --accent-primary: 239 84% 67%;
+  --accent-primary-hover: 244 80% 58%;
+  --accent-primary-light: 234 89% 74%;
+  --accent-warm: 43 96% 56%;
+  --accent-success: 160 84% 39%;
+
+  --border-default: 0 0% 82%;
+  --border-subtle: 0 0% 87%;
+
+  /* Gradientes (preservados pra compat com componentes Nina Talks) */
+  --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(213 96% 9%));
+  --gradient-surface: linear-gradient(180deg, hsl(0 0% 98%), hsl(0 0% 93%));
+  --gradient-glow: radial-gradient(1200px circle at 50% -10%, hsl(239 84% 67% / 0.12), transparent 60%);
+
+  --shadow-glow: 0 0 0 1px hsl(239 84% 67% / 0.15), 0 12px 40px -12px hsl(239 84% 67% / 0.4);
+  --shadow-elegant: 0 10px 30px -12px hsl(213 96% 9% / 0.18);
+
+  --glass-bg: hsl(0 0% 100% / 60%);
+  --glass-border: hsl(213 96% 9% / 8%);
+}
+
+/*
+ * DARK MODE (opcional) — toggle via .dark no <html>.
+ */
+.dark {
+  --background: 220 20% 8%;
+  --foreground: 210 20% 92%;
+
+  --card: 220 18% 11%;
+  --card-foreground: 210 20% 92%;
+
+  --popover: 220 18% 11%;
+  --popover-foreground: 210 20% 92%;
+
+  --primary: 210 60% 70%;
+  --primary-foreground: 220 20% 8%;
+
+  --secondary: 220 16% 15%;
+  --secondary-foreground: 210 20% 92%;
+
+  --muted: 220 16% 15%;
+  --muted-foreground: 210 10% 55%;
+
+  --accent: 210 60% 70%;
+  --accent-foreground: 220 20% 8%;
+
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 220 14% 20%;
+  --input: 220 14% 20%;
+  --ring: 210 60% 70%;
+
+  --sidebar-background: 220 20% 6%;
+  --sidebar-foreground: 210 10% 55%;
+  --sidebar-primary: 210 60% 70%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 220 16% 15%;
+  --sidebar-accent-foreground: 210 20% 92%;
+  --sidebar-border: 220 14% 20%;
+  --sidebar-ring: 210 60% 70%;
+
+  --bg-base: 220 20% 8%;
+  --bg-surface-1: 220 18% 11%;
+  --bg-surface-2: 220 16% 15%;
+  --bg-elevated: 220 18% 13%;
+  --bg-subtle-accent: 220 20% 15%;
+  --bg-dark: 220 20% 6%;
+  --bg-darkest: 220 22% 4%;
+
+  --text-primary: 210 20% 92%;
+  --text-secondary: 210 10% 55%;
+  --text-tertiary: 210 8% 42%;
+  --text-on-dark: 210 20% 92%;
+  --text-on-dark-muted: 210 10% 55%;
+
+  --accent-primary: 210 60% 70%;
+  --accent-primary-hover: 210 60% 78%;
+  --accent-primary-light: 210 50% 80%;
+  --accent-warm: 43 96% 65%;
+  --accent-success: 160 84% 45%;
+
+  --border-default: 220 14% 20%;
+  --border-subtle: 220 12% 16%;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: light;
+    background-color: var(--color-background);
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: hsl(239 84% 67% / 0.3);
+    color: hsl(213 96% 9%);
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .glass {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid var(--glass-border);
+  }
+
+  .bg-gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+
+  .bg-gradient-surface {
+    background-image: var(--gradient-surface);
+  }
+
+  .text-gradient-primary {
+    background-image: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .shadow-elegant {
+    box-shadow: var(--shadow-elegant);
+  }
+
+  .shadow-accent-glow {
+    box-shadow: var(--shadow-accent-glow);
+  }
+
+  .shadow-accent-glow-lg {
+    box-shadow: var(--shadow-accent-glow-lg);
+  }
+
+  /* Typography scale */
+  .text-section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    color: var(--color-muted-foreground);
+  }
+
+  .text-body-secondary {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .text-body-primary {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .text-metric {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+}
+
+/* ══════════════════════════════════════
+   Keyframes & Animations
+   ══════════════════════════════════════ */
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(120px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.confetti-card::before,
+.confetti-card::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  opacity: 0;
+  pointer-events: none;
+  animation: confetti-fall 3s ease-in-out infinite;
+}
+.confetti-card::before {
+  left: 25%;
+  background: hsl(43, 96%, 56%);
+  animation-delay: 0s;
+}
+.confetti-card::after {
+  left: 65%;
+  background: hsl(43, 96%, 70%);
+  animation-delay: 1.5s;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+@keyframes neon-pulse-indigo {
+  0%,
+  100% {
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.15), 0 0 24px rgba(99, 102, 241, 0.06);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.3), 0 0 36px rgba(99, 102, 241, 0.12);
+  }
+}
+
+@keyframes neon-pulse-emerald {
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.1), 0 0 20px rgba(16, 185, 129, 0.04);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.2), 0 0 28px rgba(16, 185, 129, 0.08);
+  }
+}
+
+@keyframes neon-border-travel {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
+/* ══════════════════════════════════════
+   LP Component Classes
+   ══════════════════════════════════════ */
+
+@layer components {
+  .lp-section-light {
+    background-color: hsl(0 0% 93%);
+    color: hsl(213 90% 9%);
+  }
+  .lp-section-light h2,
+  .lp-section-light h3,
+  .lp-section-light h4 {
+    color: hsl(213 90% 9%);
+  }
+  .lp-section-light p,
+  .lp-section-light .text-muted-foreground {
+    color: hsl(213 30% 40%);
+  }
+
+  .lp-section-dark {
+    background-color: hsl(214 93% 6%);
+    color: hsl(240 20% 95%);
+  }
+
+  .lp-solid-card {
+    background: hsl(0 0% 100%);
+    border: 1px solid hsl(0 0% 88%);
+    border-radius: 0.75rem;
+  }
+
+  .lp-solid-card-dark {
+    background: hsl(213 70% 11%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.75rem;
+  }
+
+  .lp-glass-card {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+  }
+
+  .lp-header-scrolled {
+    background: rgba(2, 22, 42, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .lp-btn-primary-indigo {
+    font-weight: 600;
+    padding: 1rem 2rem;
+    border-radius: 0.75rem;
+    transition: all 0.2s ease;
+    background-color: hsl(239 84% 67%);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lp-btn-primary-indigo:hover {
+    filter: brightness(1.1);
+  }
+
+  .lp-btn-ghost-clean {
+    font-weight: 600;
+    padding: 1rem 2rem;
+    border-radius: 0.75rem;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lp-btn-ghost-clean:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .lp-section-spacing {
+    padding-top: 6rem;
+    padding-bottom: 6rem;
+  }
+  @media (min-width: 1024px) {
+    .lp-section-spacing {
+      padding-top: 8rem;
+      padding-bottom: 8rem;
+    }
+  }
+}

@@ -1,0 +1,1 @@
+UPDATE public.phone_numbers SET enabled = true, outbound_enabled = true WHERE NOT (enabled AND outbound_enabled);

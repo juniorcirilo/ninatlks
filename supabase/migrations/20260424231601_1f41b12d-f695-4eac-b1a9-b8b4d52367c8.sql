@@ -1,0 +1,1 @@
+alter type public.arrangement_status add value if not exists 'pendente_aprovacao' before 'pendente';
