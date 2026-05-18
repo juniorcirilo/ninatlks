@@ -2,7 +2,8 @@
 // Auto-refresh 10s + realtime listener em agent_handoffs pra pulsar a feed.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Activity, Inbox, Clock, AlarmClock, ArrowRightLeft, CalendarCheck,
@@ -33,31 +34,21 @@ const REFRESH_MS = 10_000;
 
 function MissionControlPage() {
   const { accountId } = useAccount();
+  const queryClient = useQueryClient();
   const fn = useServerFn(getMissionControlSnapshot);
-  const [snap, setSnap] = useState<MissionControlSnapshot | null>(null);
-  const [loading, setLoading] = useState(true);
   const [pulse, setPulse] = useState(false);
 
-  const refresh = useCallback(async () => {
-    if (!accountId) return;
-    try {
-      const next = await fn({ data: { accountId } });
-      setSnap(next);
-    } catch {
-      // mantém estado anterior em caso de falha transitória
-    } finally {
-      setLoading(false);
-    }
-  }, [accountId, fn]);
+  const queryKey = ["mission-control", accountId] as const;
+  const { data: snap, isLoading } = useQuery({
+    queryKey,
+    queryFn: () => fn({ data: { accountId: accountId! } }) as Promise<MissionControlSnapshot>,
+    enabled: !!accountId,
+    refetchInterval: REFRESH_MS,
+    staleTime: REFRESH_MS,
+  });
+  const loading = isLoading && !snap;
 
-  useEffect(() => {
-    if (!accountId) return;
-    refresh();
-    const t = setInterval(refresh, REFRESH_MS);
-    return () => clearInterval(t);
-  }, [accountId, refresh]);
-
-  // Realtime — pulsa o badge "ao vivo" e dispara refresh quando aparecer handoff
+  // Realtime — pulsa o badge "ao vivo" e invalida cache quando aparecer handoff
   useEffect(() => {
     if (!accountId) return;
     const ch = supabase
@@ -67,13 +58,13 @@ function MissionControlPage() {
         { event: "INSERT", schema: "public", table: "agent_handoffs", filter: `account_id=eq.${accountId}` },
         () => {
           setPulse(true);
-          refresh();
+          queryClient.invalidateQueries({ queryKey });
           setTimeout(() => setPulse(false), 1200);
         },
       )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [accountId, refresh]);
+  }, [accountId, queryClient, queryKey]);
 
   return (
     <div className="space-y-6">
