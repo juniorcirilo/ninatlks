@@ -12,16 +12,20 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash-lite";
 
-const ROUTE_VALUES = ["bruno", "ana", "carla", "human"] as const;
+const ROUTE_VALUES = ["bruno", "ana", "carla", "clara", "diego", "elena", "felipe", "human"] as const;
 type Route = (typeof ROUTE_VALUES)[number];
 
 const SYSTEM = `Você é o **Supervisor** da Nexus. Sua ÚNICA função é decidir, em UMA palavra, qual agente atende a mensagem do cliente.
 
 OPÇÕES:
-- "bruno"  → cliente pergunta sobre preço, orçamento, vidro, ferragem, medidas, m², ferragens, kit box.
-- "ana"    → cliente é novo (não comprou ainda), pergunta sobre o produto/empresa, demonstração, quer marcar reunião, qualificação.
-- "carla"  → cliente já comprou ou já teve reunião, dá feedback, reclama, pede status de pedido, pós-venda.
-- "human"  → cliente está irritado, pede explicitamente humano, ameaça processo, ou caso fora dos escopos acima.
+- "bruno"   → preço, orçamento, vidro, ferragem, medidas, m², kit box, PDF de proposta.
+- "ana"     → lead novo, qualificação, agendar demo/reunião comercial.
+- "carla"   → pós-venda geral, CSAT, retenção, feedback após compra.
+- "clara"   → problema técnico, defeito, instalação com falha, troubleshooting.
+- "diego"   → boleto, 2ª via, atraso de pagamento, negociar parcelamento.
+- "elena"   → cliente quer receber novidades, conteúdo, campanha, reativação.
+- "felipe"  → combinar data/horário de entrega ou instalação, endereço.
+- "human"   → cliente irritado, ameaça, fora dos escopos acima, ou pede humano.
 
 REGRAS:
 - Responda APENAS com JSON: { "route": "<um dos valores>", "confidence": 0.0-1.0, "reason": "frase curta" }
