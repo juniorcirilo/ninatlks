@@ -147,6 +147,71 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_handoffs: {
+        Row: {
+          account_id: string
+          context: Json
+          conversation_id: string
+          created_at: string
+          from_persona_id: string | null
+          id: string
+          reason: string
+          to_human_user_id: string | null
+          to_persona_id: string | null
+        }
+        Insert: {
+          account_id: string
+          context?: Json
+          conversation_id: string
+          created_at?: string
+          from_persona_id?: string | null
+          id?: string
+          reason: string
+          to_human_user_id?: string | null
+          to_persona_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          context?: Json
+          conversation_id?: string
+          created_at?: string
+          from_persona_id?: string | null
+          id?: string
+          reason?: string
+          to_human_user_id?: string | null
+          to_persona_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_handoffs_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_handoffs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_handoffs_from_persona_id_fkey"
+            columns: ["from_persona_id"]
+            isOneToOne: false
+            referencedRelation: "agent_personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_handoffs_to_persona_id_fkey"
+            columns: ["to_persona_id"]
+            isOneToOne: false
+            referencedRelation: "agent_personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_persona_deployments: {
         Row: {
           account_id: string
@@ -369,6 +434,69 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_roles: {
+        Row: {
+          account_id: string
+          allowed_tools: string[]
+          created_at: string
+          daily_message_budget: number
+          description: string | null
+          display_name: string
+          enabled: boolean
+          handoff_rules: Json
+          handoff_targets: string[]
+          id: string
+          kind: Database["public"]["Enums"]["agent_role_kind"]
+          persona_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          allowed_tools?: string[]
+          created_at?: string
+          daily_message_budget?: number
+          description?: string | null
+          display_name: string
+          enabled?: boolean
+          handoff_rules?: Json
+          handoff_targets?: string[]
+          id?: string
+          kind: Database["public"]["Enums"]["agent_role_kind"]
+          persona_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          allowed_tools?: string[]
+          created_at?: string
+          daily_message_budget?: number
+          description?: string | null
+          display_name?: string
+          enabled?: boolean
+          handoff_rules?: Json
+          handoff_targets?: string[]
+          id?: string
+          kind?: Database["public"]["Enums"]["agent_role_kind"]
+          persona_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_roles_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_roles_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: true
+            referencedRelation: "agent_personas"
             referencedColumns: ["id"]
           },
         ]
@@ -2451,6 +2579,118 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      glass_fittings: {
+        Row: {
+          account_id: string
+          active: boolean
+          category: string
+          compatible_thickness_mm: number[]
+          created_at: string
+          finish: string | null
+          id: string
+          name: string
+          price: number
+          sku: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          active?: boolean
+          category: string
+          compatible_thickness_mm?: number[]
+          created_at?: string
+          finish?: string | null
+          id?: string
+          name: string
+          price: number
+          sku: string
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          active?: boolean
+          category?: string
+          compatible_thickness_mm?: number[]
+          created_at?: string
+          finish?: string | null
+          id?: string
+          name?: string
+          price?: number
+          sku?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "glass_fittings_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      glass_types: {
+        Row: {
+          account_id: string
+          active: boolean
+          category: string
+          color: string
+          created_at: string
+          id: string
+          min_m2_per_piece: number
+          name: string
+          nbr_reference: string | null
+          notes: string | null
+          price_per_m2: number
+          sku: string
+          thickness_mm: number
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          active?: boolean
+          category: string
+          color?: string
+          created_at?: string
+          id?: string
+          min_m2_per_piece?: number
+          name: string
+          nbr_reference?: string | null
+          notes?: string | null
+          price_per_m2: number
+          sku: string
+          thickness_mm: number
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          active?: boolean
+          category?: string
+          color?: string
+          created_at?: string
+          id?: string
+          min_m2_per_piece?: number
+          name?: string
+          nbr_reference?: string | null
+          notes?: string | null
+          price_per_m2?: number
+          sku?: string
+          thickness_mm?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "glass_types_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -5001,6 +5241,12 @@ export type Database = {
     }
     Enums: {
       account_status: "active" | "suspended" | "archived"
+      agent_role_kind:
+        | "sdr"
+        | "orcamentista"
+        | "suporte"
+        | "cobranca"
+        | "concierge"
       app_role: "admin" | "agent"
       channel_type:
         | "web_widget"
@@ -5159,6 +5405,13 @@ export const Constants = {
   public: {
     Enums: {
       account_status: ["active", "suspended", "archived"],
+      agent_role_kind: [
+        "sdr",
+        "orcamentista",
+        "suporte",
+        "cobranca",
+        "concierge",
+      ],
       app_role: ["admin", "agent"],
       channel_type: [
         "web_widget",
