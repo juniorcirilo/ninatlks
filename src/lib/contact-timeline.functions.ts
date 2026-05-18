@@ -78,11 +78,6 @@ export const getContactTimeline = createServerFn({ method: "GET" })
         .eq("contact_id", contactId)
         .order("starts_at", { ascending: false })
         .limit(20),
-      supabase
-        .from("live_takeovers")
-        .select("id, conversation_id, user_id, started_at, ended_at, reason")
-        .order("started_at", { ascending: false })
-        .limit(30),
     ]);
 
     if (convsRes.error) throw new Error(convsRes.error.message);
