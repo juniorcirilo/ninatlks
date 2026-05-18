@@ -4938,7 +4938,17 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_conversation_timeline: {
+        Row: {
+          account_id: string | null
+          conversation_id: string | null
+          item_id: string | null
+          kind: string | null
+          occurred_at: string | null
+          payload: Json | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       availability_compute_slots: {
