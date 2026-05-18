@@ -78,7 +78,12 @@ interface QuoteLine {
 
 async function execCalculateQuote(
   accountId: string,
-  args: { glasses: QuoteLine[]; fittings: QuoteLine[]; global_margin_pct?: number },
+  args: {
+    glasses: QuoteLine[];
+    fittings: QuoteLine[];
+    global_margin_pct?: number;
+    usage_type?: GlassUsage;
+  },
 ) {
   const skus = [...args.glasses.map((g) => g.sku), ...args.fittings.map((f) => f.sku)];
   if (skus.length === 0) return { error: "lista vazia" };
@@ -86,7 +91,7 @@ async function execCalculateQuote(
   const [{ data: gs }, { data: fs }] = await Promise.all([
     supabaseAdmin
       .from("glass_types")
-      .select("sku, name, price_per_m2, min_m2_per_piece")
+      .select("sku, name, category, thickness_mm, price_per_m2, min_m2_per_piece")
       .eq("account_id", accountId)
       .in("sku", args.glasses.map((g) => g.sku)),
     supabaseAdmin
@@ -95,6 +100,22 @@ async function execCalculateQuote(
       .eq("account_id", accountId)
       .in("sku", args.fittings.map((f) => f.sku)),
   ]);
+
+  // NBR 7199 / 14207 enforcement
+  const usage = args.usage_type ?? "outro";
+  const glassMeta = args.glasses.map((g) => {
+    const ref = (gs ?? []).find((x) => x.sku === g.sku);
+    return { sku: g.sku, category: ref?.category, thickness_mm: ref?.thickness_mm };
+  });
+  const nbr = validateNbr({ usage, glasses: glassMeta });
+  if (!nbr.ok) {
+    return {
+      error: "violação de norma técnica",
+      blockers: nbr.blockers,
+      warnings: nbr.warnings,
+      usage_type: usage,
+    };
+  }
 
   const items: Array<{ sku: string; name: string; qty: number; unit_price: number; subtotal: number; kind: string }> = [];
   let subtotal = 0;
@@ -123,7 +144,42 @@ async function execCalculateQuote(
     subtotal: Number(subtotal.toFixed(2)),
     margin_pct: margin,
     total: Number(total.toFixed(2)),
+    usage_type: usage,
+    nbr_warnings: nbr.warnings,
   };
+}
+
+async function execGenerateQuotePdf(
+  accountId: string,
+  args: {
+    customer_name?: string;
+    project_description?: string;
+    items: Array<{ sku: string; name: string; qty: number; unit_price: number; subtotal: number; kind: string }>;
+    subtotal: number;
+    margin_pct: number;
+    total: number;
+    nbr_notes?: string[];
+    validity_days?: number;
+  },
+) {
+  if (!args.items?.length) return { error: "sem itens para PDF" };
+  try {
+    const buf = await generateQuotePdfBuffer({
+      accountId,
+      customerName: args.customer_name,
+      projectDescription: args.project_description,
+      items: args.items,
+      subtotal: args.subtotal,
+      marginPct: args.margin_pct,
+      total: args.total,
+      nbrNotes: args.nbr_notes,
+      validityDays: args.validity_days,
+    });
+    const { path, signedUrl } = await uploadQuotePdf(accountId, buf);
+    return { ok: true, path, url: signedUrl, expires_in_hours: 24 * 7 };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 async function execRequestHandoff(
