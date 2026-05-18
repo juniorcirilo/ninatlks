@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
   Phone,
@@ -64,9 +65,7 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
 
 function PipelinePage() {
   const { accountId } = useAccount();
-  const [data, setData] = useState<Pipeline | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [selectedLead, setSelectedLead] = useState<{ lead: LeadCard; stage: Stage } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -76,27 +75,19 @@ function PipelinePage() {
     useSensor(KeyboardSensor),
   );
 
-  const refresh = useCallback(async () => {
-    if (!accountId) {
-      setLoading(false);
-      return;
-    }
-    try {
-      setError(null);
-      const p = await fetchPipeline(accountId);
-      setData(p);
-    } catch (e: any) {
-      setError(e?.message ?? "falha ao carregar pipeline");
-    } finally {
-      setLoading(false);
-    }
-  }, [accountId]);
+  const queryKey = useMemo(() => ["pipeline", accountId] as const, [accountId]);
+  const { data, isLoading, error: queryError, refetch } = useQuery({
+    queryKey,
+    queryFn: () => fetchPipeline(accountId!),
+    enabled: !!accountId,
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const loading = isLoading && !data;
+  const error = queryError ? (queryError as Error).message : null;
+  const refresh = useCallback(async () => { await refetch(); }, [refetch]);
 
-  // Realtime: atualiza quando a IA muda contatos
+  // Realtime: invalida cache quando a IA muda contatos
   useEffect(() => {
     if (!accountId) return;
     const channel = supabase
@@ -109,13 +100,13 @@ function PipelinePage() {
           table: "contacts",
           filter: `account_id=eq.${accountId}`,
         },
-        () => refresh(),
+        () => queryClient.invalidateQueries({ queryKey }),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [accountId, refresh]);
+  }, [accountId, queryClient, queryKey]);
 
   const totals = useMemo(() => {
     if (!data) return { leads: 0, won: 0, lost: 0, qualified: 0 };
