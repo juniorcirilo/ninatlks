@@ -3,13 +3,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Json } from "@/integrations/supabase/types";
 
 export interface TimelineItem {
   item_id: string;
   conversation_id: string | null;
   kind: "message" | "voice_call" | "meeting" | "handoff";
   occurred_at: string;
-  payload: Record<string, string | number | boolean | null | Record<string, unknown>>;
+  payload: Json;
 }
 
 export const getConversationTimeline = createServerFn({ method: "POST" })
