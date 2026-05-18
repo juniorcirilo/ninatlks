@@ -74,6 +74,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/admin-registro", label: "Registro", icon: ShieldAlert },
       { to: "/admin-filas", label: "Filas", icon: ListChecks, adminOnly: true },
       { to: "/settings", label: "Configurações", icon: Settings },
+      { to: "/tutorial", label: "Tutorial", icon: BookOpen },
     ],
   },
 ];
