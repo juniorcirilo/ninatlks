@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Phone, PhoneIncoming, PhoneOutgoing, Loader2, Radio, RefreshCw,
   Mic, User as UserIcon, History, Bot,
@@ -51,8 +52,7 @@ function timeAgo(iso: string | null): string {
 
 function LiveCallsPage() {
   const { accountId } = useAccount();
-  const [calls, setCalls] = useState<VoiceCall[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newCallOpen, setNewCallOpen] = useState(false);
   const [, setTick] = useState(0);
@@ -63,21 +63,16 @@ function LiveCallsPage() {
     return () => clearInterval(t);
   }, []);
 
-  const refresh = useCallback(async () => {
-    if (!accountId) return;
-    try {
-      const rows = await fetchVoiceCalls(accountId, 50);
-      setCalls(rows);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Falha ao carregar chamadas");
-    } finally {
-      setLoading(false);
-    }
-  }, [accountId]);
+  const queryKey = useMemo(() => ["voice-calls", accountId] as const, [accountId]);
+  const { data: calls = [], isLoading } = useQuery({
+    queryKey,
+    queryFn: () => fetchVoiceCalls(accountId!, 50),
+    enabled: !!accountId,
+    staleTime: 15_000,
+  });
+  const loading = isLoading && calls.length === 0;
 
-  useEffect(() => { refresh(); }, [refresh]);
-
-  // Realtime: subscribe to all voice_calls changes for this account.
+  // Realtime: subscribe to voice_calls changes and patch the cache in place.
   useEffect(() => {
     if (!accountId) return;
     const channel = supabase
@@ -86,14 +81,15 @@ function LiveCallsPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "voice_calls", filter: `account_id=eq.${accountId}` },
         (payload) => {
-          setCalls((prev) => {
+          queryClient.setQueryData<VoiceCall[]>(queryKey, (prev) => {
+            const list = prev ?? [];
             if (payload.eventType === "DELETE") {
-              return prev.filter((c) => c.id !== (payload.old as any).id);
+              return list.filter((c) => c.id !== (payload.old as any).id);
             }
             const next = payload.new as VoiceCall;
-            const idx = prev.findIndex((c) => c.id === next.id);
-            if (idx === -1) return [next, ...prev].slice(0, 50);
-            const out = [...prev];
+            const idx = list.findIndex((c) => c.id === next.id);
+            if (idx === -1) return [next, ...list].slice(0, 50);
+            const out = [...list];
             out[idx] = next;
             return out;
           });
@@ -101,7 +97,7 @@ function LiveCallsPage() {
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [accountId]);
+  }, [accountId, queryClient, queryKey]);
 
   const activeCalls = useMemo(() => calls.filter(isActive), [calls]);
   const recentCalls = useMemo(() => calls.filter((c) => !isActive(c)).slice(0, 30), [calls]);
@@ -139,7 +135,7 @@ function LiveCallsPage() {
               )}
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={refresh} title="Atualizar">
+          <Button variant="ghost" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey })} title="Atualizar">
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
