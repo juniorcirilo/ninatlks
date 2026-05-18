@@ -373,7 +373,6 @@ function TutorialPage() {
         eyebrow="Ajuda"
         title="Tutorial"
         description="Aprenda o que cada tela faz e como configurar passo a passo. Sem complicação."
-        icon={BookOpen}
       />
 
       <div className="grid gap-6 px-6 py-6 lg:grid-cols-[260px_1fr]">
