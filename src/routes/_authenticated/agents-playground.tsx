@@ -5,7 +5,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Bot, Loader2, SendHorizonal, Wrench, Sparkles } from "lucide-react";
+import { Bot, Loader2, SendHorizonal, Wrench } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
