@@ -163,7 +163,7 @@ function ContactDetailPage() {
             <p className="text-sm text-muted-foreground">Sem conversas ainda.</p>
           ) : (
             <ul className="space-y-2">
-              {data.conversations.map((cv) => (
+              {data.conversations.map((cv: { id: string; inboxName: string | null; channelType: string | null; status: number; lastActivityAt: string; messageCount: number }) => (
                 <li
                   key={cv.id}
                   className="flex items-center justify-between rounded-md border p-2 text-sm"
