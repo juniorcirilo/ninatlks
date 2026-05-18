@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Copy, Check, Loader2, KeyRound, PhoneCall } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Copy, Check, Loader2, KeyRound, PhoneCall, UserPlus, Lock, Mail } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccount } from "@/lib/account-context";
@@ -47,6 +49,7 @@ function SettingsPage() {
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
             <TabsTrigger value="general">Geral</TabsTrigger>
             <TabsTrigger value="dialing">Discagem</TabsTrigger>
+            <TabsTrigger value="account">Conta & Equipe</TabsTrigger>
             <TabsTrigger value="api-keys">Chaves de acesso</TabsTrigger>
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           </TabsList>
@@ -59,6 +62,9 @@ function SettingsPage() {
           <TabsContent value="dialing">
             <DialingTab />
           </TabsContent>
+          <TabsContent value="account">
+            <AccountTab />
+          </TabsContent>
           <TabsContent value="api-keys">
             <ApiKeysTab />
           </TabsContent>
@@ -67,6 +73,164 @@ function SettingsPage() {
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+/* ───────────────── Conta & Equipe ───────────────── */
+
+function AccountTab() {
+  const { user } = useAuth();
+  const { role } = useAccount();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changing, setChanging] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error("A nova senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("As senhas não coincidem.");
+      return;
+    }
+    if (!user?.email) {
+      toast.error("Sessão inválida.");
+      return;
+    }
+    setChanging(true);
+    try {
+      // Reautentica com a senha atual antes de trocar.
+      const { error: signErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (signErr) {
+        toast.error("Senha atual incorreta.");
+        return;
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success("Senha atualizada com sucesso.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } finally {
+      setChanging(false);
+    }
+  };
+
+  const handleSendResetLink = async () => {
+    if (!user?.email) return;
+    setSendingReset(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success(`Enviamos um link de redefinição para ${user.email}.`);
+    } finally {
+      setSendingReset(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card title="Alterar minha senha" desc="Informe sua senha atual e a nova senha.">
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Senha atual</label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+              autoComplete="current-password"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Nova senha</label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+              autoComplete="new-password"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Confirmar nova senha</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+              autoComplete="new-password"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleChangePassword}
+            disabled={changing || !currentPassword || !newPassword}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {changing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+            Atualizar senha
+          </button>
+          <button
+            type="button"
+            onClick={handleSendResetLink}
+            disabled={sendingReset}
+            className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border bg-background text-xs font-medium text-foreground hover:bg-white/[0.04] disabled:opacity-50"
+          >
+            {sendingReset ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            Ou enviar link de redefinição para meu e-mail
+          </button>
+        </div>
+      </Card>
+
+      <Card
+        title="Equipe & convites"
+        desc={
+          role === "admin"
+            ? "Convide novos usuários e gerencie permissões do workspace."
+            : "Apenas administradores podem convidar novos usuários."
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 rounded-md border border-border bg-background/50 p-3 text-xs text-muted-foreground">
+            <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
+            <p>
+              Para adicionar um novo usuário à plataforma, gere um link de convite
+              em <strong className="text-foreground">Equipe</strong>. A pessoa cria
+              a própria conta usando o link e já entra com a permissão escolhida
+              (admin ou agent).
+            </p>
+          </div>
+          {role === "admin" ? (
+            <Link
+              to="/equipe"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <UserPlus className="h-4 w-4" />
+              Gerenciar equipe e convites
+            </Link>
+          ) : (
+            <div className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
+              Peça a um administrador para te dar acesso ou enviar convites.
+            </div>
+          )}
+        </div>
+      </Card>
     </div>
   );
 }
