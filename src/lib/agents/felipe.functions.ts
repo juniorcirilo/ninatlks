@@ -56,6 +56,7 @@ async function execScheduleDelivery(
     duration_minutes: 90,
     status: "scheduled",
     provider: "manual",
+    provider_event_id: `felipe-${crypto.randomUUID()}`,
     invitee_name: args.invitee_name ?? null,
     invitee_phone: args.invitee_phone ?? null,
     briefing: { kind: args.kind, address: args.address ?? null, source: "felipe" } as never,
