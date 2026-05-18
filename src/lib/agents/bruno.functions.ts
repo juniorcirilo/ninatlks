@@ -419,6 +419,9 @@ export const askBruno = createServerFn({ method: "POST" })
           case "calculate_quote":
             result = await execCalculateQuote(data.accountId, parsed as Parameters<typeof execCalculateQuote>[1]);
             break;
+          case "generate_quote_pdf":
+            result = await execGenerateQuotePdf(data.accountId, parsed as Parameters<typeof execGenerateQuotePdf>[1]);
+            break;
           case "request_handoff":
             result = await execRequestHandoff(
               data.accountId,
