@@ -272,7 +272,8 @@ export const askBruno = createServerFn({ method: "POST" })
       { role: "user", content: data.userMessage },
     ];
 
-    const trace: Array<{ tool: string; args: Record<string, unknown>; result: Record<string, unknown> }> = [];
+    // trace serializável: args/result como JSON strings (TanStack serverFn exige tipos concretos)
+    const trace: Array<{ tool: string; args: string; result: string }> = [];
 
     for (let step = 0; step < MAX_STEPS; step++) {
       const res = await fetch(GATEWAY, {
