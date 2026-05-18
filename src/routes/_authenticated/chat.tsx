@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Phone, PhoneIncoming, PhoneOutgoing, Loader2, Radio, RefreshCw,
@@ -135,7 +135,7 @@ function LiveCallsPage() {
               )}
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={refresh} title="Atualizar">
+          <Button variant="ghost" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey })} title="Atualizar">
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
