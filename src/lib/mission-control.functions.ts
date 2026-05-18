@@ -264,9 +264,12 @@ export const getMissionControlSnapshot = createServerFn({ method: "POST" })
     if (humanIds.length > 0) {
       const { data: humans } = await supabaseAdmin
         .from("profiles")
-        .select("id, full_name")
+        .select("id, name, display_name, email")
         .in("id", humanIds);
-      humanMap = new Map((humans ?? []).map((u) => [u.id as string, (u.full_name as string | null) ?? "Humano"]));
+      humanMap = new Map((humans ?? []).map((u) => [
+        u.id as string,
+        ((u.display_name as string | null) ?? (u.name as string | null) ?? (u.email as string | null) ?? "Humano"),
+      ]));
     }
 
     const recentHandoffs: HandoffEvent[] = recentRaw.map((h) => ({
