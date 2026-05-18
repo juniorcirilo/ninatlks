@@ -9,7 +9,7 @@ export interface TimelineItem {
   conversation_id: string | null;
   kind: "message" | "voice_call" | "meeting" | "handoff";
   occurred_at: string;
-  payload: Record<string, unknown>;
+  payload: Record<string, string | number | boolean | null | Record<string, unknown>>;
 }
 
 export const getConversationTimeline = createServerFn({ method: "POST" })
