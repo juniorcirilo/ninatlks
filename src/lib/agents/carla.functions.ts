@@ -31,19 +31,23 @@ async function execFindMeeting(accountId: string, args: { contact_id: string }) 
 async function execLogCsat(
   accountId: string,
   conversationId: string | null,
-  args: { contact_id?: string; score: number; comment?: string; channel?: string },
+  args: { contact_id?: string; score: number; comment?: string },
 ) {
   if (args.score < 1 || args.score > 5) return { error: "score deve estar entre 1 e 5" };
+  if (!conversationId) {
+    return { ok: true, note: "csat lógico (sem conversation_id)", risk: args.score <= 2 ? "high" : args.score === 3 ? "medium" : "low" };
+  }
   const { data, error } = await supabaseAdmin
     .from("csat_surveys")
     .insert([{
       account_id: accountId,
       contact_id: args.contact_id ?? null,
       conversation_id: conversationId,
-      score: args.score,
-      comment: args.comment ?? null,
-      channel: args.channel ?? "chat",
-      source: "carla",
+      rating: args.score,
+      feedback: args.comment ?? null,
+      handler_type: "agent",
+      status: "answered",
+      answered_at: new Date().toISOString(),
     }])
     .select("id")
     .single();
@@ -62,9 +66,9 @@ async function execLogOutcome(
     .insert([{
       account_id: accountId,
       conversation_id: conversationId,
-      outcome: args.outcome,
-      notes: args.notes ?? null,
-      logged_by: "carla",
+      outcome_type: args.outcome.slice(0, 40),
+      source: "carla",
+      metadata: { notes: args.notes ?? null } as never,
     }]);
   if (error) return { error: error.message };
   return { ok: true };
@@ -182,7 +186,7 @@ export const askCarla = createServerFn({ method: "POST" })
       execute: async (name, args) => {
         switch (name) {
           case "find_recent_meeting": return execFindMeeting(data.accountId, args as { contact_id: string });
-          case "log_csat": return execLogCsat(data.accountId, data.conversationId ?? null, { ...(args as { score: number; comment?: string; channel?: string }), contact_id: (args as { contact_id?: string }).contact_id ?? data.contactId });
+          case "log_csat": return execLogCsat(data.accountId, data.conversationId ?? null, { ...(args as { score: number; comment?: string }), contact_id: (args as { contact_id?: string }).contact_id ?? data.contactId });
           case "log_outcome": return execLogOutcome(data.accountId, data.conversationId ?? null, args as { outcome: string; notes?: string });
           case "request_handoff": return execHandoff(data.accountId, data.conversationId ?? null, personaId, args as { reason: string });
           default: return { error: `tool desconhecida: ${name}` };
@@ -223,7 +227,7 @@ async function ensureCarlaPersona(accountId: string): Promise<string> {
   await supabaseAdmin.from("agent_roles").insert([{
     account_id: accountId,
     persona_id: persona.id,
-    kind: "cs",
+    kind: "suporte",
     display_name: "Carla — Pós-venda",
     description: "Coleta CSAT, identifica risco de churn e escala para humano em casos críticos.",
     allowed_tools: ["find_recent_meeting", "log_csat", "log_outcome", "request_handoff"],

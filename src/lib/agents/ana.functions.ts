@@ -38,18 +38,21 @@ async function execUpsertContact(
   args: { name?: string; phone?: string; email?: string; briefing?: Record<string, unknown> },
 ) {
   if (!args.phone && !args.email) return { error: "informe phone ou email" };
-  const payload: Record<string, unknown> = {
+  const payload = {
     account_id: accountId,
     name: args.name ?? null,
     phone_number: args.phone ?? null,
     email: args.email ?? null,
-    briefing: args.briefing ?? null,
+    briefing: (args.briefing ?? null) as never,
     source: "ana_sdr",
   };
   // tenta upsert por email se existir; senão por phone_number.
-  const conflictKey = args.email ? "account_id,email" : undefined;
-  const query = supabaseAdmin.from("contacts").upsert([payload], conflictKey ? { onConflict: conflictKey } : undefined).select("id, name, phone_number, email").single();
-  const { data, error } = await query;
+  const conflictKey = args.email ? "account_id,email" : "account_id,phone_number";
+  const { data, error } = await supabaseAdmin
+    .from("contacts")
+    .upsert([payload], { onConflict: conflictKey })
+    .select("id, name, phone_number, email")
+    .single();
   if (error) return { error: error.message };
   return { contact: data };
 }
