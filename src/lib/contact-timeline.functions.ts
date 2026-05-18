@@ -159,7 +159,8 @@ export const getContactTimeline = createServerFn({ method: "GET" })
         },
       });
     }
-    }
+
+
 
     items.sort((a, b) => (b.at > a.at ? 1 : -1));
 
