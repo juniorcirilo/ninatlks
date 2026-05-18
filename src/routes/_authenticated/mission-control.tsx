@@ -2,7 +2,7 @@
 // Auto-refresh 10s + realtime listener em agent_handoffs pra pulsar a feed.
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -38,7 +38,7 @@ function MissionControlPage() {
   const fn = useServerFn(getMissionControlSnapshot);
   const [pulse, setPulse] = useState(false);
 
-  const queryKey = ["mission-control", accountId] as const;
+  const queryKey = useMemo(() => ["mission-control", accountId] as const, [accountId]);
   const { data: snap, isLoading } = useQuery({
     queryKey,
     queryFn: () => fn({ data: { accountId: accountId! } }) as Promise<MissionControlSnapshot>,
