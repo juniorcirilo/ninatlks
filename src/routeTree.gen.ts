@@ -26,6 +26,7 @@ import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
 import { Route as AuthenticatedAgentsPlaygroundRouteImport } from './routes/_authenticated/agents-playground'
+import { Route as AuthenticatedAgentsAnalyticsRouteImport } from './routes/_authenticated/agents-analytics'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authenticated/admin-registro'
 import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
@@ -119,6 +120,12 @@ const AuthenticatedAgentsPlaygroundRoute =
     path: '/agents-playground',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAgentsAnalyticsRoute =
+  AuthenticatedAgentsAnalyticsRouteImport.update({
+    id: '/agents-analytics',
+    path: '/agents-analytics',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAgentsRoute = AuthenticatedAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
@@ -164,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/agents': typeof AuthenticatedAgentsRoute
+  '/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/calls': typeof AuthenticatedCallsRoute
   '/chat': typeof AuthenticatedChatRoute
@@ -187,6 +195,7 @@ export interface FileRoutesByTo {
   '/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/agents': typeof AuthenticatedAgentsRoute
+  '/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/calls': typeof AuthenticatedCallsRoute
   '/chat': typeof AuthenticatedChatRoute
@@ -213,6 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/_authenticated/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
+  '/_authenticated/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/_authenticated/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
@@ -240,6 +250,7 @@ export interface FileRouteTypes {
     | '/admin-filas'
     | '/admin-registro'
     | '/agents'
+    | '/agents-analytics'
     | '/agents-playground'
     | '/calls'
     | '/chat'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/admin-filas'
     | '/admin-registro'
     | '/agents'
+    | '/agents-analytics'
     | '/agents-playground'
     | '/calls'
     | '/chat'
@@ -288,6 +300,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin-filas'
     | '/_authenticated/admin-registro'
     | '/_authenticated/agents'
+    | '/_authenticated/agents-analytics'
     | '/_authenticated/agents-playground'
     | '/_authenticated/calls'
     | '/_authenticated/chat'
@@ -436,6 +449,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgentsPlaygroundRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/agents-analytics': {
+      id: '/_authenticated/agents-analytics'
+      path: '/agents-analytics'
+      fullPath: '/agents-analytics'
+      preLoaderRoute: typeof AuthenticatedAgentsAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/agents': {
       id: '/_authenticated/agents'
       path: '/agents'
@@ -498,6 +518,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminFilasRoute: typeof AuthenticatedAdminFilasRoute
   AuthenticatedAdminRegistroRoute: typeof AuthenticatedAdminRegistroRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
+  AuthenticatedAgentsAnalyticsRoute: typeof AuthenticatedAgentsAnalyticsRoute
   AuthenticatedAgentsPlaygroundRoute: typeof AuthenticatedAgentsPlaygroundRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
@@ -515,6 +536,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminFilasRoute: AuthenticatedAdminFilasRoute,
   AuthenticatedAdminRegistroRoute: AuthenticatedAdminRegistroRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
+  AuthenticatedAgentsAnalyticsRoute: AuthenticatedAgentsAnalyticsRoute,
   AuthenticatedAgentsPlaygroundRoute: AuthenticatedAgentsPlaygroundRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
