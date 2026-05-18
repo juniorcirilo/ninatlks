@@ -59,7 +59,7 @@ export const getContactTimeline = createServerFn({ method: "GET" })
     if (cErr) throw new Error(cErr.message);
     if (!contact) throw new Error("Contato não encontrado");
 
-    const [convsRes, callsRes, meetingsRes, takeoversRes] = await Promise.all([
+    const [convsRes, callsRes, meetingsRes] = await Promise.all([
       supabase
         .from("conversations")
         .select("id, inbox_id, status, last_activity_at, inboxes(name, channel_type)")
