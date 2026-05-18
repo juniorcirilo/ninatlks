@@ -28,6 +28,7 @@ import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authenticated/admin-registro'
 import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
+import { Route as AuthenticatedContactsContactIdRouteImport } from './routes/_authenticated/contacts.$contactId'
 import { Route as ApiPublicHooksVoiceCallsFinalizePendingRouteImport } from './routes/api/public/hooks/voice-calls-finalize-pending'
 
 const TermsRoute = TermsRouteImport.update({
@@ -126,6 +127,12 @@ const AuthenticatedAdminFilasRoute = AuthenticatedAdminFilasRouteImport.update({
   path: '/admin-filas',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedContactsContactIdRoute =
+  AuthenticatedContactsContactIdRouteImport.update({
+    id: '/$contactId',
+    path: '/$contactId',
+    getParentRoute: () => AuthenticatedContactsRoute,
+  } as any)
 const ApiPublicHooksVoiceCallsFinalizePendingRoute =
   ApiPublicHooksVoiceCallsFinalizePendingRouteImport.update({
     id: '/api/public/hooks/voice-calls-finalize-pending',
@@ -145,13 +152,14 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AuthenticatedAgentsRoute
   '/calls': typeof AuthenticatedCallsRoute
   '/chat': typeof AuthenticatedChatRoute
-  '/contacts': typeof AuthenticatedContactsRoute
+  '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
 export interface FileRoutesByTo {
@@ -165,7 +173,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AuthenticatedAgentsRoute
   '/calls': typeof AuthenticatedCallsRoute
   '/chat': typeof AuthenticatedChatRoute
-  '/contacts': typeof AuthenticatedContactsRoute
+  '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -173,6 +181,7 @@ export interface FileRoutesByTo {
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/': typeof AuthenticatedIndexRoute
+  '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
 export interface FileRoutesById {
@@ -188,7 +197,7 @@ export interface FileRoutesById {
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
-  '/_authenticated/contacts': typeof AuthenticatedContactsRoute
+  '/_authenticated/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -196,6 +205,7 @@ export interface FileRoutesById {
   '/_authenticated/reunioes': typeof AuthenticatedReunioesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
 export interface FileRouteTypes {
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/reunioes'
     | '/settings'
+    | '/contacts/$contactId'
     | '/api/public/hooks/voice-calls-finalize-pending'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/reunioes'
     | '/settings'
     | '/'
+    | '/contacts/$contactId'
     | '/api/public/hooks/voice-calls-finalize-pending'
   id:
     | '__root__'
@@ -262,6 +274,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reunioes'
     | '/_authenticated/settings'
     | '/_authenticated/'
+    | '/_authenticated/contacts/$contactId'
     | '/api/public/hooks/voice-calls-finalize-pending'
   fileRoutesById: FileRoutesById
 }
@@ -410,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFilasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/contacts/$contactId': {
+      id: '/_authenticated/contacts/$contactId'
+      path: '/$contactId'
+      fullPath: '/contacts/$contactId'
+      preLoaderRoute: typeof AuthenticatedContactsContactIdRouteImport
+      parentRoute: typeof AuthenticatedContactsRoute
+    }
     '/api/public/hooks/voice-calls-finalize-pending': {
       id: '/api/public/hooks/voice-calls-finalize-pending'
       path: '/api/public/hooks/voice-calls-finalize-pending'
@@ -420,13 +440,26 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedContactsRouteChildren {
+  AuthenticatedContactsContactIdRoute: typeof AuthenticatedContactsContactIdRoute
+}
+
+const AuthenticatedContactsRouteChildren: AuthenticatedContactsRouteChildren = {
+  AuthenticatedContactsContactIdRoute: AuthenticatedContactsContactIdRoute,
+}
+
+const AuthenticatedContactsRouteWithChildren =
+  AuthenticatedContactsRoute._addFileChildren(
+    AuthenticatedContactsRouteChildren,
+  )
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminFilasRoute: typeof AuthenticatedAdminFilasRoute
   AuthenticatedAdminRegistroRoute: typeof AuthenticatedAdminRegistroRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
-  AuthenticatedContactsRoute: typeof AuthenticatedContactsRoute
+  AuthenticatedContactsRoute: typeof AuthenticatedContactsRouteWithChildren
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
@@ -442,7 +475,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
-  AuthenticatedContactsRoute: AuthenticatedContactsRoute,
+  AuthenticatedContactsRoute: AuthenticatedContactsRouteWithChildren,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
