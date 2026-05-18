@@ -65,7 +65,7 @@ function ContactDetailPage() {
 
   const [filter, setFilter] = useState<"all" | TimelineItem["kind"]>("all");
   const filtered = useMemo(
-    () => (data?.items ?? []).filter((i) => filter === "all" || i.kind === filter),
+    () => (data?.items ?? []).filter((i: TimelineItem) => filter === "all" || i.kind === filter),
     [data, filter],
   );
 
