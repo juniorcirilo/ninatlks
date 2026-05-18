@@ -30,6 +30,7 @@ import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
 import { Route as AuthenticatedContactsContactIdRouteImport } from './routes/_authenticated/contacts.$contactId'
 import { Route as ApiPublicHooksVoiceCallsFinalizePendingRouteImport } from './routes/api/public/hooks/voice-calls-finalize-pending'
+import { Route as ApiPublicHooksResendInboundRouteImport } from './routes/api/public/hooks/resend-inbound'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -139,6 +140,12 @@ const ApiPublicHooksVoiceCallsFinalizePendingRoute =
     path: '/api/public/hooks/voice-calls-finalize-pending',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksResendInboundRoute =
+  ApiPublicHooksResendInboundRouteImport.update({
+    id: '/api/public/hooks/resend-inbound',
+    path: '/api/public/hooks/resend-inbound',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
 export interface FileRoutesByTo {
@@ -182,6 +190,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/': typeof AuthenticatedIndexRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
 export interface FileRoutesById {
@@ -206,6 +215,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
 export interface FileRouteTypes {
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/reunioes'
     | '/settings'
     | '/contacts/$contactId'
+    | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/'
     | '/contacts/$contactId'
+    | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   id:
     | '__root__'
@@ -275,6 +287,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/'
     | '/_authenticated/contacts/$contactId'
+    | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   fileRoutesById: FileRoutesById
 }
@@ -285,6 +298,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   TermsRoute: typeof TermsRoute
+  ApiPublicHooksResendInboundRoute: typeof ApiPublicHooksResendInboundRoute
   ApiPublicHooksVoiceCallsFinalizePendingRoute: typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
 
@@ -437,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksVoiceCallsFinalizePendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/resend-inbound': {
+      id: '/api/public/hooks/resend-inbound'
+      path: '/api/public/hooks/resend-inbound'
+      fullPath: '/api/public/hooks/resend-inbound'
+      preLoaderRoute: typeof ApiPublicHooksResendInboundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -496,6 +517,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   TermsRoute: TermsRoute,
+  ApiPublicHooksResendInboundRoute: ApiPublicHooksResendInboundRoute,
   ApiPublicHooksVoiceCallsFinalizePendingRoute:
     ApiPublicHooksVoiceCallsFinalizePendingRoute,
 }
