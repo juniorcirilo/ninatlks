@@ -32,7 +32,7 @@ export const Route = createFileRoute("/_authenticated/agents-playground")({
 type Msg = { role: "user" | "assistant"; content: string; trace?: Array<{ tool: string; args: string; result: string }> };
 
 function PlaygroundPage() {
-  const { account } = useAccount();
+  const { accountId } = useAccount();
   const fnList = useServerFn(listAgents);
   const fnBruno = useServerFn(askBruno);
   const fnAna = useServerFn(askAna);
@@ -45,9 +45,9 @@ function PlaygroundPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!account?.id) return;
-    fnList({ data: { accountId: account.id } }).then((r) => setAgents(r.agents)).catch(() => void 0);
-  }, [account?.id, fnList]);
+    if (!accountId) return;
+    fnList({ data: { accountId } }).then((r) => setAgents(r.agents)).catch(() => void 0);
+  }, [accountId, fnList]);
 
   useEffect(() => {
     const a = agents.find((x) => x.key === active);
@@ -55,7 +55,7 @@ function PlaygroundPage() {
   }, [active, agents]);
 
   async function send() {
-    if (!account?.id || !input.trim() || busy) return;
+    if (!accountId || !input.trim() || busy) return;
     const userText = input.trim();
     setInput("");
     const history = messages
@@ -64,7 +64,7 @@ function PlaygroundPage() {
     setMessages((prev) => [...prev, { role: "user", content: userText }]);
     setBusy(true);
     try {
-      const payload = { data: { accountId: account.id, userMessage: userText, history } };
+      const payload = { data: { accountId, userMessage: userText, history } };
       const r = active === "bruno" ? await fnBruno(payload)
         : active === "ana" ? await fnAna(payload)
         : await fnCarla(payload);
@@ -79,9 +79,9 @@ function PlaygroundPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        eyebrow="Funcionários IA"
         title="Playground IA"
         description="Teste os Funcionários IA em tempo real. Veja o que cada agente faz nos bastidores."
-        icon={<Sparkles className="h-5 w-5" />}
       />
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">

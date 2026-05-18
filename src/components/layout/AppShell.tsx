@@ -16,6 +16,7 @@ import {
   CalendarDays,
   ShieldAlert,
   ListChecks,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -57,6 +58,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/reunioes", label: "Reuniões", icon: CalendarDays },
       { to: "/follow-ups", label: "Follow-ups", icon: PhoneCall },
       { to: "/agents", label: "Agentes de voz", icon: Bot },
+      { to: "/agents-playground", label: "Playground IA", icon: Sparkles },
     ],
   },
   {
