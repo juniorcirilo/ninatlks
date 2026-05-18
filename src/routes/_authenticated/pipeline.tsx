@@ -205,7 +205,7 @@ function PipelinePage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-card/40 px-6 py-4 backdrop-blur">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-card px-6 py-4">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Pipeline</h1>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

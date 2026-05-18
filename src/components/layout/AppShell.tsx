@@ -233,7 +233,7 @@ function Topbar() {
   const showDeferred = useDeferredGlobalUi();
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-background/80 px-6 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b border-border bg-background px-6">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
         <span>Conectado</span>
