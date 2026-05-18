@@ -25,6 +25,7 @@ import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
+import { Route as AuthenticatedAgentsPlaygroundRouteImport } from './routes/_authenticated/agents-playground'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authenticated/admin-registro'
 import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
@@ -112,6 +113,12 @@ const AuthenticatedCallsRoute = AuthenticatedCallsRouteImport.update({
   path: '/calls',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAgentsPlaygroundRoute =
+  AuthenticatedAgentsPlaygroundRouteImport.update({
+    id: '/agents-playground',
+    path: '/agents-playground',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAgentsRoute = AuthenticatedAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
@@ -157,6 +164,7 @@ export interface FileRoutesByFullPath {
   '/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/agents': typeof AuthenticatedAgentsRoute
+  '/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/calls': typeof AuthenticatedCallsRoute
   '/chat': typeof AuthenticatedChatRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
@@ -179,6 +187,7 @@ export interface FileRoutesByTo {
   '/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/agents': typeof AuthenticatedAgentsRoute
+  '/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/calls': typeof AuthenticatedCallsRoute
   '/chat': typeof AuthenticatedChatRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
@@ -204,6 +213,7 @@ export interface FileRoutesById {
   '/_authenticated/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/_authenticated/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
+  '/_authenticated/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/contacts': typeof AuthenticatedContactsRouteWithChildren
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/admin-filas'
     | '/admin-registro'
     | '/agents'
+    | '/agents-playground'
     | '/calls'
     | '/chat'
     | '/contacts'
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/admin-filas'
     | '/admin-registro'
     | '/agents'
+    | '/agents-playground'
     | '/calls'
     | '/chat'
     | '/contacts'
@@ -276,6 +288,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin-filas'
     | '/_authenticated/admin-registro'
     | '/_authenticated/agents'
+    | '/_authenticated/agents-playground'
     | '/_authenticated/calls'
     | '/_authenticated/chat'
     | '/_authenticated/contacts'
@@ -416,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCallsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/agents-playground': {
+      id: '/_authenticated/agents-playground'
+      path: '/agents-playground'
+      fullPath: '/agents-playground'
+      preLoaderRoute: typeof AuthenticatedAgentsPlaygroundRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/agents': {
       id: '/_authenticated/agents'
       path: '/agents'
@@ -478,6 +498,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminFilasRoute: typeof AuthenticatedAdminFilasRoute
   AuthenticatedAdminRegistroRoute: typeof AuthenticatedAdminRegistroRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
+  AuthenticatedAgentsPlaygroundRoute: typeof AuthenticatedAgentsPlaygroundRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRouteWithChildren
@@ -494,6 +515,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminFilasRoute: AuthenticatedAdminFilasRoute,
   AuthenticatedAdminRegistroRoute: AuthenticatedAdminRegistroRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
+  AuthenticatedAgentsPlaygroundRoute: AuthenticatedAgentsPlaygroundRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedContactsRoute: AuthenticatedContactsRouteWithChildren,
@@ -524,3 +546,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
