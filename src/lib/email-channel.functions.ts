@@ -67,20 +67,23 @@ export const sendOutboundEmail = createServerFn({ method: "POST" })
 
     const { data: inserted, error: insErr } = await supabase
       .from("messages")
-      .insert({
-        account_id: (conv as { account_id: string }).account_id,
-        conversation_id: data.conversationId,
-        content: data.html,
-        content_type: 4, // outgoing rich text
-        message_type: 1, // outgoing
-        sender_type: "User",
-        sender_id: userId,
-        content_attributes: {
-          kind: "email",
-          subject: data.subject,
-          provider_message_id: body.id ?? null,
+      .insert([
+        {
+          account_id: (conv as { account_id: string }).account_id,
+          conversation_id: data.conversationId,
+          inbox_id: (conv as { inbox_id: string }).inbox_id,
+          content: data.html,
+          content_type: 4,
+          message_type: 1,
+          sender_type: "User",
+          sender_id: userId,
+          content_attributes: {
+            kind: "email",
+            subject: data.subject,
+            provider_message_id: body.id ?? null,
+          },
         },
-      })
+      ])
       .select("id")
       .single();
     if (insErr) throw new Error(insErr.message);
