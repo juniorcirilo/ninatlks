@@ -165,7 +165,7 @@ async function ensureElenaPersona(accountId: string): Promise<string> {
   if (error) throw new Error(`seed Elena: ${error.message}`);
   await supabaseAdmin.from("agent_roles").insert([{
     account_id: accountId, persona_id: persona.id,
-    kind: "marketing",
+    kind: "concierge",
     display_name: "Elena — Marketing",
     description: "Nutre leads, segmenta com tags, inscreve em cadências.",
     allowed_tools: ["list_cadences", "enroll_cadence", "tag_contact", "request_handoff"],

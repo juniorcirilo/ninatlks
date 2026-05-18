@@ -160,7 +160,7 @@ async function ensureClaraPersona(accountId: string): Promise<string> {
   if (error) throw new Error(`seed Clara: ${error.message}`);
   await supabaseAdmin.from("agent_roles").insert([{
     account_id: accountId, persona_id: persona.id,
-    kind: "suporte_tecnico",
+    kind: "suporte",
     display_name: "Clara — Suporte Técnico",
     description: "Diagnostica defeitos pós-instalação e escala para técnico humano.",
     allowed_tools: ["lookup_history", "log_issue", "request_handoff"],

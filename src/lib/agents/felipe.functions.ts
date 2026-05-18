@@ -55,6 +55,7 @@ async function execScheduleDelivery(
     ends_at: ends.toISOString(),
     duration_minutes: 90,
     status: "scheduled",
+    provider: "manual",
     invitee_name: args.invitee_name ?? null,
     invitee_phone: args.invitee_phone ?? null,
     briefing: { kind: args.kind, address: args.address ?? null, source: "felipe" } as never,
@@ -174,7 +175,7 @@ async function ensureFelipePersona(accountId: string): Promise<string> {
   if (error) throw new Error(`seed Felipe: ${error.message}`);
   await supabaseAdmin.from("agent_roles").insert([{
     account_id: accountId, persona_id: persona.id,
-    kind: "logistica",
+    kind: "concierge",
     display_name: "Felipe — Logística",
     description: "Agenda entrega e instalação; escala urgências e cargas especiais.",
     allowed_tools: ["propose_delivery_slots", "schedule_delivery", "request_handoff"],
