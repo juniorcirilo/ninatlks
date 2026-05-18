@@ -336,7 +336,7 @@ export const askBruno = createServerFn({ method: "POST" })
           default:
             result = { error: `tool desconhecida: ${tc.function.name}` };
         }
-        trace.push({ tool: tc.function.name, args: parsed, result });
+        trace.push({ tool: tc.function.name, args: JSON.stringify(parsed), result: JSON.stringify(result) });
         return { tc, result };
       }));
 
