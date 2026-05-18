@@ -120,7 +120,10 @@ export const getContactTimeline = createServerFn({ method: "GET" })
         title: m.sender_type === "Contact" ? "Mensagem recebida" : "Mensagem enviada",
         preview: ((m.content as string | null) ?? "").slice(0, 220),
         conversationId: cid,
-        meta: { messageType: m.message_type, senderType: m.sender_type },
+        meta: {
+          messageType: (m.message_type as number | null) ?? null,
+          senderType: (m.sender_type as string | null) ?? null,
+        },
       });
     }
 
@@ -134,7 +137,10 @@ export const getContactTimeline = createServerFn({ method: "GET" })
         title: `Chamada ${v.direction === "outbound" ? "feita" : "recebida"} · ${v.status}`,
         preview: `${v.duration_seconds ?? 0}s · ${v.from_number} → ${v.to_number}`,
         conversationId: (v.conversation_id as string) ?? null,
-        meta: { duration: v.duration_seconds, status: v.status },
+        meta: {
+          duration: (v.duration_seconds as number | null) ?? null,
+          status: (v.status as string | null) ?? null,
+        },
       });
     }
 
@@ -147,22 +153,12 @@ export const getContactTimeline = createServerFn({ method: "GET" })
         title: `Reunião · ${mt.status}`,
         preview: (mt.title as string) ?? null,
         conversationId: null,
-        meta: { url: mt.meeting_url, provider: mt.provider },
+        meta: {
+          url: (mt.meeting_url as string | null) ?? null,
+          provider: (mt.provider as string | null) ?? null,
+        },
       });
     }
-
-    for (const t of (takeoversRes.data ?? []) as Array<Record<string, unknown>>) {
-      if (!convIds.includes(t.conversation_id as string)) continue;
-      items.push({
-        id: `tk-${t.id}`,
-        kind: "takeover",
-        channel: convChannel.get(t.conversation_id as string)?.channelType ?? "system",
-        at: t.started_at as string,
-        title: t.ended_at ? "Atendimento humano encerrado" : "Atendimento humano iniciado",
-        preview: (t.reason as string | null) ?? null,
-        conversationId: t.conversation_id as string,
-        meta: {},
-      });
     }
 
     items.sort((a, b) => (b.at > a.at ? 1 : -1));
