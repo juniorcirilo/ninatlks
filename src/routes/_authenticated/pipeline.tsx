@@ -162,13 +162,14 @@ function PipelinePage() {
         return s;
       }),
     };
-    setData(next);
+    queryClient.setQueryData(queryKey, next);
 
     try {
       await moveLeadToStage(leadId, targetStageId);
       toast.success("Lead movido");
+      queryClient.invalidateQueries({ queryKey });
     } catch (err: any) {
-      setData(prev);
+      queryClient.setQueryData(queryKey, prev);
       toast.error(err?.message ?? "falha ao mover");
     }
   }
