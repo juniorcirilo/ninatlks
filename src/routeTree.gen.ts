@@ -16,6 +16,7 @@ import { Route as DataDeletionRouteImport } from './routes/data-deletion'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedTutorialRouteImport } from './routes/_authenticated/tutorial'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReunioesRouteImport } from './routes/_authenticated/reunioes'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
@@ -67,6 +68,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTutorialRoute = AuthenticatedTutorialRouteImport.update({
+  id: '/tutorial',
+  path: '/tutorial',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/tutorial': typeof AuthenticatedTutorialRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
@@ -215,6 +222,7 @@ export interface FileRoutesByTo {
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/tutorial': typeof AuthenticatedTutorialRoute
   '/': typeof AuthenticatedIndexRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
@@ -243,6 +251,7 @@ export interface FileRoutesById {
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/reunioes': typeof AuthenticatedReunioesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/tutorial': typeof AuthenticatedTutorialRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
@@ -272,6 +281,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/reunioes'
     | '/settings'
+    | '/tutorial'
     | '/contacts/$contactId'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/reunioes'
     | '/settings'
+    | '/tutorial'
     | '/'
     | '/contacts/$contactId'
     | '/api/public/hooks/resend-inbound'
@@ -324,6 +335,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pipeline'
     | '/_authenticated/reunioes'
     | '/_authenticated/settings'
+    | '/_authenticated/tutorial'
     | '/_authenticated/'
     | '/_authenticated/contacts/$contactId'
     | '/api/public/hooks/resend-inbound'
@@ -390,6 +402,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/tutorial': {
+      id: '/_authenticated/tutorial'
+      path: '/tutorial'
+      fullPath: '/tutorial'
+      preLoaderRoute: typeof AuthenticatedTutorialRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings': {
@@ -550,6 +569,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedReunioesRoute: typeof AuthenticatedReunioesRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedTutorialRoute: typeof AuthenticatedTutorialRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
@@ -569,6 +589,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedReunioesRoute: AuthenticatedReunioesRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedTutorialRoute: AuthenticatedTutorialRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 

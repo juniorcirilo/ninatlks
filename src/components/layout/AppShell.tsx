@@ -19,6 +19,7 @@ import {
   Sparkles,
   BarChart3,
   Gauge,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -73,6 +74,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/admin-registro", label: "Registro", icon: ShieldAlert },
       { to: "/admin-filas", label: "Filas", icon: ListChecks, adminOnly: true },
       { to: "/settings", label: "Configurações", icon: Settings },
+      { to: "/tutorial", label: "Tutorial", icon: BookOpen },
     ],
   },
 ];
