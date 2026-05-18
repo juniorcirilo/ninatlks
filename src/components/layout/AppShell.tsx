@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   ListChecks,
   Sparkles,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -59,6 +60,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/follow-ups", label: "Follow-ups", icon: PhoneCall },
       { to: "/agents", label: "Agentes de voz", icon: Bot },
       { to: "/agents-playground", label: "Playground IA", icon: Sparkles },
+      { to: "/agents-analytics", label: "Analytics IA", icon: BarChart3 },
     ],
   },
   {
