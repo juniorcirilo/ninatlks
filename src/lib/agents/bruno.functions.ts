@@ -241,7 +241,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "calculate_quote",
-      description: "Calcula um orçamento estruturado a partir de itens de vidro (com m²) e ferragens (com quantidade). Aplica margem global percentual.",
+      description: "Calcula um orçamento estruturado a partir de itens de vidro (com m²) e ferragens (com quantidade). Aplica margem global percentual. Valida NBR 7199/14207 conforme o tipo de uso (usage_type).",
       parameters: {
         type: "object",
         properties: {
@@ -254,8 +254,45 @@ const TOOLS = [
             items: { type: "object", properties: { sku: { type: "string" }, qty: { type: "number" } }, required: ["sku", "qty"] },
           },
           global_margin_pct: { type: "number", description: "Margem global em %, ex: 35" },
+          usage_type: {
+            type: "string",
+            enum: ["box", "divisoria_interna", "mesa", "espelho", "fachada", "sacada", "guarda_corpo", "cobertura", "outro"],
+            description: "Aplicação do vidro — usado para validar NBR 7199 (laminado obrigatório em fachada/sacada/guarda-corpo/cobertura) e NBR 14207 (box ≥8mm temperado).",
+          },
         },
         required: ["glasses", "fittings"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_quote_pdf",
+      description: "Gera um PDF do orçamento (após calculate_quote ter aprovado) e devolve uma URL temporária para o cliente. Use APÓS confirmar o cálculo com o cliente.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_name: { type: "string" },
+          project_description: { type: "string", description: "Resumo curto do projeto (ex: 'Box frontal 1.2m x 1.9m incolor 8mm')." },
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                sku: { type: "string" }, name: { type: "string" },
+                qty: { type: "number" }, unit_price: { type: "number" },
+                subtotal: { type: "number" }, kind: { type: "string" },
+              },
+              required: ["sku", "name", "qty", "unit_price", "subtotal", "kind"],
+            },
+          },
+          subtotal: { type: "number" },
+          margin_pct: { type: "number" },
+          total: { type: "number" },
+          nbr_notes: { type: "array", items: { type: "string" }, description: "Observações técnicas (NBR) que apareceram no calculate_quote." },
+          validity_days: { type: "number", description: "Padrão 7." },
+        },
+        required: ["items", "subtotal", "margin_pct", "total"],
       },
     },
   },
@@ -282,11 +319,11 @@ const BRUNO_SYSTEM = `Você é o **Bruno**, orçamentista de vidros da UBVA. Ate
 REGRAS:
 - Sempre responda em português brasileiro, com tom técnico-amigável (você é vidraceiro experiente, não vendedor de telemarketing).
 - NUNCA invente preços ou SKUs. Sempre use a tool \`search_glass\` ou \`list_fittings\` antes de citar valores.
-- Quando o cliente descrever o projeto (ex: "box de banheiro 1,2m x 1,9m"), calcule m² (largura × altura) e use \`calculate_quote\`.
+- Quando o cliente descrever o projeto (ex: "box de banheiro 1,2m x 1,9m"), calcule m² (largura × altura) e use \`calculate_quote\` SEMPRE passando \`usage_type\` (box, fachada, sacada, guarda_corpo, divisoria_interna, mesa, espelho, cobertura, outro). O sistema valida a NBR 7199/14207 e BLOQUEIA o cálculo se a configuração for ilegal.
+- Se \`calculate_quote\` retornar \`error: "violação de norma técnica"\`, releia os \`blockers\`, sugira ao cliente o vidro correto (ex: trocar temperado por laminado em fachada) e refaça o cálculo.
 - Margem padrão da UBVA: 35% sobre o custo. Pode subir até 50% se cliente pedir entrega expressa.
-- Para projetos de fachada, sacada, guarda-corpo: vidro laminado é OBRIGATÓRIO (NBR 7199). Avise o cliente.
-- Vidro temperado é o padrão para box, mesas e divisórias internas.
-- Espessuras mínimas: box 8mm, divisória 10mm, fachada 4+4 laminado.
+- Após o cliente APROVAR o valor, ofereça gerar o PDF e chame \`generate_quote_pdf\` com os mesmos itens — envie a URL retornada na conversa.
+- Espessuras mínimas (referência): box 8mm temperado, divisória interna 10mm, fachada/sacada/guarda-corpo 4+4 laminado.
 - Se o cliente quiser falar com humano OU pedir algo fora do seu escopo (entrega complexa, garantia, projeto especial >R$10k), chame \`request_handoff\` com target="human".
 - Apresente orçamentos em formato claro: itens com qtd × preço, subtotal, margem, total.
 - Não use markdown pesado em respostas curtas; use só em orçamentos formais.`;
