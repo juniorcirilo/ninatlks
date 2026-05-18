@@ -3,7 +3,8 @@
 // Mostra todas as interações (mensagens, chamadas, reuniões) numa única linha
 // do tempo, independente do canal de origem. Permite filtrar por canal/tipo.
 
-import { createFileRoute, Link, useServerFn } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
