@@ -27,6 +27,7 @@ import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/c
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authenticated/admin-registro'
+import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
 import { Route as ApiPublicHooksVoiceCallsFinalizePendingRouteImport } from './routes/api/public/hooks/voice-calls-finalize-pending'
 
 const TermsRoute = TermsRouteImport.update({
@@ -120,6 +121,11 @@ const AuthenticatedAdminRegistroRoute =
     path: '/admin-registro',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminFilasRoute = AuthenticatedAdminFilasRouteImport.update({
+  id: '/admin-filas',
+  path: '/admin-filas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const ApiPublicHooksVoiceCallsFinalizePendingRoute =
   ApiPublicHooksVoiceCallsFinalizePendingRouteImport.update({
     id: '/api/public/hooks/voice-calls-finalize-pending',
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
+  '/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/agents': typeof AuthenticatedAgentsRoute
   '/calls': typeof AuthenticatedCallsRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
+  '/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/agents': typeof AuthenticatedAgentsRoute
   '/calls': typeof AuthenticatedCallsRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/terms': typeof TermsRoute
+  '/_authenticated/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/_authenticated/admin-registro': typeof AuthenticatedAdminRegistroRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
@@ -198,6 +207,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/terms'
+    | '/admin-filas'
     | '/admin-registro'
     | '/agents'
     | '/calls'
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/terms'
+    | '/admin-filas'
     | '/admin-registro'
     | '/agents'
     | '/calls'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/reset-password'
     | '/terms'
+    | '/_authenticated/admin-filas'
     | '/_authenticated/admin-registro'
     | '/_authenticated/agents'
     | '/_authenticated/calls'
@@ -391,6 +403,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRegistroRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin-filas': {
+      id: '/_authenticated/admin-filas'
+      path: '/admin-filas'
+      fullPath: '/admin-filas'
+      preLoaderRoute: typeof AuthenticatedAdminFilasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/voice-calls-finalize-pending': {
       id: '/api/public/hooks/voice-calls-finalize-pending'
       path: '/api/public/hooks/voice-calls-finalize-pending'
@@ -402,6 +421,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAdminFilasRoute: typeof AuthenticatedAdminFilasRoute
   AuthenticatedAdminRegistroRoute: typeof AuthenticatedAdminRegistroRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
@@ -417,6 +437,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAdminFilasRoute: AuthenticatedAdminFilasRoute,
   AuthenticatedAdminRegistroRoute: AuthenticatedAdminRegistroRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
@@ -448,12 +469,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

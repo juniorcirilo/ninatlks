@@ -15,6 +15,7 @@ import {
   KanbanSquare,
   CalendarDays,
   ShieldAlert,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -64,6 +65,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/phone-numbers", label: "Números de telefone", icon: Phone },
       { to: "/equipe", label: "Equipe", icon: UserPlus, adminOnly: true },
       { to: "/admin-registro", label: "Registro", icon: ShieldAlert },
+      { to: "/admin-filas", label: "Filas", icon: ListChecks, adminOnly: true },
       { to: "/settings", label: "Configurações", icon: Settings },
     ],
   },
