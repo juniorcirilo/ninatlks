@@ -68,8 +68,8 @@ export const getQueueSummary = createServerFn({ method: "GET" })
       supabase.from("workflow_runs").select("id", { count: "exact", head: true }).eq("status", "failed").gte("created_at", since24h),
       supabase.from("workflow_runs").select("id", { count: "exact", head: true }).eq("status", "succeeded").gte("created_at", since24h),
       supabase.from("workflow_runs").select("duration_ms").gte("created_at", since24h).not("duration_ms", "is", null).limit(500),
-      supabase.from("webhook_deliveries").select("id", { count: "exact", head: true }).eq("status", "failed").gte("created_at", since24h),
-      supabase.from("webhook_deliveries").select("id", { count: "exact", head: true }).eq("status", "delivered").gte("created_at", since24h),
+      supabase.from("webhook_deliveries").select("id", { count: "exact", head: true }).gte("http_status", 400).gte("created_at", since24h),
+      supabase.from("webhook_deliveries").select("id", { count: "exact", head: true }).lt("http_status", 400).gte("http_status", 200).gte("created_at", since24h),
     ]);
 
     const attemptsArr = (dispatchAttempts.data ?? []) as Array<{ attempts: number }>;
