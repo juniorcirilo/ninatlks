@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  BookOpen,
+  BookOpen as _BookOpen,
   LayoutDashboard,
   Gauge,
   KanbanSquare,
