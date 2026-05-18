@@ -13,6 +13,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { generateQuotePdfBuffer, uploadQuotePdf, validateNbr, type GlassUsage } from "./bruno-pdf.server";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
@@ -77,7 +78,12 @@ interface QuoteLine {
 
 async function execCalculateQuote(
   accountId: string,
-  args: { glasses: QuoteLine[]; fittings: QuoteLine[]; global_margin_pct?: number },
+  args: {
+    glasses: QuoteLine[];
+    fittings: QuoteLine[];
+    global_margin_pct?: number;
+    usage_type?: GlassUsage;
+  },
 ) {
   const skus = [...args.glasses.map((g) => g.sku), ...args.fittings.map((f) => f.sku)];
   if (skus.length === 0) return { error: "lista vazia" };
@@ -85,7 +91,7 @@ async function execCalculateQuote(
   const [{ data: gs }, { data: fs }] = await Promise.all([
     supabaseAdmin
       .from("glass_types")
-      .select("sku, name, price_per_m2, min_m2_per_piece")
+      .select("sku, name, category, thickness_mm, price_per_m2, min_m2_per_piece")
       .eq("account_id", accountId)
       .in("sku", args.glasses.map((g) => g.sku)),
     supabaseAdmin
@@ -94,6 +100,22 @@ async function execCalculateQuote(
       .eq("account_id", accountId)
       .in("sku", args.fittings.map((f) => f.sku)),
   ]);
+
+  // NBR 7199 / 14207 enforcement
+  const usage = args.usage_type ?? "outro";
+  const glassMeta = args.glasses.map((g) => {
+    const ref = (gs ?? []).find((x) => x.sku === g.sku);
+    return { sku: g.sku, category: ref?.category, thickness_mm: ref?.thickness_mm };
+  });
+  const nbr = validateNbr({ usage, glasses: glassMeta });
+  if (!nbr.ok) {
+    return {
+      error: "violação de norma técnica",
+      blockers: nbr.blockers,
+      warnings: nbr.warnings,
+      usage_type: usage,
+    };
+  }
 
   const items: Array<{ sku: string; name: string; qty: number; unit_price: number; subtotal: number; kind: string }> = [];
   let subtotal = 0;
@@ -122,7 +144,42 @@ async function execCalculateQuote(
     subtotal: Number(subtotal.toFixed(2)),
     margin_pct: margin,
     total: Number(total.toFixed(2)),
+    usage_type: usage,
+    nbr_warnings: nbr.warnings,
   };
+}
+
+async function execGenerateQuotePdf(
+  accountId: string,
+  args: {
+    customer_name?: string;
+    project_description?: string;
+    items: Array<{ sku: string; name: string; qty: number; unit_price: number; subtotal: number; kind: string }>;
+    subtotal: number;
+    margin_pct: number;
+    total: number;
+    nbr_notes?: string[];
+    validity_days?: number;
+  },
+) {
+  if (!args.items?.length) return { error: "sem itens para PDF" };
+  try {
+    const buf = await generateQuotePdfBuffer({
+      accountId,
+      customerName: args.customer_name,
+      projectDescription: args.project_description,
+      items: args.items,
+      subtotal: args.subtotal,
+      marginPct: args.margin_pct,
+      total: args.total,
+      nbrNotes: args.nbr_notes,
+      validityDays: args.validity_days,
+    });
+    const { path, signedUrl } = await uploadQuotePdf(accountId, buf);
+    return { ok: true, path, url: signedUrl, expires_in_hours: 24 * 7 };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 async function execRequestHandoff(
@@ -184,7 +241,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "calculate_quote",
-      description: "Calcula um orçamento estruturado a partir de itens de vidro (com m²) e ferragens (com quantidade). Aplica margem global percentual.",
+      description: "Calcula um orçamento estruturado a partir de itens de vidro (com m²) e ferragens (com quantidade). Aplica margem global percentual. Valida NBR 7199/14207 conforme o tipo de uso (usage_type).",
       parameters: {
         type: "object",
         properties: {
@@ -197,8 +254,45 @@ const TOOLS = [
             items: { type: "object", properties: { sku: { type: "string" }, qty: { type: "number" } }, required: ["sku", "qty"] },
           },
           global_margin_pct: { type: "number", description: "Margem global em %, ex: 35" },
+          usage_type: {
+            type: "string",
+            enum: ["box", "divisoria_interna", "mesa", "espelho", "fachada", "sacada", "guarda_corpo", "cobertura", "outro"],
+            description: "Aplicação do vidro — usado para validar NBR 7199 (laminado obrigatório em fachada/sacada/guarda-corpo/cobertura) e NBR 14207 (box ≥8mm temperado).",
+          },
         },
         required: ["glasses", "fittings"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_quote_pdf",
+      description: "Gera um PDF do orçamento (após calculate_quote ter aprovado) e devolve uma URL temporária para o cliente. Use APÓS confirmar o cálculo com o cliente.",
+      parameters: {
+        type: "object",
+        properties: {
+          customer_name: { type: "string" },
+          project_description: { type: "string", description: "Resumo curto do projeto (ex: 'Box frontal 1.2m x 1.9m incolor 8mm')." },
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                sku: { type: "string" }, name: { type: "string" },
+                qty: { type: "number" }, unit_price: { type: "number" },
+                subtotal: { type: "number" }, kind: { type: "string" },
+              },
+              required: ["sku", "name", "qty", "unit_price", "subtotal", "kind"],
+            },
+          },
+          subtotal: { type: "number" },
+          margin_pct: { type: "number" },
+          total: { type: "number" },
+          nbr_notes: { type: "array", items: { type: "string" }, description: "Observações técnicas (NBR) que apareceram no calculate_quote." },
+          validity_days: { type: "number", description: "Padrão 7." },
+        },
+        required: ["items", "subtotal", "margin_pct", "total"],
       },
     },
   },
@@ -225,11 +319,11 @@ const BRUNO_SYSTEM = `Você é o **Bruno**, orçamentista de vidros da UBVA. Ate
 REGRAS:
 - Sempre responda em português brasileiro, com tom técnico-amigável (você é vidraceiro experiente, não vendedor de telemarketing).
 - NUNCA invente preços ou SKUs. Sempre use a tool \`search_glass\` ou \`list_fittings\` antes de citar valores.
-- Quando o cliente descrever o projeto (ex: "box de banheiro 1,2m x 1,9m"), calcule m² (largura × altura) e use \`calculate_quote\`.
+- Quando o cliente descrever o projeto (ex: "box de banheiro 1,2m x 1,9m"), calcule m² (largura × altura) e use \`calculate_quote\` SEMPRE passando \`usage_type\` (box, fachada, sacada, guarda_corpo, divisoria_interna, mesa, espelho, cobertura, outro). O sistema valida a NBR 7199/14207 e BLOQUEIA o cálculo se a configuração for ilegal.
+- Se \`calculate_quote\` retornar \`error: "violação de norma técnica"\`, releia os \`blockers\`, sugira ao cliente o vidro correto (ex: trocar temperado por laminado em fachada) e refaça o cálculo.
 - Margem padrão da UBVA: 35% sobre o custo. Pode subir até 50% se cliente pedir entrega expressa.
-- Para projetos de fachada, sacada, guarda-corpo: vidro laminado é OBRIGATÓRIO (NBR 7199). Avise o cliente.
-- Vidro temperado é o padrão para box, mesas e divisórias internas.
-- Espessuras mínimas: box 8mm, divisória 10mm, fachada 4+4 laminado.
+- Após o cliente APROVAR o valor, ofereça gerar o PDF e chame \`generate_quote_pdf\` com os mesmos itens — envie a URL retornada na conversa.
+- Espessuras mínimas (referência): box 8mm temperado, divisória interna 10mm, fachada/sacada/guarda-corpo 4+4 laminado.
 - Se o cliente quiser falar com humano OU pedir algo fora do seu escopo (entrega complexa, garantia, projeto especial >R$10k), chame \`request_handoff\` com target="human".
 - Apresente orçamentos em formato claro: itens com qtd × preço, subtotal, margem, total.
 - Não use markdown pesado em respostas curtas; use só em orçamentos formais.`;
@@ -325,6 +419,9 @@ export const askBruno = createServerFn({ method: "POST" })
           case "calculate_quote":
             result = await execCalculateQuote(data.accountId, parsed as Parameters<typeof execCalculateQuote>[1]);
             break;
+          case "generate_quote_pdf":
+            result = await execGenerateQuotePdf(data.accountId, parsed as Parameters<typeof execGenerateQuotePdf>[1]);
+            break;
           case "request_handoff":
             result = await execRequestHandoff(
               data.accountId,
@@ -391,7 +488,7 @@ async function ensureBrunoPersona(accountId: string, _createdByUserId: string): 
       kind: "orcamentista",
       display_name: "Bruno — Orçamentista",
       description: "Calcula orçamentos de vidros e ferragens; pede handoff humano em casos complexos.",
-      allowed_tools: ["search_glass", "list_fittings", "calculate_quote", "request_handoff"],
+      allowed_tools: ["search_glass", "list_fittings", "calculate_quote", "generate_quote_pdf", "request_handoff"],
       handoff_targets: [],
       handoff_rules: [
         { when: "cliente pede humano", action: "handoff_human" },
