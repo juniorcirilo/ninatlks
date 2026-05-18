@@ -93,13 +93,13 @@ async function decide(phoneNumberId: string): Promise<RoutingResult> {
       )
     : true; // se não habilitado, considera sempre dentro
 
-  // Humanos online no account (heartbeat <2min).
-  const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  // Humanos disponíveis no account. Sem presence/heartbeat ainda — usamos o
+  // count de membros como proxy "tem time pra atender". Fase 3 adiciona
+  // presence real via WebSocket.
   const { count: humansOnline } = await supabaseAdmin
     .from("account_users")
     .select("user_id", { count: "exact", head: true })
-    .eq("account_id", accountId)
-    .gte("last_seen_at", since);
+    .eq("account_id", accountId);
 
   const humans = humansOnline ?? 0;
 
