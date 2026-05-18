@@ -23,7 +23,7 @@ export interface TimelineItem {
   title: string;
   preview: string | null;
   conversationId: string | null;
-  meta: Record<string, unknown>;
+  meta: Record<string, string | number | boolean | null>;
 }
 
 export interface ContactTimeline {
