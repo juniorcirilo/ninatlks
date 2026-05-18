@@ -488,7 +488,7 @@ async function ensureBrunoPersona(accountId: string, _createdByUserId: string): 
       kind: "orcamentista",
       display_name: "Bruno — Orçamentista",
       description: "Calcula orçamentos de vidros e ferragens; pede handoff humano em casos complexos.",
-      allowed_tools: ["search_glass", "list_fittings", "calculate_quote", "request_handoff"],
+      allowed_tools: ["search_glass", "list_fittings", "calculate_quote", "generate_quote_pdf", "request_handoff"],
       handoff_targets: [],
       handoff_rules: [
         { when: "cliente pede humano", action: "handoff_human" },
