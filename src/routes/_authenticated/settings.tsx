@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { Copy, Check, Loader2, KeyRound, PhoneCall } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Copy, Check, Loader2, KeyRound, PhoneCall, UserPlus, Lock, Mail } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccount } from "@/lib/account-context";
