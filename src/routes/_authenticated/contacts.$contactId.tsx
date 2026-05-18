@@ -121,7 +121,7 @@ function ContactDetailPage() {
             </div>
           ) : (
             <ol className="relative space-y-4 border-l border-border pl-6">
-              {filtered.map((item) => (
+              {filtered.map((item: TimelineItem) => (
                 <li key={item.id} className="relative">
                   <span className="absolute -left-[31px] flex h-6 w-6 items-center justify-center rounded-full border bg-background">
                     {kindIcon(item.kind)}
