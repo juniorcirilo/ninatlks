@@ -6,7 +6,7 @@
 //
 // Returns: { agent_id, name, language, voice_id, model_id, first_message, found: boolean }
 
-import { AuthError, authErrorResponse, requireAuth } from "../_shared/auth.ts";
+import { authErrorResponse, requireAuth } from "../_shared/auth.ts";
 import {
   ElevenLabsError,
   elevenRequest,
