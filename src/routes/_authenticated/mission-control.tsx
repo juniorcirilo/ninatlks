@@ -41,10 +41,29 @@ function MissionControlPage() {
   const queryKey = useMemo(() => ["mission-control", accountId] as const, [accountId]);
   const { data: snap, isLoading } = useQuery({
     queryKey,
-    queryFn: () => fn({ data: { accountId: accountId! } }) as Promise<MissionControlSnapshot>,
+    queryFn: async (): Promise<MissionControlSnapshot> => {
+      try {
+        return (await fn({ data: { accountId: accountId! } })) as MissionControlSnapshot;
+      } catch (err) {
+        console.error("[mission-control] snapshot fetch failed:", err);
+        return {
+          generated_at: new Date().toISOString(),
+          kpis: {
+            open_conversations: 0, pending_conversations: 0, snoozed_conversations: 0,
+            unassigned_open: 0, messages_last_hour: 0, inbound_last_hour: 0,
+            outbound_last_hour: 0, handoffs_last_hour: 0, meetings_last_hour: 0,
+            agents_on_duty: 0, avg_first_reply_min: null,
+          },
+          hot_conversations: [],
+          recent_handoffs: [],
+          persona_pulse: [],
+        };
+      }
+    },
     enabled: !!accountId,
     refetchInterval: REFRESH_MS,
     staleTime: REFRESH_MS,
+    retry: false,
   });
   const loading = isLoading && !snap;
 
@@ -58,7 +77,7 @@ function MissionControlPage() {
         { event: "INSERT", schema: "public", table: "agent_handoffs", filter: `account_id=eq.${accountId}` },
         () => {
           setPulse(true);
-          queryClient.invalidateQueries({ queryKey });
+          void queryClient.invalidateQueries({ queryKey }).catch(() => void 0);
           setTimeout(() => setPulse(false), 1200);
         },
       )
