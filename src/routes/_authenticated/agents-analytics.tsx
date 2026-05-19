@@ -99,7 +99,7 @@ function AnalyticsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {data.per_persona.length === 0 ? (
+              {(data.per_persona ?? []).length === 0 ? (
                 <div className="px-6 py-10 text-center text-sm text-muted-foreground">
                   Nenhuma persona instalada ainda. Vá em <strong>Playground IA</strong> e converse com Bruno, Ana ou Carla — elas são criadas no primeiro uso.
                 </div>
