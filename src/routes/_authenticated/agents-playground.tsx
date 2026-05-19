@@ -89,7 +89,7 @@ function PlaygroundPage() {
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         {/* Sidebar de agentes */}
         <div className="space-y-2">
-          {agents.map((a) => (
+          {(agents ?? []).map((a) => (
             <button
               key={a.key}
               onClick={() => setActive(a.key)}
