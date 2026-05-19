@@ -46,7 +46,9 @@ function PlaygroundPage() {
 
   useEffect(() => {
     if (!accountId) return;
-    fnList({ data: { accountId } }).then((r) => setAgents(r.agents)).catch(() => void 0);
+    fnList({ data: { accountId } })
+      .then((r) => setAgents(Array.isArray(r?.agents) ? r.agents : []))
+      .catch(() => setAgents([]));
   }, [accountId, fnList]);
 
   useEffect(() => {
@@ -68,7 +70,7 @@ function PlaygroundPage() {
       const r = active === "bruno" ? await fnBruno(payload)
         : active === "ana" ? await fnAna(payload)
         : await fnCarla(payload);
-      setMessages((prev) => [...prev, { role: "assistant", content: r.reply, trace: r.trace }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: r?.reply ?? "", trace: Array.isArray(r?.trace) ? r.trace : [] }]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao chamar o agente");
     } finally {
@@ -87,7 +89,7 @@ function PlaygroundPage() {
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         {/* Sidebar de agentes */}
         <div className="space-y-2">
-          {agents.map((a) => (
+          {(agents ?? []).map((a) => (
             <button
               key={a.key}
               onClick={() => setActive(a.key)}
@@ -118,7 +120,7 @@ function PlaygroundPage() {
                   {m.content || <span className="italic opacity-60">(vazio)</span>}
                   {m.trace && m.trace.length > 0 && (
                     <div className="mt-2 space-y-1 border-t border-border/40 pt-2">
-                      {m.trace.map((t, j) => (
+                      {(m.trace ?? []).map((t, j) => (
                         <details key={j} className="text-xs">
                           <summary className="cursor-pointer flex items-center gap-1 text-muted-foreground">
                             <Wrench className="h-3 w-3" /> {t.tool}

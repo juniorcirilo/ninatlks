@@ -89,34 +89,34 @@ function MissionControlPage() {
         </div>
       )}
 
-      {snap && (
+      {snap && snap.kpis && (
         <>
           {/* Linha 1 — Conversas */}
           <div className="grid gap-3 md:grid-cols-4">
-            <Kpi icon={<Inbox className="h-4 w-4" />} label="Abertas" value={snap.kpis.open_conversations} accent="primary" />
-            <Kpi icon={<Clock className="h-4 w-4" />} label="Pendentes" value={snap.kpis.pending_conversations} />
-            <Kpi icon={<AlarmClock className="h-4 w-4" />} label="Snoozed" value={snap.kpis.snoozed_conversations} />
+            <Kpi icon={<Inbox className="h-4 w-4" />} label="Abertas" value={snap.kpis.open_conversations ?? 0} accent="primary" />
+            <Kpi icon={<Clock className="h-4 w-4" />} label="Pendentes" value={snap.kpis.pending_conversations ?? 0} />
+            <Kpi icon={<AlarmClock className="h-4 w-4" />} label="Snoozed" value={snap.kpis.snoozed_conversations ?? 0} />
             <Kpi
               icon={<UserRound className="h-4 w-4" />}
               label="Abertas sem dono"
-              value={snap.kpis.unassigned_open}
-              accent={snap.kpis.unassigned_open > 0 ? "warn" : undefined}
+              value={snap.kpis.unassigned_open ?? 0}
+              accent={(snap.kpis.unassigned_open ?? 0) > 0 ? "warn" : undefined}
             />
           </div>
 
           {/* Linha 2 — Pulso da última hora */}
           <div className="grid gap-3 md:grid-cols-6">
-            <Kpi icon={<MessageSquare className="h-4 w-4" />} label="Mensagens / 1h" value={snap.kpis.messages_last_hour} />
-            <Kpi icon={<ArrowDownLeft className="h-4 w-4" />} label="Entrada / 1h" value={snap.kpis.inbound_last_hour} />
-            <Kpi icon={<ArrowUpRight className="h-4 w-4" />} label="Saída / 1h" value={snap.kpis.outbound_last_hour} />
-            <Kpi icon={<ArrowRightLeft className="h-4 w-4" />} label="Handoffs / 1h" value={snap.kpis.handoffs_last_hour} />
-            <Kpi icon={<CalendarCheck className="h-4 w-4" />} label="Reuniões / 1h" value={snap.kpis.meetings_last_hour} />
+            <Kpi icon={<MessageSquare className="h-4 w-4" />} label="Mensagens / 1h" value={snap.kpis.messages_last_hour ?? 0} />
+            <Kpi icon={<ArrowDownLeft className="h-4 w-4" />} label="Entrada / 1h" value={snap.kpis.inbound_last_hour ?? 0} />
+            <Kpi icon={<ArrowUpRight className="h-4 w-4" />} label="Saída / 1h" value={snap.kpis.outbound_last_hour ?? 0} />
+            <Kpi icon={<ArrowRightLeft className="h-4 w-4" />} label="Handoffs / 1h" value={snap.kpis.handoffs_last_hour ?? 0} />
+            <Kpi icon={<CalendarCheck className="h-4 w-4" />} label="Reuniões / 1h" value={snap.kpis.meetings_last_hour ?? 0} />
             <Kpi
               icon={<Activity className="h-4 w-4" />}
               label="Resp. inicial"
-              value={snap.kpis.avg_first_reply_min !== null ? `${snap.kpis.avg_first_reply_min} min` : "—"}
+              value={snap.kpis.avg_first_reply_min != null ? `${snap.kpis.avg_first_reply_min} min` : "—"}
               accent={
-                snap.kpis.avg_first_reply_min === null ? undefined
+                snap.kpis.avg_first_reply_min == null ? undefined
                   : snap.kpis.avg_first_reply_min <= 5 ? "good"
                   : snap.kpis.avg_first_reply_min <= 15 ? "warn" : "bad"
               }
@@ -131,11 +131,11 @@ function MissionControlPage() {
                   <Flame className="h-4 w-4 text-orange-500" /> Conversas quentes (2h)
                 </CardTitle>
                 <Badge variant="outline" className="text-[10px]">
-                  <Users className="mr-1 h-3 w-3" /> {snap.kpis.agents_on_duty} on-duty
+                  <Users className="mr-1 h-3 w-3" /> {snap.kpis.agents_on_duty ?? 0} on-duty
                 </Badge>
               </CardHeader>
               <CardContent className="p-0">
-                {snap.hot_conversations.length === 0 ? (
+                {(snap.hot_conversations ?? []).length === 0 ? (
                   <div className="px-6 py-10 text-center text-sm text-muted-foreground">
                     Nenhuma conversa com atividade nas últimas 2 horas.
                   </div>
@@ -153,7 +153,7 @@ function MissionControlPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {snap.hot_conversations.map((c) => (
+                        {(snap.hot_conversations ?? []).map((c) => (
                           <tr key={c.conversation_id} className="border-b last:border-b-0 hover:bg-muted/40">
                             <td className="px-6 py-3 font-mono text-xs text-muted-foreground">#{c.display_id}</td>
                             <td className="px-3 py-3 font-medium">{c.contact_name ?? "—"}</td>
@@ -190,9 +190,9 @@ function MissionControlPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {snap.recent_handoffs.length === 0 ? (
+                {(snap.recent_handoffs ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhum handoff registrado.</p>
-                ) : snap.recent_handoffs.map((h) => (
+                ) : (snap.recent_handoffs ?? []).map((h) => (
                   <div key={h.id} className="text-xs space-y-1 border-l-2 border-primary/40 pl-3">
                     <div className="flex items-center gap-1 font-medium text-foreground">
                       <span>{h.from_name ?? "—"}</span>
@@ -216,7 +216,7 @@ function MissionControlPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {snap.persona_pulse.length === 0 ? (
+              {(snap.persona_pulse ?? []).length === 0 ? (
                 <div className="px-6 py-8 text-center text-sm text-muted-foreground">
                   Nenhuma persona instalada. Use o <Link to="/agents-playground" className="text-primary underline">Playground IA</Link> para criar.
                 </div>
@@ -233,7 +233,7 @@ function MissionControlPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {snap.persona_pulse.map((p) => (
+                      {(snap.persona_pulse ?? []).map((p) => (
                         <tr key={p.persona_id} className="border-b last:border-b-0 hover:bg-muted/40">
                           <td className="px-6 py-3 font-medium flex items-center gap-2">
                             <Bot className="h-4 w-4 text-primary" /> {p.name}
