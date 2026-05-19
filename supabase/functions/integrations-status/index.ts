@@ -91,11 +91,18 @@ async function checkElevenLabs(admin: any, accountId: string): Promise<ProviderS
     noCache: true,
   });
   if (!key) return { key: "elevenlabs", label: "ElevenLabs (voz)", configured: false, ok: null };
+  const trimmed = key.trim();
+  const meta = `len=${trimmed.length} prefix=${trimmed.slice(0, 4)} hasWhitespace=${trimmed.length !== key.length}`;
+  console.log(`[integrations-status] elevenlabs key meta: ${meta}`);
   try {
     const res = await fetch("https://api.elevenlabs.io/v1/user/subscription", {
-      headers: { "xi-api-key": key },
+      headers: { "xi-api-key": trimmed },
     });
-    if (!res.ok) return { key: "elevenlabs", label: "ElevenLabs (voz)", configured: true, ok: false, detail: `HTTP ${res.status}` };
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.log(`[integrations-status] elevenlabs ${res.status}: ${body.slice(0, 200)}`);
+      return { key: "elevenlabs", label: "ElevenLabs (voz)", configured: true, ok: false, detail: `HTTP ${res.status} (${meta})` };
+    }
     const sub = await res.json() as any;
     const used = sub?.character_count ?? 0;
     const limit = sub?.character_limit ?? 0;
