@@ -269,13 +269,16 @@ export function IntegrationsTab() {
 function ProviderCard({
   report,
   onConfigure,
+  onEvolutionConnect,
 }: {
   report: ProviderReport;
   onConfigure: (k: CredentialProviderKey) => void;
+  onEvolutionConnect: () => void;
 }) {
   const meta = PROVIDER_META[report.key];
   const Icon = meta.icon;
   const status = statusOf(report);
+  const isEvolution = report.key === "evolution";
 
   return (
     <div className="glass flex flex-col gap-3 rounded-lg p-4">
@@ -345,15 +348,36 @@ function ProviderCard({
             <KeyRound className="h-3 w-3" />
             {status === "missing" ? "Conectar" : "Atualizar credenciais"}
           </Button>
+        ) : isEvolution ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={status === "ok" ? "outline" : "default"}
+            onClick={onEvolutionConnect}
+            className="h-7 text-[11px]"
+          >
+            <MessageCircle className="h-3 w-3" />
+            {status === "ok" ? "Gerenciar canais" : "Conectar WhatsApp"}
+          </Button>
         ) : (
           <span className="text-[10px] text-muted-foreground">Configurado por canal</span>
         )}
-        <Link
-          to={meta.setupHref}
-          className="inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary"
-        >
-          Abrir <ChevronRight className="h-3 w-3" />
-        </Link>
+        {isEvolution ? (
+          <button
+            type="button"
+            onClick={onEvolutionConnect}
+            className="inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary"
+          >
+            Abrir <ChevronRight className="h-3 w-3" />
+          </button>
+        ) : (
+          <Link
+            to={meta.setupHref}
+            className="inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary"
+          >
+            Abrir <ChevronRight className="h-3 w-3" />
+          </Link>
+        )}
       </div>
     </div>
   );
