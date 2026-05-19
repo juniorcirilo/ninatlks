@@ -216,7 +216,7 @@ function MissionControlPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {snap.persona_pulse.length === 0 ? (
+              {(snap.persona_pulse ?? []).length === 0 ? (
                 <div className="px-6 py-8 text-center text-sm text-muted-foreground">
                   Nenhuma persona instalada. Use o <Link to="/agents-playground" className="text-primary underline">Playground IA</Link> para criar.
                 </div>
@@ -233,7 +233,7 @@ function MissionControlPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {snap.persona_pulse.map((p) => (
+                      {(snap.persona_pulse ?? []).map((p) => (
                         <tr key={p.persona_id} className="border-b last:border-b-0 hover:bg-muted/40">
                           <td className="px-6 py-3 font-medium flex items-center gap-2">
                             <Bot className="h-4 w-4 text-primary" /> {p.name}
