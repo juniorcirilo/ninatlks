@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import {
   Bot, Plus, Loader2, Mic, MessageSquare, BookOpen, CheckCircle2, AlertCircle,
+  ExternalLink, Languages,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/layout/EmptyState";
@@ -14,8 +15,38 @@ import {
 import { useAccount } from "@/lib/account-context";
 import { fetchPersonas, createPersona, type Persona } from "@/lib/personas";
 import { AgentEditor } from "@/components/personas/AgentEditor";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+type AgentInfo = {
+  found: boolean;
+  language?: string | null;
+  voice_id?: string | null;
+  model_id?: string | null;
+};
+
+const LANG_LABELS: Record<string, { label: string; flag: string }> = {
+  pt: { label: "Português (BR)", flag: "🇧🇷" },
+  "pt-br": { label: "Português (BR)", flag: "🇧🇷" },
+  "pt-pt": { label: "Português (PT)", flag: "🇵🇹" },
+  en: { label: "English", flag: "🇺🇸" },
+  "en-us": { label: "English (US)", flag: "🇺🇸" },
+  "en-gb": { label: "English (UK)", flag: "🇬🇧" },
+  es: { label: "Español", flag: "🇪🇸" },
+  fr: { label: "Français", flag: "🇫🇷" },
+  de: { label: "Deutsch", flag: "🇩🇪" },
+  it: { label: "Italiano", flag: "🇮🇹" },
+};
+
+function langDisplay(code?: string | null): { label: string; flag: string; isPt: boolean } {
+  if (!code) return { label: "Idioma não definido", flag: "🌐", isPt: false };
+  const key = code.toLowerCase();
+  const found = LANG_LABELS[key] ?? LANG_LABELS[key.split("-")[0]];
+  const isPt = key.startsWith("pt");
+  return found ? { ...found, isPt } : { label: code.toUpperCase(), flag: "🌐", isPt };
+}
+
 
 export const Route = createFileRoute("/_authenticated/agents")({
   head: () => ({
