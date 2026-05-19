@@ -186,32 +186,22 @@ export async function createInstance(args: {
       qrcode: res?.qrcode,
     };
   } catch (err) {
-    // Evolution returns 409 on some versions and 403 with
-    // "already in use" on others when the instance name collides.
+    // Some Evolution versions return 409, others 403 with "already in use".
     const isAlreadyExists =
       err instanceof EvolutionError &&
       (err.status === 409 ||
         (err.status === 403 && /already in use/i.test(err.body)));
     if (isAlreadyExists) {
-      // Instance already exists — re-sync the webhook so any secret
-      // rotation reaches the live config. Tolerate errors so a broken
-      // webhook endpoint doesn't prevent the caller from reusing the
-      // instance (they can still receive + send, just logs a warn).
-      try {
-        await setWebhook({
-          url: args.url,
-          apiKey: args.apiKey,
-          instanceName: args.instanceName,
-          webhookUrl: args.webhookUrl,
-          webhookSecret: args.webhookSecret,
-        });
-      } catch (whErr) {
-        console.warn(
-          `[evolution] webhook resync failed for ${args.instanceName}:`,
-          whErr,
-        );
-      }
-      return { instanceName: args.instanceName };
+      // Re-throw a stable, sniffable error so callers can decide whether to
+      // reuse the instance (same key owns it) or regenerate with a new name
+      // (a different key created it and we'd 401 on every per-instance call).
+      const e = new EvolutionError(
+        `instance name already in use: ${args.instanceName}`,
+        409,
+        err instanceof EvolutionError ? err.body : "",
+      );
+      (e as any).code = "ALREADY_EXISTS";
+      throw e;
     }
     throw err;
   }

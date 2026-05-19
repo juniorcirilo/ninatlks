@@ -142,25 +142,47 @@ Deno.serve(async (req) => {
     channelId = created.id;
   }
 
-  const instanceName =
+  let instanceName =
     existingInstanceName ??
     instanceNameFor(body.account_id, channelId!.replace(/-/g, "").slice(0, 8));
 
-  let provisioned: Awaited<ReturnType<typeof createInstance>>;
-  try {
-    provisioned = await createInstance({
-      url,
-      apiKey,
-      instanceName,
-      webhookUrl,
-      webhookSecret,
-    });
-  } catch (e) {
+  let provisioned: Awaited<ReturnType<typeof createInstance>> | undefined;
+  let lastErr: unknown;
+  // If a different key owns the existing instance name, /instance/create
+  // returns ALREADY_EXISTS but any per-instance call (connect, state) 401s.
+  // Regenerate with a random suffix so this account gets a fresh instance.
+  const maxAttempts = existingInstanceName ? 1 : 4;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      provisioned = await createInstance({
+        url,
+        apiKey,
+        instanceName,
+        webhookUrl,
+        webhookSecret,
+      });
+      lastErr = undefined;
+      break;
+    } catch (e) {
+      lastErr = e;
+      if ((e as any)?.code === "ALREADY_EXISTS" && attempt < maxAttempts - 1) {
+        const rand = Math.random().toString(36).slice(2, 8);
+        instanceName = instanceNameFor(body.account_id, rand);
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (!provisioned) {
+    const e = lastErr;
     const status = e instanceof EvolutionError ? e.status : 500;
     const hint = status === 403
       ? "API key sem permissão para criar instâncias. Use a global API key (AUTHENTICATION_API_KEY do .env do servidor Evolution) — não uma key escopada a instância."
       : status === 401
       ? "API key inválida. Confira a AUTHENTICATION_API_KEY do servidor Evolution."
+      : (e as any)?.code === "ALREADY_EXISTS"
+      ? "Não foi possível gerar um nome de instância livre — tente novamente."
       : undefined;
     return j(
       { error: `falha ao criar instância: ${errMsg(e)}`, upstream_status: status, hint },
