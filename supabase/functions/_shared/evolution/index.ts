@@ -186,7 +186,13 @@ export async function createInstance(args: {
       qrcode: res?.qrcode,
     };
   } catch (err) {
-    if (err instanceof EvolutionError && err.status === 409) {
+    // Evolution returns 409 on some versions and 403 with
+    // "already in use" on others when the instance name collides.
+    const isAlreadyExists =
+      err instanceof EvolutionError &&
+      (err.status === 409 ||
+        (err.status === 403 && /already in use/i.test(err.body)));
+    if (isAlreadyExists) {
       // Instance already exists — re-sync the webhook so any secret
       // rotation reaches the live config. Tolerate errors so a broken
       // webhook endpoint doesn't prevent the caller from reusing the
