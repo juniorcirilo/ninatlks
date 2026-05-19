@@ -67,7 +67,7 @@ export function AgentEditor({
 
   const update = <K extends keyof Persona>(key: K, value: Persona[K]) => {
     if (!draft) return;
-    setDraft({ ...draft, [key]: value });
+    setDraft((current) => current ? { ...current, [key]: value } : current);
     setDirty(true);
   };
 
