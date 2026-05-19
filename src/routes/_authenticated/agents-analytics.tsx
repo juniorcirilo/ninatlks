@@ -82,9 +82,9 @@ function AnalyticsPage() {
             <KpiCard
               icon={<Smile className="h-4 w-4" />}
               label="CSAT médio"
-              value={data.csat_avg_global !== null ? data.csat_avg_global.toFixed(2) : "—"}
+              value={typeof data.csat_avg_global === "number" ? data.csat_avg_global.toFixed(2) : "—"}
               accent={
-                data.csat_avg_global !== null
+                typeof data.csat_avg_global === "number"
                   ? data.csat_avg_global >= 4 ? "good" : data.csat_avg_global >= 3 ? "warn" : "bad"
                   : undefined
               }
@@ -99,7 +99,7 @@ function AnalyticsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {data.per_persona.length === 0 ? (
+              {(data.per_persona ?? []).length === 0 ? (
                 <div className="px-6 py-10 text-center text-sm text-muted-foreground">
                   Nenhuma persona instalada ainda. Vá em <strong>Playground IA</strong> e converse com Bruno, Ana ou Carla — elas são criadas no primeiro uso.
                 </div>
@@ -118,7 +118,7 @@ function AnalyticsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {data.per_persona.map((p) => (
+                      {(data.per_persona ?? []).map((p) => (
                         <tr key={p.persona_id} className="border-b last:border-b-0 hover:bg-muted/40">
                           <td className="px-6 py-3 font-medium flex items-center gap-2">
                             <Bot className="h-4 w-4 text-primary" /> {p.name}
