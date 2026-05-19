@@ -70,7 +70,7 @@ function PlaygroundPage() {
       const r = active === "bruno" ? await fnBruno(payload)
         : active === "ana" ? await fnAna(payload)
         : await fnCarla(payload);
-      setMessages((prev) => [...prev, { role: "assistant", content: r.reply, trace: r.trace }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: r?.reply ?? "", trace: Array.isArray(r?.trace) ? r.trace : [] }]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao chamar o agente");
     } finally {
