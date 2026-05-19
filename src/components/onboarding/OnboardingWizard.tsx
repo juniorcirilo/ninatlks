@@ -371,7 +371,7 @@ function EvolutionInlineStep({
 
       <p className="text-[11px] text-muted-foreground">
         Não tem servidor Evolution? Pule este passo — você pode adicionar
-        depois em <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-foreground">/channels</code>.
+        depois em <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-foreground">Configurações → Integrações</code>.
       </p>
 
       <EvolutionQuickConnect

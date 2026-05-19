@@ -60,8 +60,8 @@ const PROVIDER_META: Record<
   },
   evolution: {
     icon: MessageCircle,
-    setupHint: "URL + API key do seu servidor Evolution self-hosted. Configure por canal em /channels → WhatsApp.",
-    setupHref: "/channels",
+    setupHint: "URL + API key do seu servidor Evolution self-hosted. Conecte WhatsApp pelo assistente de onboarding ou aqui em Integrações.",
+    setupHref: "/settings",
     credentialKey: null,
   },
 };
@@ -235,7 +235,7 @@ export function IntegrationsTab() {
               label="Canais de mensagem"
               value={`${providers.filter((p) => p.key === "evolution").reduce((acc, p) => acc + (typeof p.usage?.instancias_conectadas === "number" ? p.usage.instancias_conectadas : 0), 0)}`}
               detail="Instâncias WhatsApp conectadas via Evolution"
-              href="/channels"
+              href="/settings"
               ok={true}
             />
           </div>
