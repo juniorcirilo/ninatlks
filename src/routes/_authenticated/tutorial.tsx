@@ -85,6 +85,7 @@ const SECTIONS: Section[] = [
           "Ou clique em 'enviar link de redefinição' para receber por e-mail.",
         ],
         route: { to: "/settings", label: "Ir para Configurações" },
+        image: configuracoesImg,
       },
       {
         id: "convidar",
@@ -101,6 +102,7 @@ const SECTIONS: Section[] = [
           "Envie o link pelo canal de sua preferência. Expira em 7 dias.",
         ],
         route: { to: "/equipe", label: "Ir para Equipe" },
+        image: equipeImg,
       },
       {
         id: "configuracoes",
@@ -117,6 +119,7 @@ const SECTIONS: Section[] = [
           "Aba 'Chaves de acesso' e 'Webhooks': para integrar com sistemas externos.",
         ],
         route: { to: "/settings", label: "Ir para Configurações" },
+        image: configuracoesImg,
       },
     ],
   },
@@ -139,6 +142,7 @@ const SECTIONS: Section[] = [
           "Os números atualizam sozinhos enquanto a página está aberta.",
         ],
         route: { to: "/", label: "Abrir Painel" },
+        image: painelImg,
       },
       {
         id: "mission-control",
@@ -169,6 +173,7 @@ const SECTIONS: Section[] = [
           "Clique no card para ver dados do lead e abrir conversa.",
         ],
         route: { to: "/pipeline", label: "Abrir Pipeline" },
+        image: pipelineImg,
       },
       {
         id: "leads",
@@ -200,6 +205,7 @@ const SECTIONS: Section[] = [
           "Mude status (aberta / pendente / resolvida) no topo.",
         ],
         route: { to: "/chat", label: "Abrir Ao vivo" },
+        image: aoVivoImg,
       },
       {
         id: "ligacoes",
@@ -268,6 +274,7 @@ const SECTIONS: Section[] = [
           "Ative ou desative com o toggle no topo de cada card.",
         ],
         route: { to: "/agents", label: "Abrir Agentes" },
+        image: agentesImg,
       },
       {
         id: "playground",
