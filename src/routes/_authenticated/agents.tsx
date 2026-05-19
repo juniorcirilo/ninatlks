@@ -184,19 +184,33 @@ function AgentsPage() {
   );
 }
 
-function AgentCard({ persona, onClick }: { persona: Persona; onClick: () => void }) {
+function AgentCard({
+  persona,
+  info,
+  onClick,
+}: {
+  persona: Persona;
+  info?: AgentInfo;
+  onClick: () => void;
+}) {
   const hasPrompt = Boolean(persona.system_prompt && persona.system_prompt.trim());
   const hasVoice = Boolean(persona.voice_clone_id);
   const hasKB = (persona.elevenlabs_knowledge_base_ids ?? []).length > 0;
   const synced = Boolean(persona.elevenlabs_agent_id);
+  const elAgentUrl = persona.elevenlabs_agent_id
+    ? `https://elevenlabs.io/app/conversational-ai/agents/${persona.elevenlabs_agent_id}`
+    : null;
+  const lang = langDisplay(info?.language);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted"
-    >
-      <div className="flex items-start justify-between gap-2">
+    <div className="group relative flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted">
+      <button
+        type="button"
+        onClick={onClick}
+        className="absolute inset-0 rounded-xl"
+        aria-label={`Configurar ${persona.name}`}
+      />
+      <div className="relative flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500">
             <Bot className="h-4 w-4 text-white" />
@@ -221,19 +235,61 @@ function AgentCard({ persona, onClick }: { persona: Persona; onClick: () => void
       </div>
 
       {persona.description && (
-        <p className="line-clamp-2 text-[11px] text-muted-foreground">{persona.description}</p>
+        <p className="relative line-clamp-2 text-[11px] text-muted-foreground">{persona.description}</p>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="relative flex flex-wrap items-center gap-1.5">
         <CapBadge active={hasPrompt} icon={MessageSquare} label="prompt" />
         <CapBadge active={hasVoice} icon={Mic} label="voz" />
         <CapBadge active={hasKB} icon={BookOpen} label="RAG" />
       </div>
 
-      <div className="text-[10px] text-primary opacity-0 transition-opacity group-hover:opacity-100">
+      {synced && (
+        <div className="relative flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {info === undefined ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground">Lendo config da ElevenLabs…</span>
+              </>
+            ) : info.found === false ? (
+              <>
+                <AlertCircle className="h-3 w-3 text-rose-600" />
+                <span className="text-[10px] text-rose-700">Não encontrado na ElevenLabs</span>
+              </>
+            ) : (
+              <>
+                <Languages className={cn("h-3 w-3", lang.isPt ? "text-emerald-700" : "text-amber-700")} />
+                <span className="text-[11px] font-medium leading-none">
+                  <span className="mr-1">{lang.flag}</span>
+                  {lang.label}
+                </span>
+                {!lang.isPt && info.language && (
+                  <span className="text-[10px] text-amber-700">(não é PT-BR)</span>
+                )}
+              </>
+            )}
+          </div>
+          {elAgentUrl && (
+            <a
+              href={elAgentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="relative z-10 inline-flex items-center gap-1 rounded text-[10px] text-primary hover:underline"
+              title="Abrir no painel ElevenLabs"
+            >
+              ElevenLabs
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+      )}
+
+      <div className="relative text-[10px] text-primary opacity-0 transition-opacity group-hover:opacity-100">
         Clique para configurar →
       </div>
-    </button>
+    </div>
   );
 }
 
