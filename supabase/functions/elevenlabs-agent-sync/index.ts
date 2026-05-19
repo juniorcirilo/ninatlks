@@ -516,8 +516,20 @@ Deno.serve(async (req) => {
   try {
     if (elAgentId) {
       // Update existing agent.
-      await elRequest(apiKey, "PATCH", `/v1/convai/agents/${elAgentId}`, agentBody);
-      console.log(`[el-agent-sync] PATCH agent=${elAgentId} persona=${persona.id}`);
+      try {
+        await elRequest(apiKey, "PATCH", `/v1/convai/agents/${elAgentId}`, agentBody);
+        console.log(`[el-agent-sync] PATCH agent=${elAgentId} persona=${persona.id}`);
+      } catch (err) {
+        // Agent doesn't exist on this EL account (e.g., key rotated). Recreate.
+        if (String(err).includes("404") || String(err).includes("document_not_found")) {
+          console.warn(`[el-agent-sync] stored agent ${elAgentId} not found on EL, recreating`);
+          const created = await elRequest(apiKey, "POST", "/v1/convai/agents/create", agentBody);
+          elAgentId = created.agent_id ?? created.id;
+          console.log(`[el-agent-sync] POST agent=${elAgentId} persona=${persona.id} (recreated)`);
+        } else {
+          throw err;
+        }
+      }
     } else {
       // Create new agent.
       const created = await elRequest(apiKey, "POST", "/v1/convai/agents/create", agentBody);
