@@ -23,6 +23,12 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { cn } from "@/lib/utils";
+import painelImg from "@/assets/tutorial/painel.png";
+import pipelineImg from "@/assets/tutorial/pipeline.png";
+import aoVivoImg from "@/assets/tutorial/ao-vivo.png";
+import agentesImg from "@/assets/tutorial/agentes.png";
+import configuracoesImg from "@/assets/tutorial/configuracoes.png";
+import equipeImg from "@/assets/tutorial/equipe.png";
 
 export const Route = createFileRoute("/_authenticated/tutorial")({
   head: () => ({
