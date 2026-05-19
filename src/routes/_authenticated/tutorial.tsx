@@ -23,6 +23,12 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { cn } from "@/lib/utils";
+import painelImg from "@/assets/tutorial/painel.png";
+import pipelineImg from "@/assets/tutorial/pipeline.png";
+import aoVivoImg from "@/assets/tutorial/ao-vivo.png";
+import agentesImg from "@/assets/tutorial/agentes.png";
+import configuracoesImg from "@/assets/tutorial/configuracoes.png";
+import equipeImg from "@/assets/tutorial/equipe.png";
 
 export const Route = createFileRoute("/_authenticated/tutorial")({
   head: () => ({
@@ -48,6 +54,7 @@ type Topic = {
   use: string;
   steps: Step[];
   route?: { to: string; label: string };
+  image?: string;
 };
 
 type Section = {
@@ -78,6 +85,7 @@ const SECTIONS: Section[] = [
           "Ou clique em 'enviar link de redefinição' para receber por e-mail.",
         ],
         route: { to: "/settings", label: "Ir para Configurações" },
+        image: configuracoesImg,
       },
       {
         id: "convidar",
@@ -94,6 +102,7 @@ const SECTIONS: Section[] = [
           "Envie o link pelo canal de sua preferência. Expira em 7 dias.",
         ],
         route: { to: "/equipe", label: "Ir para Equipe" },
+        image: equipeImg,
       },
       {
         id: "configuracoes",
@@ -110,6 +119,7 @@ const SECTIONS: Section[] = [
           "Aba 'Chaves de acesso' e 'Webhooks': para integrar com sistemas externos.",
         ],
         route: { to: "/settings", label: "Ir para Configurações" },
+        image: configuracoesImg,
       },
     ],
   },
@@ -132,6 +142,7 @@ const SECTIONS: Section[] = [
           "Os números atualizam sozinhos enquanto a página está aberta.",
         ],
         route: { to: "/", label: "Abrir Painel" },
+        image: painelImg,
       },
       {
         id: "mission-control",
@@ -162,6 +173,7 @@ const SECTIONS: Section[] = [
           "Clique no card para ver dados do lead e abrir conversa.",
         ],
         route: { to: "/pipeline", label: "Abrir Pipeline" },
+        image: pipelineImg,
       },
       {
         id: "leads",
@@ -193,6 +205,7 @@ const SECTIONS: Section[] = [
           "Mude status (aberta / pendente / resolvida) no topo.",
         ],
         route: { to: "/chat", label: "Abrir Ao vivo" },
+        image: aoVivoImg,
       },
       {
         id: "ligacoes",
@@ -261,6 +274,7 @@ const SECTIONS: Section[] = [
           "Ative ou desative com o toggle no topo de cada card.",
         ],
         route: { to: "/agents", label: "Abrir Agentes" },
+        image: agentesImg,
       },
       {
         id: "playground",
@@ -468,45 +482,63 @@ function TutorialPage() {
                       </button>
 
                       {open && (
-                        <div className="grid gap-4 border-t border-border bg-background/40 px-4 py-4 sm:grid-cols-2">
-                          <div>
-                            <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              O que é
-                            </h3>
-                            <p className="text-sm text-foreground/90">
-                              {t.what}
-                            </p>
-                            <h3 className="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Quando usar
-                            </h3>
-                            <p className="text-sm text-foreground/90">
-                              {t.use}
-                            </p>
-                          </div>
-                          <div>
-                            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                              Passo a passo
-                            </h3>
-                            <ol className="space-y-1.5">
-                              {t.steps.map((step, i) => (
-                                <li
-                                  key={i}
-                                  className="flex gap-2 text-sm text-foreground/90"
+                        <div className="space-y-4 border-t border-border bg-background/40 px-4 py-4">
+                          {t.image && (
+                            <a
+                              href={t.image}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block overflow-hidden rounded-lg border border-border bg-black/20"
+                              title="Clique para abrir em tamanho real"
+                            >
+                              <img
+                                src={t.image}
+                                alt={`Tela de ${t.label}`}
+                                loading="lazy"
+                                className="block h-auto w-full"
+                              />
+                            </a>
+                          )}
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                O que é
+                              </h3>
+                              <p className="text-sm text-foreground/90">
+                                {t.what}
+                              </p>
+                              <h3 className="mb-1 mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Quando usar
+                              </h3>
+                              <p className="text-sm text-foreground/90">
+                                {t.use}
+                              </p>
+                            </div>
+                            <div>
+                              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Passo a passo
+                              </h3>
+                              <ol className="space-y-1.5">
+                                {t.steps.map((step, i) => (
+                                  <li
+                                    key={i}
+                                    className="flex gap-2 text-sm text-foreground/90"
+                                  >
+                                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                                    <span>{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                              {t.route && (
+                                <Link
+                                  to={t.route.to}
+                                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 text-xs font-semibold text-white hover:opacity-90"
                                 >
-                                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
-                                  <span>{step}</span>
-                                </li>
-                              ))}
-                            </ol>
-                            {t.route && (
-                              <Link
-                                to={t.route.to}
-                                className="mt-4 inline-flex h-9 items-center gap-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 text-xs font-semibold text-white hover:opacity-90"
-                              >
-                                {t.route.label}
-                                <ChevronRight className="h-3.5 w-3.5" />
-                              </Link>
-                            )}
+                                  {t.route.label}
+                                  <ChevronRight className="h-3.5 w-3.5" />
+                                </Link>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
