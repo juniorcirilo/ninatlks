@@ -120,7 +120,7 @@ function PlaygroundPage() {
                   {m.content || <span className="italic opacity-60">(vazio)</span>}
                   {m.trace && m.trace.length > 0 && (
                     <div className="mt-2 space-y-1 border-t border-border/40 pt-2">
-                      {m.trace.map((t, j) => (
+                      {(m.trace ?? []).map((t, j) => (
                         <details key={j} className="text-xs">
                           <summary className="cursor-pointer flex items-center gap-1 text-muted-foreground">
                             <Wrench className="h-3 w-3" /> {t.tool}
