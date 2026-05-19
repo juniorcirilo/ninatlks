@@ -64,6 +64,7 @@ function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Persona | null>(null);
+  const [agentInfo, setAgentInfo] = useState<Record<string, AgentInfo>>({});
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -80,6 +81,41 @@ function AgentsPage() {
   }, [accountId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Busca config real (idioma/voz) de cada agente sincronizado direto da ElevenLabs.
+  useEffect(() => {
+    let cancelled = false;
+    const synced = personas.filter((p) => p.elevenlabs_agent_id);
+    if (synced.length === 0) return;
+
+    (async () => {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (!token) return;
+      const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-agent-info`;
+      const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+      const results = await Promise.all(
+        synced.map(async (p) => {
+          try {
+            const res = await fetch(`${base}?agent_id=${encodeURIComponent(p.elevenlabs_agent_id!)}`, {
+              headers: { Authorization: `Bearer ${token}`, apikey },
+            });
+            if (!res.ok) return [p.id, { found: false }] as const;
+            const data = (await res.json()) as AgentInfo;
+            return [p.id, data] as const;
+          } catch {
+            return [p.id, { found: false }] as const;
+          }
+        }),
+      );
+      if (cancelled) return;
+      setAgentInfo(Object.fromEntries(results));
+    })();
+
+    return () => { cancelled = true; };
+  }, [personas]);
+
+
 
   return (
     <div className="flex flex-col">
