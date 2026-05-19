@@ -77,7 +77,7 @@ function MissionControlPage() {
         { event: "INSERT", schema: "public", table: "agent_handoffs", filter: `account_id=eq.${accountId}` },
         () => {
           setPulse(true);
-          queryClient.invalidateQueries({ queryKey });
+          void queryClient.invalidateQueries({ queryKey }).catch(() => void 0);
           setTimeout(() => setPulse(false), 1200);
         },
       )
