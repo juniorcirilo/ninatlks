@@ -47,7 +47,6 @@ Deno.serve(async (req) => {
     });
 
     // Log usage
-    const accountId = ctx.accountIds[0];
     await ctx.adminClient.from("elevenlabs_usage_log").insert({
       account_id: accountId,
       voice_id: voiceId,
