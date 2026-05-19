@@ -60,8 +60,8 @@ const PROVIDER_META: Record<
   },
   evolution: {
     icon: MessageCircle,
-    setupHint: "URL + API key do seu servidor Evolution self-hosted. Configure por canal em /channels → WhatsApp.",
-    setupHref: "/channels",
+    setupHint: "URL + API key do seu servidor Evolution self-hosted. Conecte WhatsApp pelo assistente de onboarding ou aqui em Integrações.",
+    setupHref: "/settings",
     credentialKey: null,
   },
 };
