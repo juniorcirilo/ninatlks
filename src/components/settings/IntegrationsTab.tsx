@@ -254,6 +254,14 @@ export function IntegrationsTab() {
           onSaved={() => load({ silent: true })}
         />
       )}
+      {accountId && (
+        <EvolutionQuickConnect
+          open={evolutionOpen}
+          onOpenChange={setEvolutionOpen}
+          accountId={accountId}
+          onConnected={() => load({ silent: true })}
+        />
+      )}
     </div>
   );
 }
