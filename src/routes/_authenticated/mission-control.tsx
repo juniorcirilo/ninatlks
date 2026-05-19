@@ -190,9 +190,9 @@ function MissionControlPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {snap.recent_handoffs.length === 0 ? (
+                {(snap.recent_handoffs ?? []).length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhum handoff registrado.</p>
-                ) : snap.recent_handoffs.map((h) => (
+                ) : (snap.recent_handoffs ?? []).map((h) => (
                   <div key={h.id} className="text-xs space-y-1 border-l-2 border-primary/40 pl-3">
                     <div className="flex items-center gap-1 font-medium text-foreground">
                       <span>{h.from_name ?? "—"}</span>
