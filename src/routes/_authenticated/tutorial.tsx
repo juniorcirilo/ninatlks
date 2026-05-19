@@ -54,6 +54,7 @@ type Topic = {
   use: string;
   steps: Step[];
   route?: { to: string; label: string };
+  image?: string;
 };
 
 type Section = {
