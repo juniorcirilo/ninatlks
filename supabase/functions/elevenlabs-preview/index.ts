@@ -11,7 +11,7 @@ import {
 } from "../_shared/auth.ts";
 import {
   ElevenLabsError,
-  resolveCredentials,
+  resolveCredentialsForAccount,
   tts,
 } from "../_shared/elevenlabs/index.ts";
 import { loggerFor } from "../_shared/logger.ts";
@@ -35,7 +35,8 @@ Deno.serve(async (req) => {
     const voiceId: string = String(body.voice_id ?? "");
     if (!text || !voiceId) return j({ error: "text and voice_id required" }, 400);
 
-    const creds = resolveCredentials();
+    const accountId = ctx.accountIds[0];
+    const creds = await resolveCredentialsForAccount(ctx.adminClient, accountId);
     const blob = await tts.synthesize(creds, {
       voiceId,
       text,
@@ -46,7 +47,6 @@ Deno.serve(async (req) => {
     });
 
     // Log usage
-    const accountId = ctx.accountIds[0];
     await ctx.adminClient.from("elevenlabs_usage_log").insert({
       account_id: accountId,
       voice_id: voiceId,
