@@ -11,7 +11,7 @@ import {
 } from "../_shared/auth.ts";
 import {
   ElevenLabsError,
-  resolveCredentials,
+  resolveCredentialsForAccount,
   tts,
 } from "../_shared/elevenlabs/index.ts";
 import { loggerFor } from "../_shared/logger.ts";
