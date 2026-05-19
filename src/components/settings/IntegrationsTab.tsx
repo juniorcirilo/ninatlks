@@ -82,6 +82,7 @@ export function IntegrationsTab() {
   const [providers, setProviders] = useState<ProviderReport[]>([]);
   const [nexus, setNexus] = useState<NexusReport | null>(null);
   const [credDialogFor, setCredDialogFor] = useState<CredentialProviderKey | null>(null);
+  const [evolutionOpen, setEvolutionOpen] = useState(false);
 
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
