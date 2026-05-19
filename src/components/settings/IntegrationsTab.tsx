@@ -196,6 +196,7 @@ export function IntegrationsTab() {
               key={p.key}
               report={p}
               onConfigure={(k) => setCredDialogFor(k)}
+              onEvolutionConnect={() => setEvolutionOpen(true)}
             />
           ))}
         </div>
