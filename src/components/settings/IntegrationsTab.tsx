@@ -27,6 +27,7 @@ import {
   ProviderCredentialsDialog,
   type CredentialProviderKey,
 } from "@/components/settings/ProviderCredentialsDialog";
+import { EvolutionQuickConnect } from "@/components/onboarding/EvolutionQuickConnect";
 
 type Status = "ok" | "fail" | "missing" | "unknown";
 
