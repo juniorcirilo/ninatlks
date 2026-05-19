@@ -89,34 +89,34 @@ function MissionControlPage() {
         </div>
       )}
 
-      {snap && (
+      {snap && snap.kpis && (
         <>
           {/* Linha 1 — Conversas */}
           <div className="grid gap-3 md:grid-cols-4">
-            <Kpi icon={<Inbox className="h-4 w-4" />} label="Abertas" value={snap.kpis.open_conversations} accent="primary" />
-            <Kpi icon={<Clock className="h-4 w-4" />} label="Pendentes" value={snap.kpis.pending_conversations} />
-            <Kpi icon={<AlarmClock className="h-4 w-4" />} label="Snoozed" value={snap.kpis.snoozed_conversations} />
+            <Kpi icon={<Inbox className="h-4 w-4" />} label="Abertas" value={snap.kpis.open_conversations ?? 0} accent="primary" />
+            <Kpi icon={<Clock className="h-4 w-4" />} label="Pendentes" value={snap.kpis.pending_conversations ?? 0} />
+            <Kpi icon={<AlarmClock className="h-4 w-4" />} label="Snoozed" value={snap.kpis.snoozed_conversations ?? 0} />
             <Kpi
               icon={<UserRound className="h-4 w-4" />}
               label="Abertas sem dono"
-              value={snap.kpis.unassigned_open}
-              accent={snap.kpis.unassigned_open > 0 ? "warn" : undefined}
+              value={snap.kpis.unassigned_open ?? 0}
+              accent={(snap.kpis.unassigned_open ?? 0) > 0 ? "warn" : undefined}
             />
           </div>
 
           {/* Linha 2 — Pulso da última hora */}
           <div className="grid gap-3 md:grid-cols-6">
-            <Kpi icon={<MessageSquare className="h-4 w-4" />} label="Mensagens / 1h" value={snap.kpis.messages_last_hour} />
-            <Kpi icon={<ArrowDownLeft className="h-4 w-4" />} label="Entrada / 1h" value={snap.kpis.inbound_last_hour} />
-            <Kpi icon={<ArrowUpRight className="h-4 w-4" />} label="Saída / 1h" value={snap.kpis.outbound_last_hour} />
-            <Kpi icon={<ArrowRightLeft className="h-4 w-4" />} label="Handoffs / 1h" value={snap.kpis.handoffs_last_hour} />
-            <Kpi icon={<CalendarCheck className="h-4 w-4" />} label="Reuniões / 1h" value={snap.kpis.meetings_last_hour} />
+            <Kpi icon={<MessageSquare className="h-4 w-4" />} label="Mensagens / 1h" value={snap.kpis.messages_last_hour ?? 0} />
+            <Kpi icon={<ArrowDownLeft className="h-4 w-4" />} label="Entrada / 1h" value={snap.kpis.inbound_last_hour ?? 0} />
+            <Kpi icon={<ArrowUpRight className="h-4 w-4" />} label="Saída / 1h" value={snap.kpis.outbound_last_hour ?? 0} />
+            <Kpi icon={<ArrowRightLeft className="h-4 w-4" />} label="Handoffs / 1h" value={snap.kpis.handoffs_last_hour ?? 0} />
+            <Kpi icon={<CalendarCheck className="h-4 w-4" />} label="Reuniões / 1h" value={snap.kpis.meetings_last_hour ?? 0} />
             <Kpi
               icon={<Activity className="h-4 w-4" />}
               label="Resp. inicial"
-              value={snap.kpis.avg_first_reply_min !== null ? `${snap.kpis.avg_first_reply_min} min` : "—"}
+              value={snap.kpis.avg_first_reply_min != null ? `${snap.kpis.avg_first_reply_min} min` : "—"}
               accent={
-                snap.kpis.avg_first_reply_min === null ? undefined
+                snap.kpis.avg_first_reply_min == null ? undefined
                   : snap.kpis.avg_first_reply_min <= 5 ? "good"
                   : snap.kpis.avg_first_reply_min <= 15 ? "warn" : "bad"
               }
