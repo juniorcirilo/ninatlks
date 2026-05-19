@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import {
   Bot, Plus, Loader2, Mic, MessageSquare, BookOpen, CheckCircle2, AlertCircle,
+  ExternalLink, Languages,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/layout/EmptyState";
@@ -14,8 +15,38 @@ import {
 import { useAccount } from "@/lib/account-context";
 import { fetchPersonas, createPersona, type Persona } from "@/lib/personas";
 import { AgentEditor } from "@/components/personas/AgentEditor";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+type AgentInfo = {
+  found: boolean;
+  language?: string | null;
+  voice_id?: string | null;
+  model_id?: string | null;
+};
+
+const LANG_LABELS: Record<string, { label: string; flag: string }> = {
+  pt: { label: "Português (BR)", flag: "🇧🇷" },
+  "pt-br": { label: "Português (BR)", flag: "🇧🇷" },
+  "pt-pt": { label: "Português (PT)", flag: "🇵🇹" },
+  en: { label: "English", flag: "🇺🇸" },
+  "en-us": { label: "English (US)", flag: "🇺🇸" },
+  "en-gb": { label: "English (UK)", flag: "🇬🇧" },
+  es: { label: "Español", flag: "🇪🇸" },
+  fr: { label: "Français", flag: "🇫🇷" },
+  de: { label: "Deutsch", flag: "🇩🇪" },
+  it: { label: "Italiano", flag: "🇮🇹" },
+};
+
+function langDisplay(code?: string | null): { label: string; flag: string; isPt: boolean } {
+  if (!code) return { label: "Idioma não definido", flag: "🌐", isPt: false };
+  const key = code.toLowerCase();
+  const found = LANG_LABELS[key] ?? LANG_LABELS[key.split("-")[0]];
+  const isPt = key.startsWith("pt");
+  return found ? { ...found, isPt } : { label: code.toUpperCase(), flag: "🌐", isPt };
+}
+
 
 export const Route = createFileRoute("/_authenticated/agents")({
   head: () => ({
@@ -33,6 +64,7 @@ function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Persona | null>(null);
+  const [agentInfo, setAgentInfo] = useState<Record<string, AgentInfo>>({});
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -49,6 +81,41 @@ function AgentsPage() {
   }, [accountId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Busca config real (idioma/voz) de cada agente sincronizado direto da ElevenLabs.
+  useEffect(() => {
+    let cancelled = false;
+    const synced = personas.filter((p) => p.elevenlabs_agent_id);
+    if (synced.length === 0) return;
+
+    (async () => {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (!token) return;
+      const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-agent-info`;
+      const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+      const results = await Promise.all(
+        synced.map(async (p) => {
+          try {
+            const res = await fetch(`${base}?agent_id=${encodeURIComponent(p.elevenlabs_agent_id!)}`, {
+              headers: { Authorization: `Bearer ${token}`, apikey },
+            });
+            if (!res.ok) return [p.id, { found: false }] as const;
+            const data = (await res.json()) as AgentInfo;
+            return [p.id, data] as const;
+          } catch {
+            return [p.id, { found: false }] as const;
+          }
+        }),
+      );
+      if (cancelled) return;
+      setAgentInfo(Object.fromEntries(results));
+    })();
+
+    return () => { cancelled = true; };
+  }, [personas]);
+
+
 
   return (
     <div className="flex flex-col">
@@ -84,7 +151,12 @@ function AgentsPage() {
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
             {personas.map((p) => (
-              <AgentCard key={p.id} persona={p} onClick={() => setEditing(p)} />
+              <AgentCard
+                key={p.id}
+                persona={p}
+                info={p.elevenlabs_agent_id ? agentInfo[p.id] : undefined}
+                onClick={() => setEditing(p)}
+              />
             ))}
           </div>
         )}
@@ -112,19 +184,33 @@ function AgentsPage() {
   );
 }
 
-function AgentCard({ persona, onClick }: { persona: Persona; onClick: () => void }) {
+function AgentCard({
+  persona,
+  info,
+  onClick,
+}: {
+  persona: Persona;
+  info?: AgentInfo;
+  onClick: () => void;
+}) {
   const hasPrompt = Boolean(persona.system_prompt && persona.system_prompt.trim());
   const hasVoice = Boolean(persona.voice_clone_id);
   const hasKB = (persona.elevenlabs_knowledge_base_ids ?? []).length > 0;
   const synced = Boolean(persona.elevenlabs_agent_id);
+  const elAgentUrl = persona.elevenlabs_agent_id
+    ? `https://elevenlabs.io/app/conversational-ai/agents/${persona.elevenlabs_agent_id}`
+    : null;
+  const lang = langDisplay(info?.language);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted"
-    >
-      <div className="flex items-start justify-between gap-2">
+    <div className="group relative flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted">
+      <button
+        type="button"
+        onClick={onClick}
+        className="absolute inset-0 rounded-xl"
+        aria-label={`Configurar ${persona.name}`}
+      />
+      <div className="relative flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500">
             <Bot className="h-4 w-4 text-white" />
@@ -149,19 +235,61 @@ function AgentCard({ persona, onClick }: { persona: Persona; onClick: () => void
       </div>
 
       {persona.description && (
-        <p className="line-clamp-2 text-[11px] text-muted-foreground">{persona.description}</p>
+        <p className="relative line-clamp-2 text-[11px] text-muted-foreground">{persona.description}</p>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="relative flex flex-wrap items-center gap-1.5">
         <CapBadge active={hasPrompt} icon={MessageSquare} label="prompt" />
         <CapBadge active={hasVoice} icon={Mic} label="voz" />
         <CapBadge active={hasKB} icon={BookOpen} label="RAG" />
       </div>
 
-      <div className="text-[10px] text-primary opacity-0 transition-opacity group-hover:opacity-100">
+      {synced && (
+        <div className="relative flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {info === undefined ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                <span className="text-[10px] text-muted-foreground">Lendo config da ElevenLabs…</span>
+              </>
+            ) : info.found === false ? (
+              <>
+                <AlertCircle className="h-3 w-3 text-rose-600" />
+                <span className="text-[10px] text-rose-700">Não encontrado na ElevenLabs</span>
+              </>
+            ) : (
+              <>
+                <Languages className={cn("h-3 w-3", lang.isPt ? "text-emerald-700" : "text-amber-700")} />
+                <span className="text-[11px] font-medium leading-none">
+                  <span className="mr-1">{lang.flag}</span>
+                  {lang.label}
+                </span>
+                {!lang.isPt && info.language && (
+                  <span className="text-[10px] text-amber-700">(não é PT-BR)</span>
+                )}
+              </>
+            )}
+          </div>
+          {elAgentUrl && (
+            <a
+              href={elAgentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="relative z-10 inline-flex items-center gap-1 rounded text-[10px] text-primary hover:underline"
+              title="Abrir no painel ElevenLabs"
+            >
+              ElevenLabs
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+      )}
+
+      <div className="relative text-[10px] text-primary opacity-0 transition-opacity group-hover:opacity-100">
         Clique para configurar →
       </div>
-    </button>
+    </div>
   );
 }
 
