@@ -35,7 +35,8 @@ Deno.serve(async (req) => {
     const voiceId: string = String(body.voice_id ?? "");
     if (!text || !voiceId) return j({ error: "text and voice_id required" }, 400);
 
-    const creds = resolveCredentials();
+    const accountId = ctx.accountIds[0];
+    const creds = await resolveCredentialsForAccount(ctx.adminClient, accountId);
     const blob = await tts.synthesize(creds, {
       voiceId,
       text,
