@@ -131,11 +131,11 @@ function MissionControlPage() {
                   <Flame className="h-4 w-4 text-orange-500" /> Conversas quentes (2h)
                 </CardTitle>
                 <Badge variant="outline" className="text-[10px]">
-                  <Users className="mr-1 h-3 w-3" /> {snap.kpis.agents_on_duty} on-duty
+                  <Users className="mr-1 h-3 w-3" /> {snap.kpis.agents_on_duty ?? 0} on-duty
                 </Badge>
               </CardHeader>
               <CardContent className="p-0">
-                {snap.hot_conversations.length === 0 ? (
+                {(snap.hot_conversations ?? []).length === 0 ? (
                   <div className="px-6 py-10 text-center text-sm text-muted-foreground">
                     Nenhuma conversa com atividade nas últimas 2 horas.
                   </div>
