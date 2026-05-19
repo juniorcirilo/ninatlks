@@ -82,9 +82,9 @@ function AnalyticsPage() {
             <KpiCard
               icon={<Smile className="h-4 w-4" />}
               label="CSAT médio"
-              value={data.csat_avg_global !== null ? data.csat_avg_global.toFixed(2) : "—"}
+              value={typeof data.csat_avg_global === "number" ? data.csat_avg_global.toFixed(2) : "—"}
               accent={
-                data.csat_avg_global !== null
+                typeof data.csat_avg_global === "number"
                   ? data.csat_avg_global >= 4 ? "good" : data.csat_avg_global >= 3 ? "warn" : "bad"
                   : undefined
               }
