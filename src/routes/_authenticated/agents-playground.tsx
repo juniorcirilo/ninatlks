@@ -46,7 +46,9 @@ function PlaygroundPage() {
 
   useEffect(() => {
     if (!accountId) return;
-    fnList({ data: { accountId } }).then((r) => setAgents(r.agents)).catch(() => void 0);
+    fnList({ data: { accountId } })
+      .then((r) => setAgents(Array.isArray(r?.agents) ? r.agents : []))
+      .catch(() => setAgents([]));
   }, [accountId, fnList]);
 
   useEffect(() => {
