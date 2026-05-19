@@ -67,9 +67,8 @@ Deno.serve(async (req) => {
       throw e;
     }
   } catch (e) {
-    if (e && typeof e === "object" && "isAuthError" in (e as any)) {
-      return authErrorResponse(e as any, corsHeaders);
-    }
+    const authResp = authErrorResponse(e, corsHeaders);
+    if (authResp) return authResp;
     log.error("agent-info failed", { error: e instanceof Error ? e.message : String(e) });
     const status = e instanceof ElevenLabsError ? (e.status >= 400 && e.status < 600 ? e.status : 502) : 500;
     return j({ error: e instanceof Error ? e.message : "internal_error" }, status);
