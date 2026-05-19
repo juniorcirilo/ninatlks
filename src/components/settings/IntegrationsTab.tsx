@@ -235,7 +235,7 @@ export function IntegrationsTab() {
               label="Canais de mensagem"
               value={`${providers.filter((p) => p.key === "evolution").reduce((acc, p) => acc + (typeof p.usage?.instancias_conectadas === "number" ? p.usage.instancias_conectadas : 0), 0)}`}
               detail="Instâncias WhatsApp conectadas via Evolution"
-              href="/channels"
+              href="/settings"
               ok={true}
             />
           </div>
