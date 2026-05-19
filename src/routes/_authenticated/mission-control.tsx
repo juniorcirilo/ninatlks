@@ -153,7 +153,7 @@ function MissionControlPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {snap.hot_conversations.map((c) => (
+                        {(snap.hot_conversations ?? []).map((c) => (
                           <tr key={c.conversation_id} className="border-b last:border-b-0 hover:bg-muted/40">
                             <td className="px-6 py-3 font-mono text-xs text-muted-foreground">#{c.display_id}</td>
                             <td className="px-3 py-3 font-medium">{c.contact_name ?? "—"}</td>
