@@ -20,6 +20,13 @@ import {
   Search,
   ChevronRight,
   CheckCircle2,
+  Megaphone,
+  Target,
+  RefreshCw,
+  ShieldCheck,
+  Clock,
+  Ban,
+  TrendingUp,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { cn } from "@/lib/utils";
