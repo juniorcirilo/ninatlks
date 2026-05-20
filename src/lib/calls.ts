@@ -56,6 +56,7 @@ export type CallDetail = CallSummary & {
   } | null;
   metadata: Record<string, unknown>;
   recording_storage_path: string | null;
+  ai_summary: string | null;
 };
 
 export const CALL_DIRECTION_LABEL: Record<CallDirection, string> = {
