@@ -31,6 +31,7 @@ export const Route = createFileRoute("/_authenticated/listas")({
 function ListsPage() {
   const { accountId } = useAccount();
   const navigate = useNavigate();
+  const [tab, setTab] = useState<"lists" | "retention">("lists");
   const [rows, setRows] = useState<ContactListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
