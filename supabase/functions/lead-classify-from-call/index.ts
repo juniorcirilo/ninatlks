@@ -182,8 +182,23 @@ Deno.serve(async (req) => {
     });
   }
 
+  // 8. Smart retry: se a chamada veio de uma campanha, mover voice_campaign_contacts
+  //    pra done/queued conforme outcome + retry_rules da campanha.
+  const campaignContactId = (call as any).metadata?.campaign_contact_id;
+  const campaignId = (call as any).metadata?.campaign_id;
+  let smartRetry: any = null;
+  if (campaignContactId && campaignId) {
+    smartRetry = await applySmartRetry(admin, {
+      campaignContactId,
+      campaignId,
+      accountId: (call as any).account_id,
+      outcomeCode: classification.category,
+      kind: (call as any).metadata?.campaign_kind ?? "sdr",
+    }).catch((e) => ({ error: String(e?.message ?? e) }));
+  }
+
   console.log(
-    `[lead-classify] call=${(call as any).id} category=${classification.category} score=${classification.score} contact=${contactId} stage=${stageId ?? "—"}`,
+    `[lead-classify] call=${(call as any).id} category=${classification.category} score=${classification.score} contact=${contactId} stage=${stageId ?? "—"} retry=${smartRetry?.action ?? "—"}`,
   );
 
   return j({
@@ -192,8 +207,94 @@ Deno.serve(async (req) => {
     contact_id: contactId,
     stage_id: stageId,
     classification,
+    smart_retry: smartRetry,
   });
 });
+
+// Smart retry per outcome:
+//   - terminal outcome (catalog.terminal=true) ou conversão → status='completed'
+//   - retryable outcome (no_answer/busy/voicemail/disconnected) → re-enfileira
+//     com delay vindo de campaign.retry_rules[outcome] ou fallback do campaign.
+//   - se attempts já >= max_attempts → status='failed'.
+async function applySmartRetry(
+  admin: any,
+  args: {
+    campaignContactId: number | string;
+    campaignId: string;
+    accountId: string;
+    outcomeCode: string;
+    kind: string;
+  },
+) {
+  const RETRYABLE = new Set(["no_answer", "busy", "voicemail", "disconnected", "caixa_postal", "nao_atendeu"]);
+
+  const { data: contactRow } = await admin
+    .from("voice_campaign_contacts")
+    .select("id, attempts, status")
+    .eq("id", args.campaignContactId)
+    .maybeSingle();
+  if (!contactRow) return { action: "skipped", reason: "row not found" };
+
+  const { data: campaign } = await admin
+    .from("voice_campaigns")
+    .select("retry_rules, retry_attempts, retry_delay_minutes")
+    .eq("id", args.campaignId)
+    .maybeSingle();
+  const rules = (campaign?.retry_rules ?? {}) as Record<string, { max_attempts?: number; delay_minutes?: number }>;
+  const ruleForOutcome = rules[args.outcomeCode] ?? null;
+
+  // Catalog lookup — terminal flag
+  const { data: cat } = await admin
+    .from("call_outcomes_catalog")
+    .select("terminal")
+    .eq("campaign_kind", args.kind)
+    .eq("code", args.outcomeCode)
+    .or(`account_id.eq.${args.accountId},account_id.is.null`)
+    .limit(1)
+    .maybeSingle();
+  const terminal = (cat as any)?.terminal === true;
+
+  const isRetryable = !terminal && (RETRYABLE.has(args.outcomeCode) || (ruleForOutcome?.max_attempts ?? 0) > 0);
+
+  if (!isRetryable) {
+    await admin
+      .from("voice_campaign_contacts")
+      .update({
+        status: "completed",
+        finished_at: new Date().toISOString(),
+      })
+      .eq("id", args.campaignContactId);
+    return { action: "completed", outcome: args.outcomeCode, terminal };
+  }
+
+  const maxAttempts = ruleForOutcome?.max_attempts ?? campaign?.retry_attempts ?? 2;
+  const attempts = (contactRow.attempts ?? 0) + 1;
+  if (attempts >= maxAttempts) {
+    await admin
+      .from("voice_campaign_contacts")
+      .update({
+        status: "failed",
+        attempts,
+        last_error: `max retries reached after ${args.outcomeCode}`,
+        finished_at: new Date().toISOString(),
+      })
+      .eq("id", args.campaignContactId);
+    return { action: "exhausted", outcome: args.outcomeCode, attempts, maxAttempts };
+  }
+
+  const delayMin = ruleForOutcome?.delay_minutes ?? campaign?.retry_delay_minutes ?? 60;
+  const nextTry = new Date(Date.now() + delayMin * 60 * 1000).toISOString();
+  await admin
+    .from("voice_campaign_contacts")
+    .update({
+      status: "queued",
+      attempts,
+      dispatch_after: nextTry,
+      last_attempt_at: new Date().toISOString(),
+    })
+    .eq("id", args.campaignContactId);
+  return { action: "requeued", outcome: args.outcomeCode, attempts, nextTry, delayMin };
+}
 
 function extractTranscriptText(transcript: any): string {
   if (!transcript) return "";
