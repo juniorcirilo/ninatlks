@@ -22,6 +22,7 @@ import { Route as AuthenticatedReunioesRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
 import { Route as AuthenticatedMissionControlRouteImport } from './routes/_authenticated/mission-control'
+import { Route as AuthenticatedListasRouteImport } from './routes/_authenticated/listas'
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
@@ -102,6 +103,11 @@ const AuthenticatedMissionControlRoute =
     path: '/mission-control',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedListasRoute = AuthenticatedListasRouteImport.update({
+  id: '/listas',
+  path: '/listas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedFollowUpsRoute = AuthenticatedFollowUpsRouteImport.update({
   id: '/follow-ups',
   path: '/follow-ups',
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -217,6 +224,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -246,6 +254,7 @@ export interface FileRoutesById {
   '/_authenticated/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/_authenticated/listas': typeof AuthenticatedListasRoute
   '/_authenticated/mission-control': typeof AuthenticatedMissionControlRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
@@ -276,6 +285,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/equipe'
     | '/follow-ups'
+    | '/listas'
     | '/mission-control'
     | '/phone-numbers'
     | '/pipeline'
@@ -302,6 +312,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/equipe'
     | '/follow-ups'
+    | '/listas'
     | '/mission-control'
     | '/phone-numbers'
     | '/pipeline'
@@ -330,6 +341,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contacts'
     | '/_authenticated/equipe'
     | '/_authenticated/follow-ups'
+    | '/_authenticated/listas'
     | '/_authenticated/mission-control'
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
@@ -444,6 +456,13 @@ declare module '@tanstack/react-router' {
       path: '/mission-control'
       fullPath: '/mission-control'
       preLoaderRoute: typeof AuthenticatedMissionControlRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/listas': {
+      id: '/_authenticated/listas'
+      path: '/listas'
+      fullPath: '/listas'
+      preLoaderRoute: typeof AuthenticatedListasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/follow-ups': {
@@ -564,6 +583,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRouteWithChildren
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
+  AuthenticatedListasRoute: typeof AuthenticatedListasRoute
   AuthenticatedMissionControlRoute: typeof AuthenticatedMissionControlRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
@@ -584,6 +604,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedContactsRoute: AuthenticatedContactsRouteWithChildren,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,
+  AuthenticatedListasRoute: AuthenticatedListasRoute,
   AuthenticatedMissionControlRoute: AuthenticatedMissionControlRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
