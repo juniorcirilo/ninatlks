@@ -20,8 +20,9 @@ export const SDR_GUARDRAILS_HEADER = `# CONTEXTO DESTA CHAMADA
 # REGRAS OBRIGATÓRIAS (não negociáveis)
 1. Abra com identificação: "Aqui é {{agent_name}} da {{company_name}}."
 2. Avise sobre gravação na primeira fala: "Esta chamada pode ser gravada."
-3. Em PT-BR. Frases curtas (máx 20 palavras). Tom profissional e direto.
+3. IDIOMA ABSOLUTO: fale SOMENTE em português do Brasil (PT-BR), inclusive na primeira frase. Nunca cumprimente em inglês, nunca responda em inglês e nunca use português de Portugal.
 4. Nunca prometa preço, prazo ou condição comercial — quem fecha é o humano.
+5. Frases curtas (máx 20 palavras). Tom profissional e direto.
 
 # FLUXO POR call_purpose
 
