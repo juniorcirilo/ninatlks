@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Users, Trash2, Rocket, ShieldCheck, Pencil } from "lucide-react";
+import { Loader2, Plus, Users, Trash2, Rocket, ShieldCheck, Pencil, Clock, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +16,16 @@ import {
   type RetentionRuleRow,
   type CampaignRow,
 } from "@/lib/campaigns";
+import {
+  fetchDncList,
+  addToDnc,
+  removeFromDnc,
+  fetchCompliancePolicy,
+  saveCompliancePolicy,
+  DEFAULT_COMPLIANCE_POLICY,
+  type DncEntry,
+  type CompliancePolicy,
+} from "@/lib/compliance";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/listas")({
@@ -31,7 +41,7 @@ export const Route = createFileRoute("/_authenticated/listas")({
 function ListsPage() {
   const { accountId } = useAccount();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"lists" | "retention">("lists");
+  const [tab, setTab] = useState<"lists" | "retention" | "compliance" | "dnc">("lists");
   const [rows, setRows] = useState<ContactListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -151,9 +161,17 @@ function ListsPage() {
         <TabBtn active={tab === "retention"} onClick={() => setTab("retention")} icon={<ShieldCheck className="h-3.5 w-3.5" />}>
           Regras de retenção
         </TabBtn>
+        <TabBtn active={tab === "compliance"} onClick={() => setTab("compliance")} icon={<Clock className="h-3.5 w-3.5" />}>
+          Janelas & LGPD
+        </TabBtn>
+        <TabBtn active={tab === "dnc"} onClick={() => setTab("dnc")} icon={<Ban className="h-3.5 w-3.5" />}>
+          DNC / Blocklist
+        </TabBtn>
       </div>
 
       {tab === "retention" && <RetentionRulesPanel accountId={accountId} />}
+      {tab === "compliance" && <CompliancePanel accountId={accountId} />}
+      {tab === "dnc" && <DncPanel accountId={accountId} />}
 
       {tab === "lists" && (
         <>
@@ -567,6 +585,311 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
+  );
+}
+
+const WEEKDAYS: { key: string; label: string }[] = [
+  { key: "mon", label: "Seg" },
+  { key: "tue", label: "Ter" },
+  { key: "wed", label: "Qua" },
+  { key: "thu", label: "Qui" },
+  { key: "fri", label: "Sex" },
+  { key: "sat", label: "Sáb" },
+  { key: "sun", label: "Dom" },
+];
+
+function CompliancePanel({ accountId }: { accountId: string | null }) {
+  const [policy, setPolicy] = useState<CompliancePolicy>(DEFAULT_COMPLIANCE_POLICY);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!accountId) return;
+    fetchCompliancePolicy(accountId)
+      .then((p) => setPolicy({ ...DEFAULT_COMPLIANCE_POLICY, ...p }))
+      .catch((e) => toast.error(e?.message ?? "falha ao carregar"))
+      .finally(() => setLoading(false));
+  }, [accountId]);
+
+  const setHours = (day: string, value: [number, number] | null) => {
+    setPolicy((p) => ({
+      ...p,
+      allowed_hours_local: { ...(p.allowed_hours_local ?? {}), [day]: value },
+    }));
+  };
+
+  const onSave = async () => {
+    if (!accountId) return;
+    setSaving(true);
+    try {
+      await saveCompliancePolicy(accountId, policy);
+      toast.success("Política salva");
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-40 items-center justify-center rounded-xl border border-border bg-card">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+        Define janelas de discagem por dia da semana, limite de tentativas por contato e disclaimer de gravação (LGPD/CDC). Aplicado em todas as campanhas que não sobrescreverem localmente.
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h3 className="mb-3 text-sm font-semibold">Janelas permitidas (horário local do contato)</h3>
+        <div className="space-y-2">
+          {WEEKDAYS.map((d) => {
+            const range = policy.allowed_hours_local?.[d.key] ?? null;
+            const enabled = range !== null;
+            return (
+              <div key={d.key} className="flex items-center gap-3">
+                <label className="flex w-24 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={(e) => setHours(d.key, e.target.checked ? [9, 20] : null)}
+                  />
+                  <span className="font-medium">{d.label}</span>
+                </label>
+                {enabled && range ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <input
+                      type="number"
+                      min={0}
+                      max={23}
+                      value={range[0]}
+                      onChange={(e) => setHours(d.key, [Number(e.target.value), range[1]])}
+                      className="w-16 rounded-md border border-input bg-background px-2 py-1 text-sm tabular-nums"
+                    />
+                    <span className="text-muted-foreground">às</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={23}
+                      value={range[1]}
+                      onChange={(e) => setHours(d.key, [range[0], Number(e.target.value)])}
+                      className="w-16 rounded-md border border-input bg-background px-2 py-1 text-sm tabular-nums"
+                    />
+                    <span className="text-muted-foreground">h</span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-muted-foreground">— sem ligações neste dia</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Máx. tentativas por dia, por contato">
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={policy.max_attempts_per_day_per_contact ?? 2}
+            onChange={(e) =>
+              setPolicy({ ...policy, max_attempts_per_day_per_contact: Number(e.target.value) })
+            }
+            className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+          />
+        </Field>
+        <Field label="Min. minutos entre tentativas">
+          <input
+            type="number"
+            min={5}
+            max={1440}
+            value={policy.min_minutes_between_attempts ?? 120}
+            onChange={(e) =>
+              setPolicy({ ...policy, min_minutes_between_attempts: Number(e.target.value) })
+            }
+            className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+          />
+        </Field>
+      </div>
+
+      <Field label="Disclaimer de gravação (LGPD)">
+        <textarea
+          rows={3}
+          value={policy.recording_disclaimer ?? ""}
+          onChange={(e) => setPolicy({ ...policy, recording_disclaimer: e.target.value })}
+          placeholder="Texto que a IA fala no início para informar gravação"
+          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+        />
+      </Field>
+
+      <div className="flex justify-end">
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Salvar política
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DncPanel({ accountId }: { accountId: string | null }) {
+  const [rows, setRows] = useState<DncEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [phone, setPhone] = useState("");
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!accountId) return;
+    setLoading(true);
+    try {
+      setRows(await fetchDncList(accountId));
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao carregar");
+    } finally {
+      setLoading(false);
+    }
+  }, [accountId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const onAdd = async () => {
+    if (!accountId || !phone.trim()) {
+      toast.error("Informe o número (formato E.164)");
+      return;
+    }
+    setSaving(true);
+    try {
+      await addToDnc({
+        accountId,
+        phoneNumber: phone.trim(),
+        reason: reason.trim() || "manual",
+        notes: notes.trim() || undefined,
+      });
+      toast.success("Número adicionado ao DNC");
+      setPhone("");
+      setReason("");
+      setNotes("");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao adicionar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onRemove = async (id: number) => {
+    if (!confirm("Remover este número do DNC?")) return;
+    try {
+      await removeFromDnc(id);
+      toast.success("Removido");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao remover");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+        Números em DNC nunca recebem ligações automáticas — bloqueio é aplicado no dispatcher antes de qualquer chamada.
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">Adicionar número</h3>
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Telefone (E.164)">
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+5511999999999"
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm font-mono"
+            />
+          </Field>
+          <Field label="Motivo">
+            <input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="opt-out, reclamacao, ..."
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            />
+          </Field>
+          <Field label="Notas (opcional)">
+            <input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            />
+          </Field>
+        </div>
+        <div className="flex justify-end">
+          <button
+            onClick={onAdd}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Plus className="h-3.5 w-3.5" /> Adicionar
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card">
+        {loading ? (
+          <div className="flex h-40 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+            <Ban className="h-6 w-6" />
+            Nenhum número bloqueado.
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 font-medium">Telefone</th>
+                <th className="px-4 py-2 font-medium">Motivo</th>
+                <th className="px-4 py-2 font-medium">Notas</th>
+                <th className="px-4 py-2 font-medium">Adicionado em</th>
+                <th className="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                  <td className="px-4 py-2 font-mono">{r.phone_number}</td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground">{r.reason ?? "—"}</td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground">{r.notes ?? "—"}</td>
+                  <td className="px-4 py-2 text-xs text-muted-foreground">
+                    {new Date(r.created_at).toLocaleString("pt-BR")}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    <button
+                      onClick={() => onRemove(r.id)}
+                      className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
   );
 }
 
