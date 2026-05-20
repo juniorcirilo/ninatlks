@@ -12,6 +12,7 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
 import { loggerFor } from "../_shared/logger.ts";
 import { toE164 } from "../_shared/twilio/index.ts";
+import { buildSystemPromptWithGuardrails } from "../_shared/voice/sdr-guardrails.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,6 +21,8 @@ const corsHeaders = {
 
 const DISPATCH_BATCH = 20;
 const DEFAULT_CONCURRENT_PER_CAMPAIGN = 5;
+const PT_BR_LANGUAGE_INSTRUCTION =
+  "\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- A primeira fala deve ser em português brasileiro.\n- Nunca use inglês, mesmo se o runtime ou telefonia sugerirem outro idioma.";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -277,7 +280,7 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
 
   const { data: persona } = await admin
     .from("agent_personas")
-    .select("elevenlabs_agent_id")
+    .select("elevenlabs_agent_id, name, system_prompt, voice_clone_id")
     .eq("id", campaign.persona_id)
     .maybeSingle();
   const elAgentId = persona?.elevenlabs_agent_id as string | null;
@@ -323,8 +326,11 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
     ...(row.variables ?? {}),
     campaign_id: campaign.id,
     campaign_contact_id: row.id,
+    call_purpose: "followup",
+    agent_name: persona.name ?? "Nina",
     voice_call_id: voiceCallId ?? "",
   };
+  const systemPrompt = `${buildSystemPromptWithGuardrails(persona.system_prompt)}${PT_BR_LANGUAGE_INSTRUCTION}`;
 
   const res = await fetch(
     "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
@@ -335,14 +341,18 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
         agent_id: elAgentId,
         agent_phone_number_id: phoneRow.elevenlabs_phone_number_id,
         to_number: toNumber,
-        conversation_initiation_client_data: campaign.opening_script
-          ? {
-              conversation_config_override: {
-                agent: { first_message: campaign.opening_script },
-              },
-              dynamic_variables: dynamicVariables,
-            }
-          : { dynamic_variables: dynamicVariables },
+        conversation_initiation_client_data: {
+          conversation_config_override: {
+            asr: { keywords: ["português", "Brasil", "Nina"] },
+            agent: {
+              language: "pt-br",
+              ...(campaign.opening_script ? { first_message: campaign.opening_script } : {}),
+              prompt: { prompt: systemPrompt },
+            },
+            tts: { voice_id: persona.voice_clone_id ?? undefined },
+          },
+          dynamic_variables: dynamicVariables,
+        },
       }),
     },
   );
