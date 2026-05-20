@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
 
   const { data: persona } = await admin
     .from("agent_personas")
-    .select("elevenlabs_agent_id, name, system_prompt, first_message")
+    .select("elevenlabs_agent_id, name, system_prompt, first_message, voice_clone_id")
     .eq("id", personaId)
     .maybeSingle();
   const agentId = persona?.elevenlabs_agent_id as string | null;
