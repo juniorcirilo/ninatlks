@@ -20,6 +20,8 @@ import {
   BarChart3,
   Gauge,
   BookOpen,
+  Rocket,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
