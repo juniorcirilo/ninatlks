@@ -424,11 +424,10 @@ Responda EXATAMENTE neste formato:
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(content);
-    const category: OutcomeCategory = (ALLOWED_CATEGORIES as readonly string[]).includes(parsed.category)
-      ? parsed.category
-      : "other";
+    const category: OutcomeCategory = allowedCodes.includes(parsed.category) ? parsed.category : (allowedCodes[0] ?? "other");
     const confidence = typeof parsed.confidence === "number" ? clamp(parsed.confidence, 0, 1) : 0.5;
-    const score = typeof parsed.score === "number" ? clamp(parsed.score, 0, 100) : STAGE_BY_CATEGORY[category].score;
+    const fallbackScore = catalog.find((c) => c.code === category)?.score ?? DEFAULT_SDR_SCORE[category]?.score ?? 30;
+    const score = typeof parsed.score === "number" ? clamp(parsed.score, 0, 100) : fallbackScore;
     const llmName = typeof parsed.contact_name === "string"
       ? sanitizeName(parsed.contact_name)
       : null;
