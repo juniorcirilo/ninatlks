@@ -33,6 +33,7 @@ import { Route as AuthenticatedAgentsAnalyticsRouteImport } from './routes/_auth
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authenticated/admin-registro'
 import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
+import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as AuthenticatedContactsContactIdRouteImport } from './routes/_authenticated/contacts.$contactId'
 import { Route as ApiPublicHooksVoiceCallsFinalizePendingRouteImport } from './routes/api/public/hooks/voice-calls-finalize-pending'
 import { Route as ApiPublicHooksResendInboundRouteImport } from './routes/api/public/hooks/resend-inbound'
@@ -161,6 +162,12 @@ const AuthenticatedAdminFilasRoute = AuthenticatedAdminFilasRouteImport.update({
   path: '/admin-filas',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedCampanhasIndexRoute =
+  AuthenticatedCampanhasIndexRouteImport.update({
+    id: '/campanhas/',
+    path: '/campanhas/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedContactsContactIdRoute =
   AuthenticatedContactsContactIdRouteImport.update({
     id: '/$contactId',
@@ -205,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tutorial': typeof AuthenticatedTutorialRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
@@ -233,6 +241,7 @@ export interface FileRoutesByTo {
   '/tutorial': typeof AuthenticatedTutorialRoute
   '/': typeof AuthenticatedIndexRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
@@ -263,6 +272,7 @@ export interface FileRoutesById {
   '/_authenticated/tutorial': typeof AuthenticatedTutorialRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
@@ -293,6 +303,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tutorial'
     | '/contacts/$contactId'
+    | '/campanhas/'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   fileRoutesByTo: FileRoutesByTo
@@ -321,6 +332,7 @@ export interface FileRouteTypes {
     | '/tutorial'
     | '/'
     | '/contacts/$contactId'
+    | '/campanhas'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   id:
@@ -350,6 +362,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tutorial'
     | '/_authenticated/'
     | '/_authenticated/contacts/$contactId'
+    | '/_authenticated/campanhas/'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   fileRoutesById: FileRoutesById
@@ -535,6 +548,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFilasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/campanhas/': {
+      id: '/_authenticated/campanhas/'
+      path: '/campanhas'
+      fullPath: '/campanhas/'
+      preLoaderRoute: typeof AuthenticatedCampanhasIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/contacts/$contactId': {
       id: '/_authenticated/contacts/$contactId'
       path: '/$contactId'
@@ -591,6 +611,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTutorialRoute: typeof AuthenticatedTutorialRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedCampanhasIndexRoute: typeof AuthenticatedCampanhasIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -612,6 +633,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTutorialRoute: AuthenticatedTutorialRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedCampanhasIndexRoute: AuthenticatedCampanhasIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
