@@ -371,34 +371,32 @@ async function classify(
   }
 
   const sample = (transcriptText || summary || "").slice(0, 4000);
-  const prompt = `Você é um analista de SDR. Analise a transcrição abaixo e devolva APENAS JSON válido (sem markdown).
+  const catalogList = (catalog.length > 0 ? catalog : DEFAULT_SDR_CATEGORIES.map((c) => ({
+    code: c, label: c, description: null as string | null, score: DEFAULT_SDR_SCORE[c]?.score ?? 30,
+  })))
+    .map((c) => `- ${c.code}${c.label && c.label !== c.code ? ` (${c.label})` : ""}${c.description ? `: ${c.description}` : ""}`)
+    .join("\n");
 
-Categorias possíveis:
-- scheduled (agendou/remarcou consulta ou reunião)
-- qualified (tem fit + interesse, mas não agendou)
-- not_interested (sem fit/interesse)
-- callback (pediu pra ligar depois)
-- no_answer (ligação curta, caiu)
-- voicemail (caixa postal)
-- wrong_number (número errado)
-- escalated (pediu humano sem qualificar)
-- other
+  const prompt = `Você é um analista de operações de IA (tipo: ${kind}). Analise a transcrição abaixo e devolva APENAS JSON válido (sem markdown).
+
+Categorias possíveis (use EXATAMENTE um destes códigos no campo "category"):
+${catalogList}
 
 Transcrição:
 ${sample}
 
 Responda EXATAMENTE neste formato:
 {
-  "category": "<uma das categorias>",
+  "category": "<um código da lista acima>",
   "confidence": <0..1>,
-  "score": <0..100, fit ou prioridade do lead>,
+  "score": <0..100, prioridade/qualidade do contato>,
   "summary": "<1 frase em PT-BR resumindo o resultado>",
-  "contact_name": "<nome próprio do lead/paciente. Considere QUALQUER sinal: (a) lead se apresenta ('meu nome é X', 'sou o X', 'aqui é a X', 'pode me chamar de X'); (b) agente chama o lead pelo nome ('Oi João!', 'Olá Maria, tudo bem?') E o lead responde naturalmente sem corrigir — isso é confirmação implícita; (c) terceiros confirmam o nome do lead. Use null APENAS se nenhum nome aparecer. Devolva só o primeiro nome (ou primeiro+segundo), sem títulos como 'Sr.', 'Dr.', 'Sra.'>",
+  "contact_name": "<nome próprio do contato se identificado, senão null. Sem títulos>",
   "briefing": {
-    "dor": "<dor/motivo relatado pelo lead, ou null>",
+    "dor": "<dor/motivo, ou null>",
     "fit": "<por que dá ou não dá fit, ou null>",
-    "objections": ["<objeção 1>", "<objeção 2>"],
-    "next_action": "<sugestão pro humano, ou null>"
+    "objections": ["<objeção 1>"],
+    "next_action": "<recomendação, ou null>"
   }
 }`;
 
