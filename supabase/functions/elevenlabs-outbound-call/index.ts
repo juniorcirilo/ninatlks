@@ -24,6 +24,9 @@ const corsHeaders = {
 };
 
 const EL_TIMEOUT_MS = 15_000;
+const PT_BR_LANGUAGE = "pt-br";
+const PT_BR_LANGUAGE_INSTRUCTION =
+  "\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- A primeira fala deve ser em português brasileiro.\n- Nunca use inglês, mesmo se o runtime ou telefonia sugerirem outro idioma.";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -111,7 +114,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
   const agentId = persona?.elevenlabs_agent_id as string | null;
   const personaName = (persona?.name as string | null) ?? "Nina";
-  const systemPrompt = buildSystemPromptWithGuardrails(persona?.system_prompt as string | null | undefined);
+  const systemPrompt = `${buildSystemPromptWithGuardrails(persona?.system_prompt as string | null | undefined)}${PT_BR_LANGUAGE_INSTRUCTION}`;
   const firstMessage = (persona?.first_message as string | null | undefined) ??
     `Oi {{lead_name}}, aqui é {{agent_name}} da {{company_name}}. Esta chamada pode ser gravada. Em que posso ajudar?`;
   if (!agentId) {
@@ -310,11 +313,17 @@ Deno.serve(async (req) => {
           to_number: toE164,
           conversation_initiation_client_data: {
             conversation_config_override: {
+            asr: {
+              keywords: ["português", "Brasil", "Nina"],
+            },
               agent: {
-                language: "pt-br",
+                language: PT_BR_LANGUAGE,
                 first_message: firstMessage,
                 prompt: { prompt: systemPrompt },
               },
+            tts: {
+              voice_id: (persona as any)?.voice_clone_id ?? undefined,
+            },
             },
             dynamic_variables: dynamicVariables,
           },
