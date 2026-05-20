@@ -69,7 +69,19 @@ Deno.serve(async (req) => {
   );
   if (!upstream.ok || !upstream.body) {
     const text = await upstream.text().catch(() => "");
-    return j({ error: `EL audio fetch failed: ${upstream.status}: ${text.slice(0, 200)}` }, 502);
+    console.error("[elevenlabs-call-audio] EL fetch failed", upstream.status, text.slice(0, 300));
+    // Return 200 with a fallback signal so the client can degrade gracefully
+    // instead of throwing a 502 (which blanks the screen).
+    const isNotFound = upstream.status === 404;
+    return j({
+      ok: false,
+      fallback: true,
+      error: isNotFound ? "AUDIO_NOT_AVAILABLE" : "AUDIO_FETCH_FAILED",
+      status: upstream.status,
+      detail: isNotFound
+        ? "A gravação ainda não está disponível na ElevenLabs para esta conversa."
+        : `Falha ao buscar áudio (${upstream.status}).`,
+    }, 200);
   }
 
   // Stream the MP3 directly back.

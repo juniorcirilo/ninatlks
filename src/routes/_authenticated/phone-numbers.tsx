@@ -1430,6 +1430,16 @@ function CallRecordingPlayer({ call }: { call: any }) {
         const text = await res.text().catch(() => "");
         throw new Error(`${res.status}: ${text.slice(0, 150)}`);
       }
+      const ctype = res.headers.get("content-type") ?? "";
+      if (ctype.includes("application/json")) {
+        // Fallback signal from edge function (e.g. audio not yet available).
+        const payload = await res.json().catch(() => ({}));
+        if (payload?.audio_url) {
+          setAudioSrc(payload.audio_url);
+          return;
+        }
+        throw new Error(payload?.detail ?? payload?.error ?? "Gravação indisponível");
+      }
       const blob = await res.blob();
       setAudioSrc(URL.createObjectURL(blob));
     } catch (e: any) {
