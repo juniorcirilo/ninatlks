@@ -222,6 +222,7 @@ export async function fetchCallDetail(callId: string): Promise<CallDetail | null
     classification: r.classification ?? null,
     metadata: (r.metadata ?? {}) as Record<string, unknown>,
     recording_storage_path: r.recording_storage_path ?? null,
+    ai_summary: r.ai_summary ?? null,
   };
 }
 
