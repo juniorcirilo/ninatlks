@@ -442,7 +442,14 @@ function CallDetailSheet({ callId }: { callId: string }) {
           </Row>
         </div>
 
-        {/* Outcome summary + sentiment */}
+        {/* Resumo IA */}
+        <AiSummaryBlock
+          callId={detail.id}
+          initial={detail.ai_summary}
+          onUpdate={(s) => setDetail((prev) => (prev ? { ...prev, ai_summary: s } : prev))}
+        />
+
+
         {(detail.outcome_summary || detail.sentiment_aggregate) && (
           <div className="space-y-2 rounded-xl border border-border bg-card p-3">
             {detail.outcome_summary && (
