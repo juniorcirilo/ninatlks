@@ -274,10 +274,44 @@ async function resolveStageId(admin: any, accountId: string, stageName: string):
   return null;
 }
 
-async function classify(transcriptText: string, summary: string | null): Promise<Classification> {
-  // Heuristic regex pass first (cheap, deterministic for óbvios)
+interface OutcomeDef { code: string; label: string; description: string | null; score: number }
+
+async function loadOutcomesCatalog(
+  admin: any, accountId: string, kind: string,
+): Promise<OutcomeDef[]> {
+  const { data } = await admin
+    .from("call_outcomes_catalog")
+    .select("code, label, description, score, position")
+    .eq("campaign_kind", kind)
+    .or(`account_id.eq.${accountId},account_id.is.null`)
+    .order("position", { ascending: true });
+  const rows = (data ?? []) as any[];
+  const seen = new Set<string>();
+  const out: OutcomeDef[] = [];
+  for (const r of rows) {
+    if (seen.has(r.code)) continue;
+    seen.add(r.code);
+    out.push({ code: r.code, label: r.label, description: r.description ?? null, score: r.score ?? 0 });
+  }
+  return out;
+}
+
+async function classify(
+  transcriptText: string,
+  summary: string | null,
+  catalog: OutcomeDef[],
+  kind: string,
+): Promise<Classification> {
+  // Heuristic regex pass first (cheap, deterministic for óbvios) — só roda
+  // para SDR; outros tipos confiam direto no LLM com catálogo.
   const text = (transcriptText + "\n" + (summary ?? "")).toLowerCase();
   const heuristicName = extractNameHeuristic(transcriptText);
+
+  const allowedCodes = catalog.length > 0
+    ? catalog.map((c) => c.code)
+    : [...DEFAULT_SDR_CATEGORIES];
+
+  if (kind === "sdr") {
 
   const heuristics: Array<{ category: OutcomeCategory; patterns: RegExp[] }> = [
     {
