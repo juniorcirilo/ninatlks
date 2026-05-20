@@ -12,6 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
 import { guardCall, logAttempt } from "../_shared/voice/guard.ts";
+import { buildSystemPromptWithGuardrails } from "../_shared/voice/sdr-guardrails.ts";
 import {
   resolveCredentialsForAccount,
   ElevenLabsError,
@@ -105,11 +106,14 @@ Deno.serve(async (req) => {
 
   const { data: persona } = await admin
     .from("agent_personas")
-    .select("elevenlabs_agent_id, name")
+    .select("elevenlabs_agent_id, name, system_prompt, first_message")
     .eq("id", personaId)
     .maybeSingle();
   const agentId = persona?.elevenlabs_agent_id as string | null;
   const personaName = (persona?.name as string | null) ?? "Nina";
+  const systemPrompt = buildSystemPromptWithGuardrails(persona?.system_prompt as string | null | undefined);
+  const firstMessage = (persona?.first_message as string | null | undefined) ??
+    `Oi {{lead_name}}, aqui é {{agent_name}} da {{company_name}}. Esta chamada pode ser gravada. Em que posso ajudar?`;
   if (!agentId) {
     return j(
       { error: "persona não está sincronizada com EL — sincronize o agente primeiro" },
@@ -305,6 +309,13 @@ Deno.serve(async (req) => {
           agent_phone_number_id: elPhoneId,
           to_number: toE164,
           conversation_initiation_client_data: {
+            conversation_config_override: {
+              agent: {
+                language: "pt-br",
+                first_message: firstMessage,
+                prompt: { prompt: systemPrompt },
+              },
+            },
             dynamic_variables: dynamicVariables,
           },
         }),
