@@ -25,9 +25,6 @@ import {
   RefreshCw,
   ShieldCheck,
   Clock,
-  ShieldCheck,
-  Clock,
-  TrendingUp,
   TrendingUp,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
