@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
       agent: {
         prompt: { prompt: enrichedPrompt },
         first_message: greeting,
-        language: "pt",
+        language: "pt-br",
       },
     },
     dynamic_variables: dynamicVariables,
