@@ -134,13 +134,29 @@ function ListsPage() {
             Organize contatos por finalidade: SDR, Pós-venda, Cobrança e Retenção.
           </p>
         </div>
-        <button
-          onClick={() => setCreating((v) => !v)}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" /> Nova lista
-        </button>
+        {tab === "lists" && (
+          <button
+            onClick={() => setCreating((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" /> Nova lista
+          </button>
+        )}
       </header>
+
+      <div className="flex gap-1 border-b border-border">
+        <TabBtn active={tab === "lists"} onClick={() => setTab("lists")} icon={<Users className="h-3.5 w-3.5" />}>
+          Listas de contatos
+        </TabBtn>
+        <TabBtn active={tab === "retention"} onClick={() => setTab("retention")} icon={<ShieldCheck className="h-3.5 w-3.5" />}>
+          Regras de retenção
+        </TabBtn>
+      </div>
+
+      {tab === "retention" ? (
+        <RetentionRulesPanel accountId={accountId} />
+      ) : (<></>)}
+      {tab === "lists" && (<></>)}
 
       {creating && (
         <div className="space-y-3 rounded-xl border border-border bg-card p-4">
