@@ -19,22 +19,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Categorias de outcome para SDR
-const ALLOWED_CATEGORIES = [
-  "scheduled",        // agendou reunião
-  "qualified",        // qualificou mas não agendou (ex: pediu pra agendar depois)
-  "not_interested",   // sem fit / sem interesse
-  "callback",         // pediu pra ligar de novo
-  "no_answer",        // ligação curtíssima ou caiu
-  "voicemail",        // caixa postal
-  "wrong_number",     // número errado
-  "escalated",        // pediu humano sem qualificar
-  "other",
+// Catálogo padrão SDR (fallback se nenhuma linha no call_outcomes_catalog).
+// Quando a call vem de uma campanha, lemos o catálogo dinâmico por
+// campaign_kind. Para tudo fora desse universo (SDR clássico), usamos
+// estes defaults.
+const DEFAULT_SDR_CATEGORIES = [
+  "scheduled","qualified","not_interested","callback","no_answer",
+  "voicemail","wrong_number","escalated","other",
 ] as const;
-type OutcomeCategory = (typeof ALLOWED_CATEGORIES)[number];
+type OutcomeCategory = string;
 
-// Mapeia outcome → (nome do stage default, score sugerido base)
-const STAGE_BY_CATEGORY: Record<OutcomeCategory, { stageName: string; score: number }> = {
+// Score sugerido base por outcome (sobrescrito pelo catálogo quando existe).
+const DEFAULT_SDR_SCORE: Record<string, { stageName: string; score: number }> = {
   scheduled:      { stageName: "Reunião agendada", score: 95 },
   qualified:      { stageName: "Qualificado",      score: 70 },
   callback:       { stageName: "Contatado",        score: 50 },
@@ -114,24 +110,32 @@ Deno.serve(async (req) => {
     return j({ ok: false, error: "no transcript or summary to classify" }, 400);
   }
 
-  // 2. Classificar
+  // 2. Resolver campaign_kind a partir do metadata da call
+  const campaignKind = ((call as any).metadata as any)?.campaign_kind ?? "sdr";
+
+  // 3. Carregar catálogo de outcomes para esse kind (account override OU global)
+  const catalog = await loadOutcomesCatalog(admin, (call as any).account_id, campaignKind);
+
+  // 4. Classificar usando o catálogo
   let classification: Classification;
   try {
-    classification = await classify(transcriptText, summary);
+    classification = await classify(transcriptText, summary, catalog, campaignKind);
   } catch (e: any) {
     console.error("[lead-classify] classify failed", e);
     return j({ ok: false, error: e?.message ?? "classification failed" }, 500);
   }
 
-  // 3. Resolver contact_id
+  // 5. Resolver contact_id
   const contactId = await resolveContactId(admin, call as any);
   if (!contactId) {
     return j({ ok: false, error: "could not resolve or create contact" }, 500);
   }
 
-  // 4. Resolver stage_id pelo nome do default pipeline da account
-  const stageInfo = STAGE_BY_CATEGORY[classification.category];
-  const stageId = await resolveStageId(admin, (call as any).account_id, stageInfo.stageName);
+  // 6. Resolver stage_id (só faz sentido para SDR; outros tipos usam tags/labels)
+  const stageInfo = DEFAULT_SDR_SCORE[classification.category] ?? DEFAULT_SDR_SCORE.other;
+  const stageId = campaignKind === "sdr"
+    ? await resolveStageId(admin, (call as any).account_id, stageInfo.stageName)
+    : null;
 
   // 5. Atualizar contact
   const updates: Record<string, any> = {
@@ -270,10 +274,44 @@ async function resolveStageId(admin: any, accountId: string, stageName: string):
   return null;
 }
 
-async function classify(transcriptText: string, summary: string | null): Promise<Classification> {
-  // Heuristic regex pass first (cheap, deterministic for óbvios)
+interface OutcomeDef { code: string; label: string; description: string | null; score: number }
+
+async function loadOutcomesCatalog(
+  admin: any, accountId: string, kind: string,
+): Promise<OutcomeDef[]> {
+  const { data } = await admin
+    .from("call_outcomes_catalog")
+    .select("code, label, description, score, position")
+    .eq("campaign_kind", kind)
+    .or(`account_id.eq.${accountId},account_id.is.null`)
+    .order("position", { ascending: true });
+  const rows = (data ?? []) as any[];
+  const seen = new Set<string>();
+  const out: OutcomeDef[] = [];
+  for (const r of rows) {
+    if (seen.has(r.code)) continue;
+    seen.add(r.code);
+    out.push({ code: r.code, label: r.label, description: r.description ?? null, score: r.score ?? 0 });
+  }
+  return out;
+}
+
+async function classify(
+  transcriptText: string,
+  summary: string | null,
+  catalog: OutcomeDef[],
+  kind: string,
+): Promise<Classification> {
+  // Heuristic regex pass first (cheap, deterministic for óbvios) — só roda
+  // para SDR; outros tipos confiam direto no LLM com catálogo.
   const text = (transcriptText + "\n" + (summary ?? "")).toLowerCase();
   const heuristicName = extractNameHeuristic(transcriptText);
+
+  const allowedCodes = catalog.length > 0
+    ? catalog.map((c) => c.code)
+    : [...DEFAULT_SDR_CATEGORIES];
+
+  if (kind === "sdr") {
 
   const heuristics: Array<{ category: OutcomeCategory; patterns: RegExp[] }> = [
     {
@@ -305,7 +343,7 @@ async function classify(transcriptText: string, summary: string | null): Promise
   for (const h of heuristics) {
     for (const p of h.patterns) {
       if (p.test(text)) {
-        const base = STAGE_BY_CATEGORY[h.category];
+        const base = DEFAULT_SDR_SCORE[h.category] ?? { score: 30 };
         return {
           category: h.category,
           confidence: 0.92,
@@ -317,6 +355,7 @@ async function classify(transcriptText: string, summary: string | null): Promise
       }
     }
   }
+  } // end if(kind==='sdr')
 
   // LLM fallback (Lovable AI Gateway)
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -332,34 +371,32 @@ async function classify(transcriptText: string, summary: string | null): Promise
   }
 
   const sample = (transcriptText || summary || "").slice(0, 4000);
-  const prompt = `Você é um analista de SDR. Analise a transcrição abaixo e devolva APENAS JSON válido (sem markdown).
+  const catalogList = (catalog.length > 0 ? catalog : DEFAULT_SDR_CATEGORIES.map((c) => ({
+    code: c, label: c, description: null as string | null, score: DEFAULT_SDR_SCORE[c]?.score ?? 30,
+  })))
+    .map((c) => `- ${c.code}${c.label && c.label !== c.code ? ` (${c.label})` : ""}${c.description ? `: ${c.description}` : ""}`)
+    .join("\n");
 
-Categorias possíveis:
-- scheduled (agendou/remarcou consulta ou reunião)
-- qualified (tem fit + interesse, mas não agendou)
-- not_interested (sem fit/interesse)
-- callback (pediu pra ligar depois)
-- no_answer (ligação curta, caiu)
-- voicemail (caixa postal)
-- wrong_number (número errado)
-- escalated (pediu humano sem qualificar)
-- other
+  const prompt = `Você é um analista de operações de IA (tipo: ${kind}). Analise a transcrição abaixo e devolva APENAS JSON válido (sem markdown).
+
+Categorias possíveis (use EXATAMENTE um destes códigos no campo "category"):
+${catalogList}
 
 Transcrição:
 ${sample}
 
 Responda EXATAMENTE neste formato:
 {
-  "category": "<uma das categorias>",
+  "category": "<um código da lista acima>",
   "confidence": <0..1>,
-  "score": <0..100, fit ou prioridade do lead>,
+  "score": <0..100, prioridade/qualidade do contato>,
   "summary": "<1 frase em PT-BR resumindo o resultado>",
-  "contact_name": "<nome próprio do lead/paciente. Considere QUALQUER sinal: (a) lead se apresenta ('meu nome é X', 'sou o X', 'aqui é a X', 'pode me chamar de X'); (b) agente chama o lead pelo nome ('Oi João!', 'Olá Maria, tudo bem?') E o lead responde naturalmente sem corrigir — isso é confirmação implícita; (c) terceiros confirmam o nome do lead. Use null APENAS se nenhum nome aparecer. Devolva só o primeiro nome (ou primeiro+segundo), sem títulos como 'Sr.', 'Dr.', 'Sra.'>",
+  "contact_name": "<nome próprio do contato se identificado, senão null. Sem títulos>",
   "briefing": {
-    "dor": "<dor/motivo relatado pelo lead, ou null>",
+    "dor": "<dor/motivo, ou null>",
     "fit": "<por que dá ou não dá fit, ou null>",
-    "objections": ["<objeção 1>", "<objeção 2>"],
-    "next_action": "<sugestão pro humano, ou null>"
+    "objections": ["<objeção 1>"],
+    "next_action": "<recomendação, ou null>"
   }
 }`;
 
@@ -387,11 +424,10 @@ Responda EXATAMENTE neste formato:
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content ?? "{}";
     const parsed = JSON.parse(content);
-    const category: OutcomeCategory = (ALLOWED_CATEGORIES as readonly string[]).includes(parsed.category)
-      ? parsed.category
-      : "other";
+    const category: OutcomeCategory = allowedCodes.includes(parsed.category) ? parsed.category : (allowedCodes[0] ?? "other");
     const confidence = typeof parsed.confidence === "number" ? clamp(parsed.confidence, 0, 1) : 0.5;
-    const score = typeof parsed.score === "number" ? clamp(parsed.score, 0, 100) : STAGE_BY_CATEGORY[category].score;
+    const fallbackScore = catalog.find((c) => c.code === category)?.score ?? DEFAULT_SDR_SCORE[category]?.score ?? 30;
+    const score = typeof parsed.score === "number" ? clamp(parsed.score, 0, 100) : fallbackScore;
     const llmName = typeof parsed.contact_name === "string"
       ? sanitizeName(parsed.contact_name)
       : null;

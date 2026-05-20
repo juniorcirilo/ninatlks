@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
        campaign:voice_campaigns(
          id, status, persona_id, voice_id, phone_number_id, script_mode,
          opening_script, max_call_duration_sec, record_call, max_concurrent,
-         retry_attempts, retry_delay_minutes,
+         retry_attempts, retry_delay_minutes, campaign_kind,
          escalation_rules, account_id,
          allowed_hours_local, max_attempts_per_day, min_minutes_between_attempts,
          disclaimer_enabled
@@ -307,6 +307,7 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
       metadata: {
         campaign_id: campaign.id,
         campaign_contact_id: row.id,
+        campaign_kind: campaign.campaign_kind ?? "sdr",
         voice_id: campaign.voice_id,
         variables: row.variables,
         opening_script: campaign.opening_script,
@@ -330,7 +331,8 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
     agent_name: persona.name ?? "Nina",
     voice_call_id: voiceCallId ?? "",
   };
-  const systemPrompt = `${buildSystemPromptWithGuardrails(persona.system_prompt)}${PT_BR_LANGUAGE_INSTRUCTION}`;
+  const outcomesBlock = await buildOutcomesPromptBlock(admin, row.account_id, campaign.campaign_kind ?? "sdr");
+  const systemPrompt = `${buildSystemPromptWithGuardrails(persona.system_prompt)}${PT_BR_LANGUAGE_INSTRUCTION}${outcomesBlock}`;
 
   const res = await fetch(
     "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
@@ -426,3 +428,42 @@ function j(body: unknown, status = 200) {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+// Lê catálogo de outcomes (account override OR global default) e devolve
+// bloco markdown para anexar ao system_prompt. Assim o agente sabe quais
+// desfechos pode reportar via tool ou texto final.
+const KIND_LABEL: Record<string, string> = {
+  sdr: "SDR / Prospecção",
+  cobranca: "Cobrança / Recuperação",
+  pos_venda: "Pós-venda / CSAT",
+  retencao: "Retenção / Reativação",
+  custom: "Operação customizada",
+};
+
+async function buildOutcomesPromptBlock(
+  admin: SupabaseClient,
+  accountId: string,
+  kind: string,
+): Promise<string> {
+  const { data } = await admin
+    .from("call_outcomes_catalog")
+    .select("code, label, description, score, terminal")
+    .eq("campaign_kind", kind)
+    .or(`account_id.eq.${accountId},account_id.is.null`)
+    .order("position", { ascending: true });
+
+  const rows = (data ?? []) as any[];
+  if (rows.length === 0) return "";
+
+  // Dedup: se a conta sobrescreveu o code, ignora a versão global.
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const r of rows) {
+    if (seen.has(r.code)) continue;
+    seen.add(r.code);
+    items.push(`- \`${r.code}\` — ${r.label}${r.description ? `: ${r.description}` : ""}`);
+  }
+
+  return `\n\n# DESFECHOS POSSÍVEIS — ${KIND_LABEL[kind] ?? kind.toUpperCase()}\nClassifique mentalmente a ligação em UM destes desfechos (use exatamente o código quando reportar via ferramenta):\n${items.join("\n")}`;
+}
+
