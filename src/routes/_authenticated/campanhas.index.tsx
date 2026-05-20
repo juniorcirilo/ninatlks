@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Rocket, PhoneCall, PhoneOff, Voicemail, ArrowRightLeft, Activity } from "lucide-react";
+import { Loader2, Plus, Rocket, PhoneCall, PhoneOff, ArrowRightLeft, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
 import {
