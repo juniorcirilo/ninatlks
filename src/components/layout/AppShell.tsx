@@ -20,6 +20,8 @@ import {
   BarChart3,
   Gauge,
   BookOpen,
+  Rocket,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -61,6 +63,8 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/calls", label: "Ligações", icon: Phone },
       { to: "/reunioes", label: "Reuniões", icon: CalendarDays },
       { to: "/follow-ups", label: "Follow-ups", icon: PhoneCall },
+      { to: "/listas", label: "Listas operacionais", icon: ClipboardList },
+      { to: "/campanhas", label: "Campanhas IA", icon: Rocket },
       { to: "/agents", label: "Agentes de voz", icon: Bot },
       { to: "/agents-playground", label: "Playground IA", icon: Sparkles },
       { to: "/agents-analytics", label: "Analytics IA", icon: BarChart3 },

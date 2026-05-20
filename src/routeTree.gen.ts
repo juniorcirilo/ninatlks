@@ -22,6 +22,7 @@ import { Route as AuthenticatedReunioesRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
 import { Route as AuthenticatedMissionControlRouteImport } from './routes/_authenticated/mission-control'
+import { Route as AuthenticatedListasRouteImport } from './routes/_authenticated/listas'
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
@@ -32,7 +33,10 @@ import { Route as AuthenticatedAgentsAnalyticsRouteImport } from './routes/_auth
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authenticated/admin-registro'
 import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
+import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as AuthenticatedContactsContactIdRouteImport } from './routes/_authenticated/contacts.$contactId'
+import { Route as AuthenticatedCampanhasNovaRouteImport } from './routes/_authenticated/campanhas.nova'
+import { Route as AuthenticatedCampanhasCampaignIdRouteImport } from './routes/_authenticated/campanhas.$campaignId'
 import { Route as ApiPublicHooksVoiceCallsFinalizePendingRouteImport } from './routes/api/public/hooks/voice-calls-finalize-pending'
 import { Route as ApiPublicHooksResendInboundRouteImport } from './routes/api/public/hooks/resend-inbound'
 
@@ -102,6 +106,11 @@ const AuthenticatedMissionControlRoute =
     path: '/mission-control',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedListasRoute = AuthenticatedListasRouteImport.update({
+  id: '/listas',
+  path: '/listas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedFollowUpsRoute = AuthenticatedFollowUpsRouteImport.update({
   id: '/follow-ups',
   path: '/follow-ups',
@@ -155,11 +164,29 @@ const AuthenticatedAdminFilasRoute = AuthenticatedAdminFilasRouteImport.update({
   path: '/admin-filas',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedCampanhasIndexRoute =
+  AuthenticatedCampanhasIndexRouteImport.update({
+    id: '/campanhas/',
+    path: '/campanhas/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedContactsContactIdRoute =
   AuthenticatedContactsContactIdRouteImport.update({
     id: '/$contactId',
     path: '/$contactId',
     getParentRoute: () => AuthenticatedContactsRoute,
+  } as any)
+const AuthenticatedCampanhasNovaRoute =
+  AuthenticatedCampanhasNovaRouteImport.update({
+    id: '/campanhas/nova',
+    path: '/campanhas/nova',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedCampanhasCampaignIdRoute =
+  AuthenticatedCampanhasCampaignIdRouteImport.update({
+    id: '/campanhas/$campaignId',
+    path: '/campanhas/$campaignId',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiPublicHooksVoiceCallsFinalizePendingRoute =
   ApiPublicHooksVoiceCallsFinalizePendingRouteImport.update({
@@ -191,13 +218,17 @@ export interface FileRoutesByFullPath {
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tutorial': typeof AuthenticatedTutorialRoute
+  '/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
+  '/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
@@ -217,6 +248,7 @@ export interface FileRoutesByTo {
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -224,7 +256,10 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tutorial': typeof AuthenticatedTutorialRoute
   '/': typeof AuthenticatedIndexRoute
+  '/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
+  '/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
@@ -246,6 +281,7 @@ export interface FileRoutesById {
   '/_authenticated/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/_authenticated/listas': typeof AuthenticatedListasRoute
   '/_authenticated/mission-control': typeof AuthenticatedMissionControlRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
@@ -253,7 +289,10 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tutorial': typeof AuthenticatedTutorialRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
+  '/_authenticated/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/_authenticated/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
 }
@@ -276,13 +315,17 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/equipe'
     | '/follow-ups'
+    | '/listas'
     | '/mission-control'
     | '/phone-numbers'
     | '/pipeline'
     | '/reunioes'
     | '/settings'
     | '/tutorial'
+    | '/campanhas/$campaignId'
+    | '/campanhas/nova'
     | '/contacts/$contactId'
+    | '/campanhas/'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   fileRoutesByTo: FileRoutesByTo
@@ -302,6 +345,7 @@ export interface FileRouteTypes {
     | '/contacts'
     | '/equipe'
     | '/follow-ups'
+    | '/listas'
     | '/mission-control'
     | '/phone-numbers'
     | '/pipeline'
@@ -309,7 +353,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tutorial'
     | '/'
+    | '/campanhas/$campaignId'
+    | '/campanhas/nova'
     | '/contacts/$contactId'
+    | '/campanhas'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   id:
@@ -330,6 +377,7 @@ export interface FileRouteTypes {
     | '/_authenticated/contacts'
     | '/_authenticated/equipe'
     | '/_authenticated/follow-ups'
+    | '/_authenticated/listas'
     | '/_authenticated/mission-control'
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
@@ -337,7 +385,10 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/tutorial'
     | '/_authenticated/'
+    | '/_authenticated/campanhas/$campaignId'
+    | '/_authenticated/campanhas/nova'
     | '/_authenticated/contacts/$contactId'
+    | '/_authenticated/campanhas/'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
   fileRoutesById: FileRoutesById
@@ -446,6 +497,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMissionControlRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/listas': {
+      id: '/_authenticated/listas'
+      path: '/listas'
+      fullPath: '/listas'
+      preLoaderRoute: typeof AuthenticatedListasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/follow-ups': {
       id: '/_authenticated/follow-ups'
       path: '/follow-ups'
@@ -516,12 +574,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminFilasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/campanhas/': {
+      id: '/_authenticated/campanhas/'
+      path: '/campanhas'
+      fullPath: '/campanhas/'
+      preLoaderRoute: typeof AuthenticatedCampanhasIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/contacts/$contactId': {
       id: '/_authenticated/contacts/$contactId'
       path: '/$contactId'
       fullPath: '/contacts/$contactId'
       preLoaderRoute: typeof AuthenticatedContactsContactIdRouteImport
       parentRoute: typeof AuthenticatedContactsRoute
+    }
+    '/_authenticated/campanhas/nova': {
+      id: '/_authenticated/campanhas/nova'
+      path: '/campanhas/nova'
+      fullPath: '/campanhas/nova'
+      preLoaderRoute: typeof AuthenticatedCampanhasNovaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/campanhas/$campaignId': {
+      id: '/_authenticated/campanhas/$campaignId'
+      path: '/campanhas/$campaignId'
+      fullPath: '/campanhas/$campaignId'
+      preLoaderRoute: typeof AuthenticatedCampanhasCampaignIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/api/public/hooks/voice-calls-finalize-pending': {
       id: '/api/public/hooks/voice-calls-finalize-pending'
@@ -564,6 +643,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRouteWithChildren
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
+  AuthenticatedListasRoute: typeof AuthenticatedListasRoute
   AuthenticatedMissionControlRoute: typeof AuthenticatedMissionControlRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
@@ -571,6 +651,9 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTutorialRoute: typeof AuthenticatedTutorialRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedCampanhasCampaignIdRoute: typeof AuthenticatedCampanhasCampaignIdRoute
+  AuthenticatedCampanhasNovaRoute: typeof AuthenticatedCampanhasNovaRoute
+  AuthenticatedCampanhasIndexRoute: typeof AuthenticatedCampanhasIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -584,6 +667,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedContactsRoute: AuthenticatedContactsRouteWithChildren,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,
+  AuthenticatedListasRoute: AuthenticatedListasRoute,
   AuthenticatedMissionControlRoute: AuthenticatedMissionControlRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
@@ -591,6 +675,9 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTutorialRoute: AuthenticatedTutorialRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedCampanhasCampaignIdRoute: AuthenticatedCampanhasCampaignIdRoute,
+  AuthenticatedCampanhasNovaRoute: AuthenticatedCampanhasNovaRoute,
+  AuthenticatedCampanhasIndexRoute: AuthenticatedCampanhasIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

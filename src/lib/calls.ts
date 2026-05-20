@@ -56,6 +56,7 @@ export type CallDetail = CallSummary & {
   } | null;
   metadata: Record<string, unknown>;
   recording_storage_path: string | null;
+  ai_summary: string | null;
 };
 
 export const CALL_DIRECTION_LABEL: Record<CallDirection, string> = {
@@ -176,7 +177,7 @@ export async function fetchCallDetail(callId: string): Promise<CallDetail | null
   const { data, error } = await (supabase as any)
     .from("voice_calls")
     .select(
-      "id, account_id, direction, status, from_number, to_number, started_at, ended_at, duration_seconds, outcome_category, outcome_summary, sentiment, metadata, recording_url, recording_storage_path, transcript, classification",
+      "id, account_id, direction, status, from_number, to_number, started_at, ended_at, duration_seconds, outcome_category, outcome_summary, sentiment, metadata, recording_url, recording_storage_path, transcript, classification, ai_summary",
     )
     .eq("id", callId)
     .maybeSingle();
@@ -221,6 +222,7 @@ export async function fetchCallDetail(callId: string): Promise<CallDetail | null
     classification: r.classification ?? null,
     metadata: (r.metadata ?? {}) as Record<string, unknown>,
     recording_storage_path: r.recording_storage_path ?? null,
+    ai_summary: r.ai_summary ?? null,
   };
 }
 
