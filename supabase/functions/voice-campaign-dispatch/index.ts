@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
        campaign:voice_campaigns(
          id, status, persona_id, voice_id, phone_number_id, script_mode,
          opening_script, max_call_duration_sec, record_call, max_concurrent,
-         retry_attempts, retry_delay_minutes,
+         retry_attempts, retry_delay_minutes, campaign_kind,
          escalation_rules, account_id,
          allowed_hours_local, max_attempts_per_day, min_minutes_between_attempts,
          disclaimer_enabled
