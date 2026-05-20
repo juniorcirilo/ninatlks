@@ -14,11 +14,14 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
 import { resolveCredentialsForAccount } from "../_shared/elevenlabs/client.ts";
+import { buildSystemPromptWithGuardrails } from "../_shared/voice/sdr-guardrails.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+const PT_BR_LANGUAGE_INSTRUCTION =
+  "\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- A primeira fala deve ser em português brasileiro.\n- Nunca use inglês, mesmo se o runtime ou telefonia sugerirem outro idioma.";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -104,7 +107,7 @@ async function dispatchReminder(
 
   const { data: persona } = await admin
     .from("agent_personas")
-    .select("elevenlabs_agent_id, first_message, name")
+    .select("elevenlabs_agent_id, first_message, name, system_prompt, voice_clone_id")
     .eq("id", personaId)
     .maybeSingle();
   if (!persona?.elevenlabs_agent_id) throw new Error("persona not synced with EL");
@@ -153,10 +156,12 @@ async function dispatchReminder(
     meeting_starts_at_iso: meeting.starts_at,
     meeting_starts_at_human: startsHuman,
     lead_name: (meeting.invitee_name ?? "").split(" ")[0] || "olá",
+    agent_name: persona.name ?? "Nina",
     voice_call_id: vc.id,
   };
 
   const firstMessage = `Oi ${dynamicVariables.lead_name}, é a Nina lembrando da nossa reunião ${startsHuman}. Tudo confirmado?`;
+  const systemPrompt = `${buildSystemPromptWithGuardrails(persona.system_prompt)}${PT_BR_LANGUAGE_INSTRUCTION}`;
 
   // 6. Call EL outbound API
   const elRes = await fetch("https://api.elevenlabs.io/v1/convai/twilio/outbound-call", {
@@ -168,7 +173,13 @@ async function dispatchReminder(
       to_number: meeting.invitee_phone,
       conversation_initiation_client_data: {
         conversation_config_override: {
-          agent: { first_message: firstMessage },
+          asr: { keywords: ["português", "Brasil", "Nina"] },
+          agent: {
+            language: "pt-br",
+            first_message: firstMessage,
+            prompt: { prompt: systemPrompt },
+          },
+          tts: { voice_id: persona.voice_clone_id ?? undefined },
         },
         dynamic_variables: dynamicVariables,
       },
