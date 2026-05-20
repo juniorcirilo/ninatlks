@@ -907,16 +907,3 @@ function kindClass(kind: string | null): string {
       return "bg-muted text-muted-foreground ring-border";
   }
 }
-  switch (kind) {
-    case "sdr":
-      return "bg-primary/10 text-primary ring-primary/20";
-    case "cobranca":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
-    case "retencao":
-      return "bg-rose-50 text-rose-700 ring-rose-200";
-    case "pos_venda":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-    default:
-      return "bg-muted text-muted-foreground ring-border";
-  }
-}
