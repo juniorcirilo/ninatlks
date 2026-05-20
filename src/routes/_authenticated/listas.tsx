@@ -161,9 +161,17 @@ function ListsPage() {
         <TabBtn active={tab === "retention"} onClick={() => setTab("retention")} icon={<ShieldCheck className="h-3.5 w-3.5" />}>
           Regras de retenção
         </TabBtn>
+        <TabBtn active={tab === "compliance"} onClick={() => setTab("compliance")} icon={<Clock className="h-3.5 w-3.5" />}>
+          Janelas & LGPD
+        </TabBtn>
+        <TabBtn active={tab === "dnc"} onClick={() => setTab("dnc")} icon={<Ban className="h-3.5 w-3.5" />}>
+          DNC / Blocklist
+        </TabBtn>
       </div>
 
       {tab === "retention" && <RetentionRulesPanel accountId={accountId} />}
+      {tab === "compliance" && <CompliancePanel accountId={accountId} />}
+      {tab === "dnc" && <DncPanel accountId={accountId} />}
 
       {tab === "lists" && (
         <>
