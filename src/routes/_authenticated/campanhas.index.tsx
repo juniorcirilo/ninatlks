@@ -213,6 +213,37 @@ function CampaignsPage() {
   );
 }
 
+function FunnelKpi({
+  icon,
+  label,
+  value,
+  sub,
+  tone = "primary",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "primary" | "emerald" | "sky" | "rose";
+}) {
+  const toneCls = {
+    primary: "text-primary",
+    emerald: "text-emerald-600",
+    sky: "text-sky-600",
+    rose: "text-rose-600",
+  }[tone];
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className={cn("flex items-center gap-2 text-xs text-muted-foreground", toneCls)}>
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+      {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
+    </div>
+  );
+}
+
 function kindClass(kind: string | null): string {
   switch (kind) {
     case "sdr":
