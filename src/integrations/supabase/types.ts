@@ -746,6 +746,62 @@ export type Database = {
           },
         ]
       }
+      call_outcomes_catalog: {
+        Row: {
+          account_id: string | null
+          campaign_kind: string
+          code: string
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean
+          label: string
+          position: number
+          score: number
+          terminal: boolean
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          campaign_kind: string
+          code: string
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          label: string
+          position?: number
+          score?: number
+          terminal?: boolean
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          campaign_kind?: string
+          code?: string
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          label?: string
+          position?: number
+          score?: number
+          terminal?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_outcomes_catalog_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_runs: {
         Row: {
           account_id: string
@@ -1132,6 +1188,92 @@ export type Database = {
             columns: ["inbox_id"]
             isOneToOne: false
             referencedRelation: "inboxes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_list_members: {
+        Row: {
+          account_id: string
+          added_at: string
+          contact_id: string
+          list_id: string
+        }
+        Insert: {
+          account_id: string
+          added_at?: string
+          contact_id: string
+          list_id: string
+        }
+        Update: {
+          account_id?: string
+          added_at?: string
+          contact_id?: string
+          list_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_list_members_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_list_members_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "contact_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_lists: {
+        Row: {
+          account_id: string
+          campaign_kind: string | null
+          created_at: string
+          created_by_id: string | null
+          description: string | null
+          filters: Json
+          id: string
+          is_dynamic: boolean
+          member_count: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          campaign_kind?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          description?: string | null
+          filters?: Json
+          id?: string
+          is_dynamic?: boolean
+          member_count?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          campaign_kind?: string | null
+          created_at?: string
+          created_by_id?: string | null
+          description?: string | null
+          filters?: Json
+          id?: string
+          is_dynamic?: boolean
+          member_count?: number
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_lists_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
         ]
@@ -4242,6 +4384,7 @@ export type Database = {
       voice_calls: {
         Row: {
           account_id: string
+          ai_summary: string | null
           classification: Json | null
           consent_recorded_at: string | null
           conversation_id: string | null
@@ -4282,6 +4425,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          ai_summary?: string | null
           classification?: Json | null
           consent_recorded_at?: string | null
           conversation_id?: string | null
@@ -4322,6 +4466,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          ai_summary?: string | null
           classification?: Json | null
           consent_recorded_at?: string | null
           conversation_id?: string | null
