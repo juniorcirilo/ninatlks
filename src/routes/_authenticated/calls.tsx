@@ -577,3 +577,71 @@ function Field({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+function AiSummaryBlock({
+  callId,
+  initial,
+  onUpdate,
+}: {
+  callId: string;
+  initial: string | null;
+  onUpdate: (s: string) => void;
+}) {
+  const [text, setText] = useState<string | null>(initial);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setText(initial);
+  }, [initial, callId]);
+
+  const generate = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await (supabase.functions as any).invoke(
+        "call-summary-generate",
+        { body: { call_id: callId } },
+      );
+      if (error) throw error;
+      const s = (data as any)?.summary as string | undefined;
+      if (s) {
+        setText(s);
+        onUpdate(s);
+        toast.success("Resumo gerado");
+      } else {
+        toast.error("Não foi possível gerar o resumo");
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erro ao gerar resumo");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+          <Sparkles className="h-3 w-3" />
+          Resumo IA
+        </div>
+        <button
+          type="button"
+          onClick={generate}
+          disabled={loading}
+          className="rounded-md border border-primary/30 bg-card px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+        >
+          {loading ? "Gerando…" : text ? "Regenerar" : "Gerar resumo"}
+        </button>
+      </div>
+      {text ? (
+        <div className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/85">
+          {text}
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          Nenhum resumo ainda. Clique em “Gerar resumo” para criar um briefing executivo desta ligação.
+        </p>
+      )}
+    </div>
+  );
+}
