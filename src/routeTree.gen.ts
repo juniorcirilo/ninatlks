@@ -35,6 +35,8 @@ import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
 import { Route as AuthenticatedContactsContactIdRouteImport } from './routes/_authenticated/contacts.$contactId'
+import { Route as AuthenticatedCampanhasNovaRouteImport } from './routes/_authenticated/campanhas.nova'
+import { Route as AuthenticatedCampanhasCampaignIdRouteImport } from './routes/_authenticated/campanhas.$campaignId'
 import { Route as ApiPublicHooksVoiceCallsFinalizePendingRouteImport } from './routes/api/public/hooks/voice-calls-finalize-pending'
 import { Route as ApiPublicHooksResendInboundRouteImport } from './routes/api/public/hooks/resend-inbound'
 
@@ -174,6 +176,18 @@ const AuthenticatedContactsContactIdRoute =
     path: '/$contactId',
     getParentRoute: () => AuthenticatedContactsRoute,
   } as any)
+const AuthenticatedCampanhasNovaRoute =
+  AuthenticatedCampanhasNovaRouteImport.update({
+    id: '/campanhas/nova',
+    path: '/campanhas/nova',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedCampanhasCampaignIdRoute =
+  AuthenticatedCampanhasCampaignIdRouteImport.update({
+    id: '/campanhas/$campaignId',
+    path: '/campanhas/$campaignId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const ApiPublicHooksVoiceCallsFinalizePendingRoute =
   ApiPublicHooksVoiceCallsFinalizePendingRouteImport.update({
     id: '/api/public/hooks/voice-calls-finalize-pending',
@@ -211,6 +225,8 @@ export interface FileRoutesByFullPath {
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tutorial': typeof AuthenticatedTutorialRoute
+  '/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
+  '/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
@@ -240,6 +256,8 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/tutorial': typeof AuthenticatedTutorialRoute
   '/': typeof AuthenticatedIndexRoute
+  '/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
+  '/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
@@ -271,6 +289,8 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tutorial': typeof AuthenticatedTutorialRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
+  '/_authenticated/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/_authenticated/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
@@ -302,6 +322,8 @@ export interface FileRouteTypes {
     | '/reunioes'
     | '/settings'
     | '/tutorial'
+    | '/campanhas/$campaignId'
+    | '/campanhas/nova'
     | '/contacts/$contactId'
     | '/campanhas/'
     | '/api/public/hooks/resend-inbound'
@@ -331,6 +353,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tutorial'
     | '/'
+    | '/campanhas/$campaignId'
+    | '/campanhas/nova'
     | '/contacts/$contactId'
     | '/campanhas'
     | '/api/public/hooks/resend-inbound'
@@ -361,6 +385,8 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/tutorial'
     | '/_authenticated/'
+    | '/_authenticated/campanhas/$campaignId'
+    | '/_authenticated/campanhas/nova'
     | '/_authenticated/contacts/$contactId'
     | '/_authenticated/campanhas/'
     | '/api/public/hooks/resend-inbound'
@@ -562,6 +588,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedContactsContactIdRouteImport
       parentRoute: typeof AuthenticatedContactsRoute
     }
+    '/_authenticated/campanhas/nova': {
+      id: '/_authenticated/campanhas/nova'
+      path: '/campanhas/nova'
+      fullPath: '/campanhas/nova'
+      preLoaderRoute: typeof AuthenticatedCampanhasNovaRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/campanhas/$campaignId': {
+      id: '/_authenticated/campanhas/$campaignId'
+      path: '/campanhas/$campaignId'
+      fullPath: '/campanhas/$campaignId'
+      preLoaderRoute: typeof AuthenticatedCampanhasCampaignIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/hooks/voice-calls-finalize-pending': {
       id: '/api/public/hooks/voice-calls-finalize-pending'
       path: '/api/public/hooks/voice-calls-finalize-pending'
@@ -611,6 +651,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTutorialRoute: typeof AuthenticatedTutorialRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedCampanhasCampaignIdRoute: typeof AuthenticatedCampanhasCampaignIdRoute
+  AuthenticatedCampanhasNovaRoute: typeof AuthenticatedCampanhasNovaRoute
   AuthenticatedCampanhasIndexRoute: typeof AuthenticatedCampanhasIndexRoute
 }
 
@@ -633,6 +675,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTutorialRoute: AuthenticatedTutorialRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedCampanhasCampaignIdRoute: AuthenticatedCampanhasCampaignIdRoute,
+  AuthenticatedCampanhasNovaRoute: AuthenticatedCampanhasNovaRoute,
   AuthenticatedCampanhasIndexRoute: AuthenticatedCampanhasIndexRoute,
 }
 
@@ -654,3 +698,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
