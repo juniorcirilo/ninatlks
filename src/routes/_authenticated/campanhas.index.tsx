@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Rocket } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, Plus, Rocket, PhoneCall, PhoneOff, ArrowRightLeft, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
 import {
   fetchCampaigns,
+  aggregateCampaigns,
   CAMPAIGN_KIND_LABEL,
   CAMPAIGN_STATUS_LABEL,
   type CampaignRow,
@@ -44,6 +45,25 @@ function CampaignsPage() {
     return () => clearInterval(t);
   }, [refresh]);
 
+  const agg = useMemo(() => aggregateCampaigns(rows), [rows]);
+  const connRate =
+    agg.total_contacts > 0 ? Math.round((agg.connected / agg.total_contacts) * 100) : 0;
+  const escRate =
+    agg.connected > 0 ? Math.round((agg.escalated / agg.connected) * 100) : 0;
+  const failRate =
+    agg.placed > 0 ? Math.round((agg.failed / agg.placed) * 100) : 0;
+  const ranking = useMemo(
+    () =>
+      Object.entries(agg.by_kind)
+        .map(([kind, v]) => ({
+          kind,
+          ...v,
+          connRate: v.total > 0 ? Math.round((v.connected / v.total) * 100) : 0,
+        }))
+        .sort((a, b) => b.connRate - a.connRate),
+    [agg],
+  );
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <header className="flex items-start justify-between gap-4">
@@ -60,6 +80,49 @@ function CampaignsPage() {
           <Plus className="h-4 w-4" /> Nova campanha
         </Link>
       </header>
+
+      {!loading && rows.length > 0 && (
+        <>
+          <div className="grid gap-3 md:grid-cols-4">
+            <FunnelKpi icon={<Activity className="h-4 w-4" />} label="Em execução" value={`${agg.running}/${agg.total_campaigns}`} tone="primary" />
+            <FunnelKpi icon={<PhoneCall className="h-4 w-4" />} label="Conexão" value={`${connRate}%`} sub={`${agg.connected} de ${agg.total_contacts}`} tone="emerald" />
+            <FunnelKpi icon={<ArrowRightLeft className="h-4 w-4" />} label="Escalações" value={`${escRate}%`} sub={`${agg.escalated} handoffs`} tone="sky" />
+            <FunnelKpi icon={<PhoneOff className="h-4 w-4" />} label="Falhas" value={`${failRate}%`} sub={`${agg.failed} de ${agg.placed} tentativas`} tone="rose" />
+          </div>
+
+          <div className="rounded-xl border border-border bg-card p-4">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Rocket className="h-4 w-4 text-primary" /> Ranking por tipo de operação
+            </h2>
+            {ranking.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sem dados ainda.</p>
+            ) : (
+              <div className="space-y-2">
+                {ranking.map((r) => (
+                  <div key={r.kind} className="flex items-center gap-3 text-sm">
+                    <span
+                      className={cn(
+                        "w-28 shrink-0 rounded-md px-2 py-0.5 text-center text-[11px] font-medium ring-1 ring-inset",
+                        kindClass(r.kind),
+                      )}
+                    >
+                      {CAMPAIGN_KIND_LABEL[r.kind as CampaignKind] ?? r.kind}
+                    </span>
+                    <div className="flex-1">
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full bg-primary" style={{ width: `${r.connRate}%` }} />
+                      </div>
+                    </div>
+                    <span className="w-32 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                      {r.connected}/{r.total} · {r.connRate}% · {r.campaigns} camp.
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       <div className="rounded-xl border border-border bg-card">
         {loading ? (
@@ -146,6 +209,37 @@ function CampaignsPage() {
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+function FunnelKpi({
+  icon,
+  label,
+  value,
+  sub,
+  tone = "primary",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "primary" | "emerald" | "sky" | "rose";
+}) {
+  const toneCls = {
+    primary: "text-primary",
+    emerald: "text-emerald-600",
+    sky: "text-sky-600",
+    rose: "text-rose-600",
+  }[tone];
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className={cn("flex items-center gap-2 text-xs text-muted-foreground", toneCls)}>
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+      {sub && <div className="text-[11px] text-muted-foreground">{sub}</div>}
     </div>
   );
 }
