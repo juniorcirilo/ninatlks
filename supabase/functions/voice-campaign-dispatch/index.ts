@@ -307,6 +307,7 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
       metadata: {
         campaign_id: campaign.id,
         campaign_contact_id: row.id,
+        campaign_kind: campaign.campaign_kind ?? "sdr",
         voice_id: campaign.voice_id,
         variables: row.variables,
         opening_script: campaign.opening_script,
@@ -330,7 +331,8 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
     agent_name: persona.name ?? "Nina",
     voice_call_id: voiceCallId ?? "",
   };
-  const systemPrompt = `${buildSystemPromptWithGuardrails(persona.system_prompt)}${PT_BR_LANGUAGE_INSTRUCTION}`;
+  const outcomesBlock = await buildOutcomesPromptBlock(admin, row.account_id, campaign.campaign_kind ?? "sdr");
+  const systemPrompt = `${buildSystemPromptWithGuardrails(persona.system_prompt)}${PT_BR_LANGUAGE_INSTRUCTION}${outcomesBlock}`;
 
   const res = await fetch(
     "https://api.elevenlabs.io/v1/convai/twilio/outbound-call",
