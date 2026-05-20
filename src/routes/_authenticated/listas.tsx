@@ -1,14 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Users, Trash2, Rocket } from "lucide-react";
+import { Loader2, Plus, Users, Trash2, Rocket, ShieldCheck, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
 import { supabase } from "@/integrations/supabase/client";
 import {
   fetchContactLists,
+  fetchRetentionRules,
+  upsertRetentionRule,
+  deleteRetentionRule,
+  fetchCampaigns,
   CAMPAIGN_KIND_LABEL,
   type ContactListRow,
   type CampaignKind,
+  type RetentionRuleRow,
+  type CampaignRow,
 } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
 
