@@ -3910,6 +3910,93 @@ export type Database = {
         }
         Relationships: []
       }
+      promise_followups: {
+        Row: {
+          account_id: string
+          contact_id: string
+          created_at: string
+          followup_at: string
+          followup_campaign_id: string | null
+          id: string
+          notes: string | null
+          promised_amount: number | null
+          promised_at: string
+          promised_due_date: string
+          source_call_id: string | null
+          source_campaign_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          contact_id: string
+          created_at?: string
+          followup_at: string
+          followup_campaign_id?: string | null
+          id?: string
+          notes?: string | null
+          promised_amount?: number | null
+          promised_at?: string
+          promised_due_date: string
+          source_call_id?: string | null
+          source_campaign_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          contact_id?: string
+          created_at?: string
+          followup_at?: string
+          followup_campaign_id?: string | null
+          id?: string
+          notes?: string | null
+          promised_amount?: number | null
+          promised_at?: string
+          promised_due_date?: string
+          source_call_id?: string | null
+          source_campaign_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promise_followups_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promise_followups_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promise_followups_followup_campaign_id_fkey"
+            columns: ["followup_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "voice_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promise_followups_source_call_id_fkey"
+            columns: ["source_call_id"]
+            isOneToOne: false
+            referencedRelation: "voice_calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promise_followups_source_campaign_id_fkey"
+            columns: ["source_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "voice_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prompt_deployments: {
         Row: {
           account_id: string
@@ -4084,6 +4171,76 @@ export type Database = {
             columns: ["parent_version_id"]
             isOneToOne: false
             referencedRelation: "prompt_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      retention_rules: {
+        Row: {
+          account_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          inactive_days: number
+          last_enrolled_count: number
+          last_run_at: string | null
+          max_enrolls_per_run: number
+          name: string
+          required_stage_id: string | null
+          required_tag_ids: string[]
+          target_campaign_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          inactive_days?: number
+          last_enrolled_count?: number
+          last_run_at?: string | null
+          max_enrolls_per_run?: number
+          name: string
+          required_stage_id?: string | null
+          required_tag_ids?: string[]
+          target_campaign_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          inactive_days?: number
+          last_enrolled_count?: number
+          last_run_at?: string | null
+          max_enrolls_per_run?: number
+          name?: string
+          required_stage_id?: string | null
+          required_tag_ids?: string[]
+          target_campaign_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "retention_rules_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_rules_required_stage_id_fkey"
+            columns: ["required_stage_id"]
+            isOneToOne: false
+            referencedRelation: "lead_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "retention_rules_target_campaign_id_fkey"
+            columns: ["target_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "voice_campaigns"
             referencedColumns: ["id"]
           },
         ]
