@@ -352,7 +352,7 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
             tts: { voice_id: persona.voice_clone_id ?? undefined },
           },
           dynamic_variables: dynamicVariables,
-            }
+        },
       }),
     },
   );
