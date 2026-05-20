@@ -343,7 +343,7 @@ async function classify(
   for (const h of heuristics) {
     for (const p of h.patterns) {
       if (p.test(text)) {
-        const base = STAGE_BY_CATEGORY[h.category];
+        const base = DEFAULT_SDR_SCORE[h.category] ?? { score: 30 };
         return {
           category: h.category,
           confidence: 0.92,
@@ -355,6 +355,7 @@ async function classify(
       }
     }
   }
+  } // end if(kind==='sdr')
 
   // LLM fallback (Lovable AI Gateway)
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
