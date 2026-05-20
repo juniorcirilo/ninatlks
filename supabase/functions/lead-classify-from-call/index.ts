@@ -19,22 +19,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Categorias de outcome para SDR
-const ALLOWED_CATEGORIES = [
-  "scheduled",        // agendou reunião
-  "qualified",        // qualificou mas não agendou (ex: pediu pra agendar depois)
-  "not_interested",   // sem fit / sem interesse
-  "callback",         // pediu pra ligar de novo
-  "no_answer",        // ligação curtíssima ou caiu
-  "voicemail",        // caixa postal
-  "wrong_number",     // número errado
-  "escalated",        // pediu humano sem qualificar
-  "other",
+// Catálogo padrão SDR (fallback se nenhuma linha no call_outcomes_catalog).
+// Quando a call vem de uma campanha, lemos o catálogo dinâmico por
+// campaign_kind. Para tudo fora desse universo (SDR clássico), usamos
+// estes defaults.
+const DEFAULT_SDR_CATEGORIES = [
+  "scheduled","qualified","not_interested","callback","no_answer",
+  "voicemail","wrong_number","escalated","other",
 ] as const;
-type OutcomeCategory = (typeof ALLOWED_CATEGORIES)[number];
+type OutcomeCategory = string;
 
-// Mapeia outcome → (nome do stage default, score sugerido base)
-const STAGE_BY_CATEGORY: Record<OutcomeCategory, { stageName: string; score: number }> = {
+// Score sugerido base por outcome (sobrescrito pelo catálogo quando existe).
+const DEFAULT_SDR_SCORE: Record<string, { stageName: string; score: number }> = {
   scheduled:      { stageName: "Reunião agendada", score: 95 },
   qualified:      { stageName: "Qualificado",      score: 70 },
   callback:       { stageName: "Contatado",        score: 50 },
