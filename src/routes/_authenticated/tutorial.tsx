@@ -317,6 +317,130 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: "operacao-ia",
+    title: "Operação IA — Funcionários IA",
+    description:
+      "Listas operacionais e campanhas de discagem com IA para SDR, Cobrança, Pós-venda e Retenção.",
+    topics: [
+      {
+        id: "listas",
+        label: "Listas operacionais",
+        icon: ListChecks,
+        what:
+          "Central para preparar e gerenciar listas de contatos que entram em campanhas de ligação automática com IA. Aqui também ficam as regras de retenção, janelas de horário (LGPD) e a blocklist (DNC).",
+        use:
+          "Use para subir uma planilha de leads, configurar quando a IA pode ligar e bloquear números que não devem ser chamados.",
+        steps: [
+          "Abra 'Listas' no menu lateral.",
+          "Aba 'Listas': importe contatos via CSV ou cole telefones.",
+          "Aba 'Regras de retenção': defina após quantos dias de inatividade a IA reativa o lead.",
+          "Aba 'Janelas & LGPD': configure horários permitidos por dia e o aviso de gravação.",
+          "Aba 'DNC / Blocklist': cadastre números que nunca devem ser ligados.",
+        ],
+        route: { to: "/listas", label: "Abrir Listas" },
+      },
+      {
+        id: "campanhas",
+        label: "Campanhas de discagem IA",
+        icon: Megaphone,
+        what:
+          "Campanhas executam ligações automáticas para uma lista usando uma persona de IA (SDR, Cobrança, Pós-venda ou Retenção). O sistema disca, classifica o resultado e reagenda sozinho.",
+        use:
+          "Use para rodar prospecção em massa, cobranças, pesquisas CSAT pós-venda ou recuperação de clientes inativos.",
+        steps: [
+          "Abra 'Campanhas' no menu.",
+          "Veja o painel com KPIs globais (conexão, escalonamentos, falhas) e ranking por tipo de operação.",
+          "Clique em 'Nova campanha' para criar uma.",
+          "Escolha o tipo (SDR / Cobrança / Pós-venda / Retenção) e a persona IA correspondente.",
+          "Selecione a lista de contatos e ajuste as regras de retry por resultado.",
+          "Ative a campanha — o discador respeita janelas de horário e DNC automaticamente.",
+        ],
+        route: { to: "/campanhas", label: "Abrir Campanhas" },
+      },
+      {
+        id: "personas-verticais",
+        label: "Personas verticais de IA",
+        icon: Target,
+        what:
+          "4 funcionários IA prontos: Sofia (SDR — qualifica e agenda), Diego (Cobrança — negocia com tom CDC/LGPD), Carla (Pós-venda — CSAT e onboarding) e Elena (Retenção — reativa inativos).",
+        use:
+          "Selecione a persona ideal na criação da campanha. Cada uma tem prompt, tom de voz e outcomes próprios.",
+        steps: [
+          "Abra 'Agentes de voz'.",
+          "Filtre pelas personas Sofia, Diego, Carla e Elena.",
+          "Clique para revisar o script e ajustar o prompt se necessário.",
+          "Use no wizard de Nova Campanha conforme o objetivo da operação.",
+        ],
+        route: { to: "/agents", label: "Ver Personas" },
+      },
+      {
+        id: "retry-inteligente",
+        label: "Retry inteligente",
+        icon: RefreshCw,
+        what:
+          "Cada resultado de ligação (não atendeu, ocupado, caixa postal, prometeu pagar etc.) tem sua própria regra de reagendamento. Outcomes terminais (não tem interesse, DNC) encerram o contato.",
+        use:
+          "Configure dentro da campanha em 'Regras de retry' para definir delays diferentes por outcome e número máximo de tentativas.",
+        steps: [
+          "Abra a campanha desejada em 'Campanhas'.",
+          "Vá em 'Regras de retry'.",
+          "Para cada outcome, defina o delay (em minutos/horas) até a próxima tentativa.",
+          "Defina também o número máximo de tentativas total.",
+        ],
+        route: { to: "/campanhas", label: "Abrir Campanhas" },
+      },
+      {
+        id: "promessas-cobranca",
+        label: "Follow-up de promessas (Cobrança)",
+        icon: Clock,
+        what:
+          "Quando a IA de Cobrança identifica que o cliente prometeu pagar, o sistema agenda automaticamente uma ligação de follow-up em D+3 para confirmar.",
+        use:
+          "Funciona automático — não precisa configurar nada por contato. Acompanhe os resultados na campanha de cobrança.",
+        steps: [
+          "Crie uma campanha do tipo Cobrança com a persona Diego.",
+          "O cron de hora em hora detecta o outcome 'prometeu_pagar'.",
+          "Um novo contato é enfileirado na mesma campanha com data alvo D+3.",
+          "Acompanhe pelo histórico de ligações do contato.",
+        ],
+        route: { to: "/campanhas", label: "Ver Campanhas" },
+      },
+      {
+        id: "retencao-inativos",
+        label: "Retenção de inativos",
+        icon: TrendingUp,
+        what:
+          "Cron diário varre os contatos e identifica quem está inativo (sem interação há X dias, com tags ou em estágios específicos do pipeline). Eles entram automaticamente na campanha de retenção.",
+        use:
+          "Configure as regras uma vez em Listas → Regras de Retenção. A operação roda sozinha todo dia.",
+        steps: [
+          "Abra 'Listas' → aba 'Regras de retenção'.",
+          "Defina o limite de inatividade (ex: 60 dias).",
+          "Escolha a campanha de retenção que receberá esses contatos.",
+          "Defina o limite máximo de matrículas por dia.",
+          "Salve — o cron diário cuida do resto.",
+        ],
+        route: { to: "/listas", label: "Configurar Retenção" },
+      },
+      {
+        id: "compliance-lgpd",
+        label: "Compliance, LGPD e DNC",
+        icon: ShieldCheck,
+        what:
+          "Janelas de horário evitam ligações fora do permitido por lei. O DNC (Do Not Call) bloqueia números específicos. Toda ligação inclui o aviso obrigatório de gravação.",
+        use:
+          "Configure uma vez em Listas. O discador e os crons respeitam essas regras automaticamente em todas as campanhas.",
+        steps: [
+          "Em 'Listas' → aba 'Janelas & LGPD', defina os horários permitidos por dia da semana.",
+          "Ajuste o intervalo mínimo entre tentativas para o mesmo contato.",
+          "Personalize o aviso de gravação que a IA fala no início da ligação.",
+          "Em 'DNC / Blocklist', adicione números que nunca devem ser chamados.",
+        ],
+        route: { to: "/listas", label: "Abrir Listas" },
+      },
+    ],
+  },
+  {
     id: "administracao",
     title: "Administração",
     description: "Itens para admin: telefonia, filas e auditoria.",
