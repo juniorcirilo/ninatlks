@@ -110,24 +110,32 @@ Deno.serve(async (req) => {
     return j({ ok: false, error: "no transcript or summary to classify" }, 400);
   }
 
-  // 2. Classificar
+  // 2. Resolver campaign_kind a partir do metadata da call
+  const campaignKind = ((call as any).metadata as any)?.campaign_kind ?? "sdr";
+
+  // 3. Carregar catálogo de outcomes para esse kind (account override OU global)
+  const catalog = await loadOutcomesCatalog(admin, (call as any).account_id, campaignKind);
+
+  // 4. Classificar usando o catálogo
   let classification: Classification;
   try {
-    classification = await classify(transcriptText, summary);
+    classification = await classify(transcriptText, summary, catalog, campaignKind);
   } catch (e: any) {
     console.error("[lead-classify] classify failed", e);
     return j({ ok: false, error: e?.message ?? "classification failed" }, 500);
   }
 
-  // 3. Resolver contact_id
+  // 5. Resolver contact_id
   const contactId = await resolveContactId(admin, call as any);
   if (!contactId) {
     return j({ ok: false, error: "could not resolve or create contact" }, 500);
   }
 
-  // 4. Resolver stage_id pelo nome do default pipeline da account
-  const stageInfo = STAGE_BY_CATEGORY[classification.category];
-  const stageId = await resolveStageId(admin, (call as any).account_id, stageInfo.stageName);
+  // 6. Resolver stage_id (só faz sentido para SDR; outros tipos usam tags/labels)
+  const stageInfo = DEFAULT_SDR_SCORE[classification.category] ?? DEFAULT_SDR_SCORE.other;
+  const stageId = campaignKind === "sdr"
+    ? await resolveStageId(admin, (call as any).account_id, stageInfo.stageName)
+    : null;
 
   // 5. Atualizar contact
   const updates: Record<string, any> = {
