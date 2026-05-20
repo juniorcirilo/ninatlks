@@ -4837,6 +4837,7 @@ export type Database = {
           record_call: boolean
           retry_attempts: number
           retry_delay_minutes: number
+          retry_rules: Json
           scheduled_at: string | null
           scheduled_for: string | null
           script_mode: string
@@ -4893,6 +4894,7 @@ export type Database = {
           record_call?: boolean
           retry_attempts?: number
           retry_delay_minutes?: number
+          retry_rules?: Json
           scheduled_at?: string | null
           scheduled_for?: string | null
           script_mode?: string
@@ -4949,6 +4951,7 @@ export type Database = {
           record_call?: boolean
           retry_attempts?: number
           retry_delay_minutes?: number
+          retry_rules?: Json
           scheduled_at?: string | null
           scheduled_for?: string | null
           script_mode?: string
