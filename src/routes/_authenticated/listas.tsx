@@ -241,20 +241,40 @@ function ListsPage() {
                   />
                 </Field>
               </div>
+              <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
+                <label className="block text-xs font-medium text-foreground">
+                  Importar contatos via CSV (opcional)
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                  className="mt-2 block w-full text-xs"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Colunas aceitas: <code className="font-mono">name</code> (obrigatório), <code className="font-mono">phone_number</code>, <code className="font-mono">email</code>, <code className="font-mono">company</code>, <code className="font-mono">location</code>.
+                </p>
+                {csvFile && (
+                  <p className="mt-1 text-[11px] text-primary">Arquivo: {csvFile.name}</p>
+                )}
+              </div>
               <p className="text-[11px] text-muted-foreground">
-                Os contatos com telefone e não bloqueados serão adicionados automaticamente. Sem filtros, importa todos.
+                Sem CSV, a lista usa contatos já cadastrados (com telefone e não bloqueados). Sem filtros, importa todos.
               </p>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setCreating(false)}
-                  className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                  disabled={importing}
+                  className="rounded-md border border-input bg-background px-3 py-1.5 text-sm disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={onCreate}
-                  className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  disabled={importing}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
+                  {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   Criar lista
                 </button>
               </div>
