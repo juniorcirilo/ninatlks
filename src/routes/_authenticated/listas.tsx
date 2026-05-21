@@ -103,6 +103,31 @@ function ListsPage() {
     try {
       setImporting(true);
 
+      const filters: Record<string, unknown> = {};
+      const stageValid = filterStage.trim() && UUID_RE.test(filterStage.trim());
+      if (stageValid) filters.stage_id = filterStage.trim();
+      if (filterTag.trim()) filters.tag = filterTag.trim();
+
+      // EDIT MODE: only update metadata
+      if (editingId) {
+        const { error: uerr } = await (supabase as any)
+          .from("contact_lists")
+          .update({
+            name: name.trim(),
+            description: description.trim() || null,
+            campaign_kind: kind,
+            filters,
+          })
+          .eq("id", editingId);
+        if (uerr) throw uerr;
+        toast.success("Lista atualizada");
+        resetForm();
+        setCreating(false);
+        refresh();
+        return;
+      }
+
+      // CREATE MODE
       // 1. Import CSV first if provided
       if (csvFile) {
         const csv = await csvFile.text();
@@ -114,11 +139,6 @@ function ListsPage() {
         const imported = importRes?.imported ?? 0;
         if (imported > 0) toast.success(`${imported} contatos importados do CSV`);
       }
-
-      const filters: Record<string, unknown> = {};
-      const stageValid = filterStage.trim() && UUID_RE.test(filterStage.trim());
-      if (stageValid) filters.stage_id = filterStage.trim();
-      if (filterTag.trim()) filters.tag = filterTag.trim();
 
       // Build initial members based on filters
       let contactsQuery = (supabase as any)
@@ -160,15 +180,11 @@ function ListsPage() {
         toast.warning("Lista criada, mas sem contatos. Importe um CSV ou adicione contatos em /contacts.");
       }
 
-      setName("");
-      setDescription("");
-      setFilterStage("");
-      setFilterTag("");
-      setCsvFile(null);
+      resetForm();
       setCreating(false);
       refresh();
     } catch (e: any) {
-      toast.error(e?.message ?? "falha ao criar lista");
+      toast.error(e?.message ?? "falha ao salvar lista");
     } finally {
       setImporting(false);
     }
