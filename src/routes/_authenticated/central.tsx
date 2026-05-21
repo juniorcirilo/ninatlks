@@ -91,6 +91,18 @@ function CentralPage() {
   const [search, setSearch] = useState("");
   const [quick, setQuick] = useState<QuickFilter>("all");
   const [selected, setSelected] = useState<CentralContact | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const fileInputRef = useState<HTMLInputElement | null>(null);
+
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const clearPicked = () => setPicked(new Set());
 
   const load = async () => {
     if (!accountId) return;
