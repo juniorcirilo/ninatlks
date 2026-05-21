@@ -57,9 +57,9 @@ function NewCampaignPage() {
           fetchContactLists(accountId),
           (supabase as any)
             .from("agent_personas")
-            .select("id,name,voice_clone_id,active")
+            .select("id,name,voice_clone_id,status,enabled")
             .eq("account_id", accountId)
-            .eq("active", true)
+            .eq("status", "active")
             .order("name"),
           (supabase as any)
             .from("phone_numbers")
