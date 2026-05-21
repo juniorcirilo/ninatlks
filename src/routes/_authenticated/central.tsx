@@ -94,7 +94,7 @@ function CentralPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const fileInputRef = useState<HTMLInputElement | null>(null);
+  
 
   const togglePick = (id: string) =>
     setPicked((prev) => {
