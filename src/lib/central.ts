@@ -141,6 +141,116 @@ export async function updateContactOps(
   if (error) throw error;
 }
 
+export type ListLite = { id: string; name: string; member_count: number };
+
+export async function fetchLists(accountId: string): Promise<ListLite[]> {
+  const { data, error } = await (supabase as any)
+    .from("contact_lists")
+    .select("id,name,member_count")
+    .eq("account_id", accountId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ListLite[];
+}
+
+export async function addContactsToList(
+  listId: string,
+  accountId: string,
+  contactIds: string[],
+) {
+  if (!contactIds.length) return { inserted: 0 };
+  const rows = contactIds.map((cid) => ({
+    list_id: listId,
+    contact_id: cid,
+    account_id: accountId,
+  }));
+  const { error } = await (supabase as any)
+    .from("contact_list_members")
+    .upsert(rows, { onConflict: "list_id,contact_id", ignoreDuplicates: true });
+  if (error) throw error;
+  // bump member_count (best-effort)
+  await (supabase as any).rpc("noop").catch(() => {});
+  return { inserted: rows.length };
+}
+
+export async function createListFromContacts(
+  accountId: string,
+  name: string,
+  contactIds: string[],
+): Promise<string> {
+  const { data, error } = await (supabase as any)
+    .from("contact_lists")
+    .insert({ account_id: accountId, name, filters: {}, member_count: contactIds.length })
+    .select("id")
+    .single();
+  if (error) throw error;
+  await addContactsToList(data.id, accountId, contactIds);
+  return data.id;
+}
+
+// Simple CSV parser (handles quotes, commas, semicolons)
+export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n").filter((l) => l.trim().length > 0);
+  if (!lines.length) return { headers: [], rows: [] };
+  const delim = lines[0].includes(";") && !lines[0].includes(",") ? ";" : ",";
+  const parse = (line: string) => {
+    const out: string[] = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQ) {
+        if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+        else if (ch === '"') inQ = false;
+        else cur += ch;
+      } else {
+        if (ch === '"') inQ = true;
+        else if (ch === delim) { out.push(cur); cur = ""; }
+        else cur += ch;
+      }
+    }
+    out.push(cur);
+    return out.map((c) => c.trim());
+  };
+  const headers = parse(lines[0]).map((h) => h.toLowerCase());
+  const rows = lines.slice(1).map(parse);
+  return { headers, rows };
+}
+
+export async function importContactsCsv(
+  accountId: string,
+  text: string,
+): Promise<{ created: number; skipped: number }> {
+  const { headers, rows } = parseCsv(text);
+  if (!headers.length) return { created: 0, skipped: 0 };
+  const idx = (names: string[]) => {
+    for (const n of names) {
+      const i = headers.indexOf(n);
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const iName = idx(["nome", "name", "contato"]);
+  const iPhone = idx(["telefone", "phone", "phone_number", "celular", "whatsapp"]);
+  const iEmail = idx(["email", "e-mail", "mail"]);
+  const normalize = (p: string) => p.replace(/\D/g, "");
+  const payload = rows
+    .map((r) => ({
+      account_id: accountId,
+      name: iName >= 0 ? r[iName] || null : null,
+      phone_number: iPhone >= 0 ? normalize(r[iPhone] ?? "") || null : null,
+      email: iEmail >= 0 ? (r[iEmail] || null) : null,
+    }))
+    .filter((c) => c.phone_number || c.email);
+  if (!payload.length) return { created: 0, skipped: rows.length };
+  const { data, error } = await (supabase as any)
+    .from("contacts")
+    .upsert(payload, { onConflict: "account_id,phone_number", ignoreDuplicates: false })
+    .select("id");
+  if (error) throw error;
+  return { created: (data ?? []).length, skipped: rows.length - payload.length };
+}
+
 export async function fetchContactTimeline(contactId: string, accountId: string) {
   const [calls, convs, lists] = await Promise.all([
     (supabase as any)
