@@ -54,8 +54,31 @@ function ListsPage() {
   const [filterTag, setFilterTag] = useState("");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const resetForm = () => {
+    setName("");
+    setDescription("");
+    setKind("sdr");
+    setFilterStage("");
+    setFilterTag("");
+    setCsvFile(null);
+    setEditingId(null);
+  };
+
+  const startEdit = (r: ContactListRow) => {
+    setEditingId(r.id);
+    setName(r.name);
+    setDescription(r.description ?? "");
+    setKind((r.campaign_kind as CampaignKind) ?? "sdr");
+    const f = (r.filters ?? {}) as Record<string, unknown>;
+    setFilterStage(typeof f.stage_id === "string" ? f.stage_id : "");
+    setFilterTag(typeof f.tag === "string" ? f.tag : "");
+    setCsvFile(null);
+    setCreating(true);
+  };
 
   const refresh = useCallback(async () => {
     if (!accountId) return;
@@ -80,6 +103,31 @@ function ListsPage() {
     try {
       setImporting(true);
 
+      const filters: Record<string, unknown> = {};
+      const stageValid = filterStage.trim() && UUID_RE.test(filterStage.trim());
+      if (stageValid) filters.stage_id = filterStage.trim();
+      if (filterTag.trim()) filters.tag = filterTag.trim();
+
+      // EDIT MODE: only update metadata
+      if (editingId) {
+        const { error: uerr } = await (supabase as any)
+          .from("contact_lists")
+          .update({
+            name: name.trim(),
+            description: description.trim() || null,
+            campaign_kind: kind,
+            filters,
+          })
+          .eq("id", editingId);
+        if (uerr) throw uerr;
+        toast.success("Lista atualizada");
+        resetForm();
+        setCreating(false);
+        refresh();
+        return;
+      }
+
+      // CREATE MODE
       // 1. Import CSV first if provided
       if (csvFile) {
         const csv = await csvFile.text();
@@ -91,11 +139,6 @@ function ListsPage() {
         const imported = importRes?.imported ?? 0;
         if (imported > 0) toast.success(`${imported} contatos importados do CSV`);
       }
-
-      const filters: Record<string, unknown> = {};
-      const stageValid = filterStage.trim() && UUID_RE.test(filterStage.trim());
-      if (stageValid) filters.stage_id = filterStage.trim();
-      if (filterTag.trim()) filters.tag = filterTag.trim();
 
       // Build initial members based on filters
       let contactsQuery = (supabase as any)
@@ -137,15 +180,11 @@ function ListsPage() {
         toast.warning("Lista criada, mas sem contatos. Importe um CSV ou adicione contatos em /contacts.");
       }
 
-      setName("");
-      setDescription("");
-      setFilterStage("");
-      setFilterTag("");
-      setCsvFile(null);
+      resetForm();
       setCreating(false);
       refresh();
     } catch (e: any) {
-      toast.error(e?.message ?? "falha ao criar lista");
+      toast.error(e?.message ?? "falha ao salvar lista");
     } finally {
       setImporting(false);
     }
@@ -201,7 +240,7 @@ function ListsPage() {
         <>
           {creating && (
             <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <h2 className="text-sm font-semibold">Criar lista</h2>
+              <h2 className="text-sm font-semibold">{editingId ? "Editar lista" : "Criar lista"}</h2>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Nome">
                   <input
@@ -241,29 +280,36 @@ function ListsPage() {
                   />
                 </Field>
               </div>
-              <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
-                <label className="block text-xs font-medium text-foreground">
-                  Importar contatos via CSV (opcional)
-                </label>
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
-                  className="mt-2 block w-full text-xs"
-                />
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Colunas aceitas: <code className="font-mono">name</code> (obrigatório), <code className="font-mono">phone_number</code>, <code className="font-mono">email</code>, <code className="font-mono">company</code>, <code className="font-mono">location</code>.
+              {!editingId && (
+                <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
+                  <label className="block text-xs font-medium text-foreground">
+                    Importar contatos via CSV (opcional)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                    className="mt-2 block w-full text-xs"
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Colunas aceitas: <code className="font-mono">name</code> (obrigatório), <code className="font-mono">phone_number</code>, <code className="font-mono">email</code>, <code className="font-mono">company</code>, <code className="font-mono">location</code>.
+                  </p>
+                  {csvFile && (
+                    <p className="mt-1 text-[11px] text-primary">Arquivo: {csvFile.name}</p>
+                  )}
+                </div>
+              )}
+              {!editingId && (
+                <p className="text-[11px] text-muted-foreground">
+                  Sem CSV, a lista usa contatos já cadastrados (com telefone e não bloqueados). Sem filtros, importa todos.
                 </p>
-                {csvFile && (
-                  <p className="mt-1 text-[11px] text-primary">Arquivo: {csvFile.name}</p>
-                )}
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                Sem CSV, a lista usa contatos já cadastrados (com telefone e não bloqueados). Sem filtros, importa todos.
-              </p>
+              )}
               <div className="flex justify-end gap-2">
                 <button
-                  onClick={() => setCreating(false)}
+                  onClick={() => {
+                    resetForm();
+                    setCreating(false);
+                  }}
                   disabled={importing}
                   className="rounded-md border border-input bg-background px-3 py-1.5 text-sm disabled:opacity-50"
                 >
@@ -275,7 +321,7 @@ function ListsPage() {
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
                   {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Criar lista
+                  {editingId ? "Salvar alterações" : "Criar lista"}
                 </button>
               </div>
             </div>
@@ -339,7 +385,15 @@ function ListsPage() {
                             <Rocket className="h-3 w-3" /> Campanha
                           </button>
                           <button
+                            onClick={() => startEdit(r)}
+                            title="Editar lista"
+                            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
                             onClick={() => onDelete(r.id)}
+                            title="Excluir lista"
                             className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
