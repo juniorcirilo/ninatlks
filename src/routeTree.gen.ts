@@ -27,6 +27,7 @@ import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
+import { Route as AuthenticatedCentralRouteImport } from './routes/_authenticated/central'
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
 import { Route as AuthenticatedAgentsPlaygroundRouteImport } from './routes/_authenticated/agents-playground'
 import { Route as AuthenticatedAgentsAnalyticsRouteImport } from './routes/_authenticated/agents-analytics'
@@ -131,6 +132,11 @@ const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedCentralRoute = AuthenticatedCentralRouteImport.update({
+  id: '/central',
+  path: '/central',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedCallsRoute = AuthenticatedCallsRouteImport.update({
   id: '/calls',
   path: '/calls',
@@ -214,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/calls': typeof AuthenticatedCallsRoute
+  '/central': typeof AuthenticatedCentralRoute
   '/chat': typeof AuthenticatedChatRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
@@ -244,6 +251,7 @@ export interface FileRoutesByTo {
   '/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/calls': typeof AuthenticatedCallsRoute
+  '/central': typeof AuthenticatedCentralRoute
   '/chat': typeof AuthenticatedChatRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/_authenticated/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/_authenticated/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
+  '/_authenticated/central': typeof AuthenticatedCentralRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
@@ -311,6 +320,7 @@ export interface FileRouteTypes {
     | '/agents-analytics'
     | '/agents-playground'
     | '/calls'
+    | '/central'
     | '/chat'
     | '/contacts'
     | '/equipe'
@@ -341,6 +351,7 @@ export interface FileRouteTypes {
     | '/agents-analytics'
     | '/agents-playground'
     | '/calls'
+    | '/central'
     | '/chat'
     | '/contacts'
     | '/equipe'
@@ -373,6 +384,7 @@ export interface FileRouteTypes {
     | '/_authenticated/agents-analytics'
     | '/_authenticated/agents-playground'
     | '/_authenticated/calls'
+    | '/_authenticated/central'
     | '/_authenticated/chat'
     | '/_authenticated/contacts'
     | '/_authenticated/equipe'
@@ -532,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/central': {
+      id: '/_authenticated/central'
+      path: '/central'
+      fullPath: '/central'
+      preLoaderRoute: typeof AuthenticatedCentralRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/calls': {
       id: '/_authenticated/calls'
       path: '/calls'
@@ -639,6 +658,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAgentsAnalyticsRoute: typeof AuthenticatedAgentsAnalyticsRoute
   AuthenticatedAgentsPlaygroundRoute: typeof AuthenticatedAgentsPlaygroundRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
+  AuthenticatedCentralRoute: typeof AuthenticatedCentralRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRouteWithChildren
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
@@ -663,6 +683,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAgentsAnalyticsRoute: AuthenticatedAgentsAnalyticsRoute,
   AuthenticatedAgentsPlaygroundRoute: AuthenticatedAgentsPlaygroundRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
+  AuthenticatedCentralRoute: AuthenticatedCentralRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedContactsRoute: AuthenticatedContactsRouteWithChildren,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,

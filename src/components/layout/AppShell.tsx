@@ -57,6 +57,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "SDR",
     items: [
+      { to: "/central", label: "Central de Contatos", icon: Users },
       { to: "/pipeline", label: "Pipeline", icon: KanbanSquare },
       { to: "/contacts", label: "Leads", icon: Users },
       { to: "/chat", label: "Ao vivo", icon: Radio },
