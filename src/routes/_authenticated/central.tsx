@@ -247,8 +247,17 @@ function CentralPage() {
         />
       ) : (
         <Card className="overflow-hidden border-border bg-card shadow-elevation-1">
-          <div className="grid grid-cols-12 gap-2 border-b border-border bg-muted/30 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <div className="col-span-4">Contato</div>
+          <div className="grid grid-cols-12 items-center gap-2 border-b border-border bg-muted/30 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="col-span-1 flex items-center">
+              <Checkbox
+                checked={picked.size > 0 && filtered.every((r) => picked.has(r.id))}
+                onCheckedChange={(v) => {
+                  if (v) setPicked(new Set(filtered.map((r) => r.id)));
+                  else clearPicked();
+                }}
+              />
+            </div>
+            <div className="col-span-3">Contato</div>
             <div className="col-span-2">Status operacional</div>
             <div className="col-span-1 text-right">Score</div>
             <div className="col-span-2">Ciclo de vida</div>
@@ -257,7 +266,13 @@ function CentralPage() {
           </div>
           <ul>
             {filtered.map((c) => (
-              <ContactRow key={c.id} c={c} onOpen={() => setSelected(c)} />
+              <ContactRow
+                key={c.id}
+                c={c}
+                checked={picked.has(c.id)}
+                onCheck={() => togglePick(c.id)}
+                onOpen={() => setSelected(c)}
+              />
             ))}
           </ul>
         </Card>
