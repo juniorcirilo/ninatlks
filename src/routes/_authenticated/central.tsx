@@ -290,7 +290,162 @@ function CentralPage() {
           setSelected((prev) => (prev ? { ...prev, ...updated } : prev));
         }}
       />
+
+      {picked.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-elevation-3">
+          <span className="text-xs text-muted-foreground">
+            {picked.size} selecionado(s)
+          </span>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkOpen(true)}>
+            <ListPlus className="h-3.5 w-3.5" /> Adicionar à lista
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearPicked}>
+            Limpar
+          </Button>
+        </div>
+      )}
+
+      <BulkAddDialog
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        accountId={accountId ?? ""}
+        contactIds={Array.from(picked)}
+        onDone={() => { clearPicked(); setBulkOpen(false); }}
+      />
+
+      <ImportCsvDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        accountId={accountId ?? ""}
+        onDone={() => { setImportOpen(false); load(); }}
+      />
     </div>
+  );
+}
+
+function BulkAddDialog({
+  open, onClose, accountId, contactIds, onDone,
+}: { open: boolean; onClose: () => void; accountId: string; contactIds: string[]; onDone: () => void }) {
+  const [lists, setLists] = useState<ListLite[]>([]);
+  const [target, setTarget] = useState<string>("");
+  const [newName, setNewName] = useState("");
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open || !accountId) return;
+    fetchLists(accountId).then((l) => {
+      setLists(l);
+      if (l[0]) setTarget(l[0].id);
+    }).catch(() => {});
+  }, [open, accountId]);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      if (mode === "new") {
+        if (!newName.trim()) { toast.error("Dê um nome à lista"); return; }
+        await createListFromContacts(accountId, newName.trim(), contactIds);
+      } else {
+        if (!target) { toast.error("Selecione uma lista"); return; }
+        await addContactsToList(target, accountId, contactIds);
+      }
+      toast.success(`${contactIds.length} contato(s) adicionado(s)`);
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adicionar {contactIds.length} contato(s) a uma lista</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Button size="sm" variant={mode === "existing" ? "default" : "outline"} onClick={() => setMode("existing")}>
+              Lista existente
+            </Button>
+            <Button size="sm" variant={mode === "new" ? "default" : "outline"} onClick={() => setMode("new")} className="gap-1.5">
+              <FolderPlus className="h-3.5 w-3.5" /> Nova lista
+            </Button>
+          </div>
+          {mode === "existing" ? (
+            <Select value={target} onValueChange={setTarget}>
+              <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
+              <SelectContent>
+                {lists.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>{l.name} ({l.member_count})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input placeholder="Nome da nova lista" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Confirmar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ImportCsvDialog({
+  open, onClose, accountId, onDone,
+}: { open: boolean; onClose: () => void; accountId: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  const handleFile = async (file: File) => {
+    setBusy(true);
+    try {
+      const text = await file.text();
+      const res = await importContactsCsv(accountId, text);
+      toast.success(`${res.created} contato(s) importado(s)${res.skipped ? `, ${res.skipped} ignorado(s)` : ""}`);
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha no import");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Importar contatos de CSV</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Colunas reconhecidas: <code>nome</code>, <code>telefone</code>, <code>email</code>.
+            Duplicados por telefone são atualizados.
+          </p>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            disabled={busy}
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+            className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-violet-500/10 file:px-3 file:py-1.5 file:text-violet-300 hover:file:bg-violet-500/20"
+          />
+          {busy && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Importando…
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
