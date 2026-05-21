@@ -54,8 +54,31 @@ function ListsPage() {
   const [filterTag, setFilterTag] = useState("");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const resetForm = () => {
+    setName("");
+    setDescription("");
+    setKind("sdr");
+    setFilterStage("");
+    setFilterTag("");
+    setCsvFile(null);
+    setEditingId(null);
+  };
+
+  const startEdit = (r: ContactListRow) => {
+    setEditingId(r.id);
+    setName(r.name);
+    setDescription(r.description ?? "");
+    setKind((r.campaign_kind as CampaignKind) ?? "sdr");
+    const f = (r.filters ?? {}) as Record<string, unknown>;
+    setFilterStage(typeof f.stage_id === "string" ? f.stage_id : "");
+    setFilterTag(typeof f.tag === "string" ? f.tag : "");
+    setCsvFile(null);
+    setCreating(true);
+  };
 
   const refresh = useCallback(async () => {
     if (!accountId) return;
