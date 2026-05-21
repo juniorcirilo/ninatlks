@@ -52,6 +52,10 @@ function ListsPage() {
   const [description, setDescription] = useState("");
   const [filterStage, setFilterStage] = useState("");
   const [filterTag, setFilterTag] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   const refresh = useCallback(async () => {
     if (!accountId) return;
@@ -74,8 +78,23 @@ function ListsPage() {
       return;
     }
     try {
+      setImporting(true);
+
+      // 1. Import CSV first if provided
+      if (csvFile) {
+        const csv = await csvFile.text();
+        const { data: importRes, error: importErr } = await (supabase as any).functions.invoke(
+          "contacts-import-csv",
+          { body: { csv } },
+        );
+        if (importErr) throw new Error(importErr.message ?? "falha ao importar CSV");
+        const imported = importRes?.imported ?? 0;
+        if (imported > 0) toast.success(`${imported} contatos importados do CSV`);
+      }
+
       const filters: Record<string, unknown> = {};
-      if (filterStage.trim()) filters.stage_id = filterStage.trim();
+      const stageValid = filterStage.trim() && UUID_RE.test(filterStage.trim());
+      if (stageValid) filters.stage_id = filterStage.trim();
       if (filterTag.trim()) filters.tag = filterTag.trim();
 
       // Build initial members based on filters
@@ -86,7 +105,7 @@ function ListsPage() {
         .not("phone_number", "is", null)
         .eq("blocked", false)
         .limit(5000);
-      if (filterStage.trim()) contactsQuery = contactsQuery.eq("stage_id", filterStage.trim());
+      if (stageValid) contactsQuery = contactsQuery.eq("stage_id", filterStage.trim());
 
       const { data: cdata, error: cerr } = await contactsQuery;
       if (cerr) throw cerr;
@@ -113,17 +132,22 @@ function ListsPage() {
           account_id: accountId,
         }));
         await (supabase as any).from("contact_list_members").insert(members);
+        toast.success(`Lista criada com ${cdata.length} contatos`);
+      } else {
+        toast.warning("Lista criada, mas sem contatos. Importe um CSV ou adicione contatos em /contacts.");
       }
 
-      toast.success("Lista criada");
       setName("");
       setDescription("");
       setFilterStage("");
       setFilterTag("");
+      setCsvFile(null);
       setCreating(false);
       refresh();
     } catch (e: any) {
       toast.error(e?.message ?? "falha ao criar lista");
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -217,20 +241,40 @@ function ListsPage() {
                   />
                 </Field>
               </div>
+              <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
+                <label className="block text-xs font-medium text-foreground">
+                  Importar contatos via CSV (opcional)
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                  className="mt-2 block w-full text-xs"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Colunas aceitas: <code className="font-mono">name</code> (obrigatório), <code className="font-mono">phone_number</code>, <code className="font-mono">email</code>, <code className="font-mono">company</code>, <code className="font-mono">location</code>.
+                </p>
+                {csvFile && (
+                  <p className="mt-1 text-[11px] text-primary">Arquivo: {csvFile.name}</p>
+                )}
+              </div>
               <p className="text-[11px] text-muted-foreground">
-                Os contatos com telefone e não bloqueados serão adicionados automaticamente. Sem filtros, importa todos.
+                Sem CSV, a lista usa contatos já cadastrados (com telefone e não bloqueados). Sem filtros, importa todos.
               </p>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setCreating(false)}
-                  className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                  disabled={importing}
+                  className="rounded-md border border-input bg-background px-3 py-1.5 text-sm disabled:opacity-50"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={onCreate}
-                  className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  disabled={importing}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
+                  {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   Criar lista
                 </button>
               </div>
