@@ -43,6 +43,10 @@ import {
   applyQuickFilter,
   fetchContactTimeline,
   updateContactOps,
+  fetchLists,
+  addContactsToList,
+  createListFromContacts,
+  importContactsCsv,
   QUICK_FILTERS,
   LIFECYCLE_LABEL,
   OPERATIONAL_LABEL,
@@ -52,7 +56,17 @@ import {
   type QuickFilter,
   type LifecycleStage,
   type OperationalStatus,
+  type ListLite,
 } from "@/lib/central";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Upload, ListPlus, FolderPlus } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -77,6 +91,18 @@ function CentralPage() {
   const [search, setSearch] = useState("");
   const [quick, setQuick] = useState<QuickFilter>("all");
   const [selected, setSelected] = useState<CentralContact | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  
+
+  const togglePick = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const clearPicked = () => setPicked(new Set());
 
   const load = async () => {
     if (!accountId) return;
@@ -144,6 +170,9 @@ function CentralPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setImportOpen(true)}>
+            <Upload className="h-3.5 w-3.5" /> Importar CSV
+          </Button>
           <Button asChild size="sm" variant="outline" className="gap-1.5">
             <Link to="/listas">
               <ClipboardList className="h-3.5 w-3.5" /> Listas
@@ -218,8 +247,17 @@ function CentralPage() {
         />
       ) : (
         <Card className="overflow-hidden border-border bg-card shadow-elevation-1">
-          <div className="grid grid-cols-12 gap-2 border-b border-border bg-muted/30 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <div className="col-span-4">Contato</div>
+          <div className="grid grid-cols-12 items-center gap-2 border-b border-border bg-muted/30 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="col-span-1 flex items-center">
+              <Checkbox
+                checked={picked.size > 0 && filtered.every((r) => picked.has(r.id))}
+                onCheckedChange={(v) => {
+                  if (v) setPicked(new Set(filtered.map((r) => r.id)));
+                  else clearPicked();
+                }}
+              />
+            </div>
+            <div className="col-span-3">Contato</div>
             <div className="col-span-2">Status operacional</div>
             <div className="col-span-1 text-right">Score</div>
             <div className="col-span-2">Ciclo de vida</div>
@@ -228,7 +266,13 @@ function CentralPage() {
           </div>
           <ul>
             {filtered.map((c) => (
-              <ContactRow key={c.id} c={c} onOpen={() => setSelected(c)} />
+              <ContactRow
+                key={c.id}
+                c={c}
+                checked={picked.has(c.id)}
+                onCheck={() => togglePick(c.id)}
+                onOpen={() => setSelected(c)}
+              />
             ))}
           </ul>
         </Card>
@@ -246,11 +290,176 @@ function CentralPage() {
           setSelected((prev) => (prev ? { ...prev, ...updated } : prev));
         }}
       />
+
+      {picked.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-elevation-3">
+          <span className="text-xs text-muted-foreground">
+            {picked.size} selecionado(s)
+          </span>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkOpen(true)}>
+            <ListPlus className="h-3.5 w-3.5" /> Adicionar à lista
+          </Button>
+          <Button size="sm" variant="ghost" onClick={clearPicked}>
+            Limpar
+          </Button>
+        </div>
+      )}
+
+      <BulkAddDialog
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        accountId={accountId ?? ""}
+        contactIds={Array.from(picked)}
+        onDone={() => { clearPicked(); setBulkOpen(false); }}
+      />
+
+      <ImportCsvDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        accountId={accountId ?? ""}
+        onDone={() => { setImportOpen(false); load(); }}
+      />
     </div>
   );
 }
 
-function ContactRow({ c, onOpen }: { c: CentralContact; onOpen: () => void }) {
+function BulkAddDialog({
+  open, onClose, accountId, contactIds, onDone,
+}: { open: boolean; onClose: () => void; accountId: string; contactIds: string[]; onDone: () => void }) {
+  const [lists, setLists] = useState<ListLite[]>([]);
+  const [target, setTarget] = useState<string>("");
+  const [newName, setNewName] = useState("");
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open || !accountId) return;
+    fetchLists(accountId).then((l) => {
+      setLists(l);
+      if (l[0]) setTarget(l[0].id);
+    }).catch(() => {});
+  }, [open, accountId]);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      if (mode === "new") {
+        if (!newName.trim()) { toast.error("Dê um nome à lista"); return; }
+        await createListFromContacts(accountId, newName.trim(), contactIds);
+      } else {
+        if (!target) { toast.error("Selecione uma lista"); return; }
+        await addContactsToList(target, accountId, contactIds);
+      }
+      toast.success(`${contactIds.length} contato(s) adicionado(s)`);
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adicionar {contactIds.length} contato(s) a uma lista</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <Button size="sm" variant={mode === "existing" ? "default" : "outline"} onClick={() => setMode("existing")}>
+              Lista existente
+            </Button>
+            <Button size="sm" variant={mode === "new" ? "default" : "outline"} onClick={() => setMode("new")} className="gap-1.5">
+              <FolderPlus className="h-3.5 w-3.5" /> Nova lista
+            </Button>
+          </div>
+          {mode === "existing" ? (
+            <Select value={target} onValueChange={setTarget}>
+              <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
+              <SelectContent>
+                {lists.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>{l.name} ({l.member_count})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input placeholder="Nome da nova lista" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Confirmar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ImportCsvDialog({
+  open, onClose, accountId, onDone,
+}: { open: boolean; onClose: () => void; accountId: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+
+  const handleFile = async (file: File) => {
+    setBusy(true);
+    try {
+      const text = await file.text();
+      const res = await importContactsCsv(accountId, text);
+      toast.success(`${res.created} contato(s) importado(s)${res.skipped ? `, ${res.skipped} ignorado(s)` : ""}`);
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha no import");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Importar contatos de CSV</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Colunas reconhecidas: <code>nome</code>, <code>telefone</code>, <code>email</code>.
+            Duplicados por telefone são atualizados.
+          </p>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            disabled={busy}
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+            className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-violet-500/10 file:px-3 file:py-1.5 file:text-violet-300 hover:file:bg-violet-500/20"
+          />
+          {busy && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Importando…
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ContactRow({
+  c,
+  checked,
+  onCheck,
+  onOpen,
+}: {
+  c: CentralContact;
+  checked: boolean;
+  onCheck: () => void;
+  onOpen: () => void;
+}) {
   const initials = (c.name ?? c.phone_number ?? "?")
     .split(/\s+/)
     .map((p) => p[0])
@@ -270,7 +479,10 @@ function ContactRow({ c, onOpen }: { c: CentralContact; onOpen: () => void }) {
       onClick={onOpen}
       className="grid cursor-pointer grid-cols-12 items-center gap-2 border-b border-border px-4 py-3 transition hover:bg-muted/30"
     >
-      <div className="col-span-4 flex items-center gap-3">
+      <div className="col-span-1 flex items-center" onClick={(e) => e.stopPropagation()}>
+        <Checkbox checked={checked} onCheckedChange={onCheck} />
+      </div>
+      <div className="col-span-3 flex items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[11px] font-semibold text-white">
           {initials}
         </div>
