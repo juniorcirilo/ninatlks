@@ -1341,10 +1341,16 @@ export type Database = {
           id: string
           identifier: string | null
           last_activity_at: string | null
+          last_call_at: string | null
           last_sentiment: string | null
           last_sentiment_score: number | null
+          last_whatsapp_at: string | null
+          lifecycle_stage: Database["public"]["Enums"]["contact_lifecycle_stage"]
           location: string | null
           name: string | null
+          notes: string | null
+          operational_status: Database["public"]["Enums"]["contact_operational_status"]
+          owner_user_id: string | null
           phone_number: string | null
           score: number
           source: string | null
@@ -1367,10 +1373,16 @@ export type Database = {
           id?: string
           identifier?: string | null
           last_activity_at?: string | null
+          last_call_at?: string | null
           last_sentiment?: string | null
           last_sentiment_score?: number | null
+          last_whatsapp_at?: string | null
+          lifecycle_stage?: Database["public"]["Enums"]["contact_lifecycle_stage"]
           location?: string | null
           name?: string | null
+          notes?: string | null
+          operational_status?: Database["public"]["Enums"]["contact_operational_status"]
+          owner_user_id?: string | null
           phone_number?: string | null
           score?: number
           source?: string | null
@@ -1393,10 +1405,16 @@ export type Database = {
           id?: string
           identifier?: string | null
           last_activity_at?: string | null
+          last_call_at?: string | null
           last_sentiment?: string | null
           last_sentiment_score?: number | null
+          last_whatsapp_at?: string | null
+          lifecycle_stage?: Database["public"]["Enums"]["contact_lifecycle_stage"]
           location?: string | null
           name?: string | null
+          notes?: string | null
+          operational_status?: Database["public"]["Enums"]["contact_operational_status"]
+          owner_user_id?: string | null
           phone_number?: string | null
           score?: number
           source?: string | null
@@ -5572,6 +5590,24 @@ export type Database = {
         | "messenger"
         | "sms"
         | "telegram"
+      contact_lifecycle_stage:
+        | "lead"
+        | "prospect"
+        | "customer"
+        | "inactive"
+        | "delinquent"
+      contact_operational_status:
+        | "new"
+        | "sdr"
+        | "qualifying"
+        | "negotiating"
+        | "closed_won"
+        | "closed_lost"
+        | "collections"
+        | "post_sale"
+        | "retention"
+        | "no_response"
+        | "do_not_contact"
       delivery_channel: "whatsapp" | "email" | "sms"
       delivery_status: "pendente" | "enviado" | "entregue" | "lido" | "falhou"
       doc_type: "cpf" | "cnpj"
@@ -5737,6 +5773,26 @@ export const Constants = {
         "messenger",
         "sms",
         "telegram",
+      ],
+      contact_lifecycle_stage: [
+        "lead",
+        "prospect",
+        "customer",
+        "inactive",
+        "delinquent",
+      ],
+      contact_operational_status: [
+        "new",
+        "sdr",
+        "qualifying",
+        "negotiating",
+        "closed_won",
+        "closed_lost",
+        "collections",
+        "post_sale",
+        "retention",
+        "no_response",
+        "do_not_contact",
       ],
       delivery_channel: ["whatsapp", "email", "sms"],
       delivery_status: ["pendente", "enviado", "entregue", "lido", "falhou"],
