@@ -240,7 +240,7 @@ function ListsPage() {
         <>
           {creating && (
             <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <h2 className="text-sm font-semibold">Criar lista</h2>
+              <h2 className="text-sm font-semibold">{editingId ? "Editar lista" : "Criar lista"}</h2>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Nome">
                   <input
