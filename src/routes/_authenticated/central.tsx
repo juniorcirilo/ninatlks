@@ -294,7 +294,17 @@ function CentralPage() {
   );
 }
 
-function ContactRow({ c, onOpen }: { c: CentralContact; onOpen: () => void }) {
+function ContactRow({
+  c,
+  checked,
+  onCheck,
+  onOpen,
+}: {
+  c: CentralContact;
+  checked: boolean;
+  onCheck: () => void;
+  onOpen: () => void;
+}) {
   const initials = (c.name ?? c.phone_number ?? "?")
     .split(/\s+/)
     .map((p) => p[0])
@@ -314,7 +324,10 @@ function ContactRow({ c, onOpen }: { c: CentralContact; onOpen: () => void }) {
       onClick={onOpen}
       className="grid cursor-pointer grid-cols-12 items-center gap-2 border-b border-border px-4 py-3 transition hover:bg-muted/30"
     >
-      <div className="col-span-4 flex items-center gap-3">
+      <div className="col-span-1 flex items-center" onClick={(e) => e.stopPropagation()}>
+        <Checkbox checked={checked} onCheckedChange={onCheck} />
+      </div>
+      <div className="col-span-3 flex items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[11px] font-semibold text-white">
           {initials}
         </div>
