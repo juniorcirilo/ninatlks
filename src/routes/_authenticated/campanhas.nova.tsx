@@ -235,6 +235,11 @@ function NewCampaignPage() {
                 </option>
               ))}
             </select>
+            {lists.length === 0 && (
+              <p className="mt-1 text-xs text-amber-600">
+                Nenhuma lista cadastrada. Crie uma em <a href="/listas" className="underline">/listas</a> antes de continuar.
+              </p>
+            )}
           </Field>
           {selectedList && (
             <p className="text-xs text-muted-foreground">
@@ -254,6 +259,11 @@ function NewCampaignPage() {
                 </option>
               ))}
             </select>
+            {personas.length === 0 && (
+              <p className="mt-1 text-xs text-amber-600">
+                Nenhum agente ativo. Ative ou crie um em <a href="/agents" className="underline">/agents</a>.
+              </p>
+            )}
           </Field>
           <Field label="Número de origem">
             <select
