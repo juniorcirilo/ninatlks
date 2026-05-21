@@ -170,6 +170,9 @@ function CentralPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setImportOpen(true)}>
+            <Upload className="h-3.5 w-3.5" /> Importar CSV
+          </Button>
           <Button asChild size="sm" variant="outline" className="gap-1.5">
             <Link to="/listas">
               <ClipboardList className="h-3.5 w-3.5" /> Listas
