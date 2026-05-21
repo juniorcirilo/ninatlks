@@ -306,7 +306,10 @@ function ListsPage() {
               )}
               <div className="flex justify-end gap-2">
                 <button
-                  onClick={() => setCreating(false)}
+                  onClick={() => {
+                    resetForm();
+                    setCreating(false);
+                  }}
                   disabled={importing}
                   className="rounded-md border border-input bg-background px-3 py-1.5 text-sm disabled:opacity-50"
                 >
@@ -318,7 +321,7 @@ function ListsPage() {
                   className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
                   {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Criar lista
+                  {editingId ? "Salvar alterações" : "Criar lista"}
                 </button>
               </div>
             </div>
