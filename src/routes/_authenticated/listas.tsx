@@ -385,7 +385,15 @@ function ListsPage() {
                             <Rocket className="h-3 w-3" /> Campanha
                           </button>
                           <button
+                            onClick={() => startEdit(r)}
+                            title="Editar lista"
+                            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
                             onClick={() => onDelete(r.id)}
+                            title="Excluir lista"
                             className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
