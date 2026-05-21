@@ -78,8 +78,23 @@ function ListsPage() {
       return;
     }
     try {
+      setImporting(true);
+
+      // 1. Import CSV first if provided
+      if (csvFile) {
+        const csv = await csvFile.text();
+        const { data: importRes, error: importErr } = await (supabase as any).functions.invoke(
+          "contacts-import-csv",
+          { body: { csv } },
+        );
+        if (importErr) throw new Error(importErr.message ?? "falha ao importar CSV");
+        const imported = importRes?.imported ?? 0;
+        if (imported > 0) toast.success(`${imported} contatos importados do CSV`);
+      }
+
       const filters: Record<string, unknown> = {};
-      if (filterStage.trim()) filters.stage_id = filterStage.trim();
+      const stageValid = filterStage.trim() && UUID_RE.test(filterStage.trim());
+      if (stageValid) filters.stage_id = filterStage.trim();
       if (filterTag.trim()) filters.tag = filterTag.trim();
 
       // Build initial members based on filters
@@ -90,7 +105,7 @@ function ListsPage() {
         .not("phone_number", "is", null)
         .eq("blocked", false)
         .limit(5000);
-      if (filterStage.trim()) contactsQuery = contactsQuery.eq("stage_id", filterStage.trim());
+      if (stageValid) contactsQuery = contactsQuery.eq("stage_id", filterStage.trim());
 
       const { data: cdata, error: cerr } = await contactsQuery;
       if (cerr) throw cerr;
@@ -117,17 +132,22 @@ function ListsPage() {
           account_id: accountId,
         }));
         await (supabase as any).from("contact_list_members").insert(members);
+        toast.success(`Lista criada com ${cdata.length} contatos`);
+      } else {
+        toast.warning("Lista criada, mas sem contatos. Importe um CSV ou adicione contatos em /contacts.");
       }
 
-      toast.success("Lista criada");
       setName("");
       setDescription("");
       setFilterStage("");
       setFilterTag("");
+      setCsvFile(null);
       setCreating(false);
       refresh();
     } catch (e: any) {
       toast.error(e?.message ?? "falha ao criar lista");
+    } finally {
+      setImporting(false);
     }
   };
 
