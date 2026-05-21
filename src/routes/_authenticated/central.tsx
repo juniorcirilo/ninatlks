@@ -43,6 +43,10 @@ import {
   applyQuickFilter,
   fetchContactTimeline,
   updateContactOps,
+  fetchLists,
+  addContactsToList,
+  createListFromContacts,
+  importContactsCsv,
   QUICK_FILTERS,
   LIFECYCLE_LABEL,
   OPERATIONAL_LABEL,
@@ -52,7 +56,17 @@ import {
   type QuickFilter,
   type LifecycleStage,
   type OperationalStatus,
+  type ListLite,
 } from "@/lib/central";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Upload, ListPlus, FolderPlus } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
