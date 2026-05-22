@@ -106,6 +106,11 @@ function CentralPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [ownerOpen, setOwnerOpen] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [campaignOpen, setCampaignOpen] = useState(false);
+  const [prodOpen, setProdOpen] = useState(false);
+  
   
 
   const togglePick = (id: string) =>
