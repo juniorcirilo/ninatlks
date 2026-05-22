@@ -24,7 +24,7 @@ const corsHeaders = {
 };
 
 const EL_TIMEOUT_MS = 15_000;
-const PT_BR_LANGUAGE = "pt-br";
+const PT_BR_LANGUAGE = "pt";
 const PT_BR_LANGUAGE_INSTRUCTION =
   "\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- A primeira fala deve ser em português brasileiro.\n- Nunca use inglês, mesmo se o runtime ou telefonia sugerirem outro idioma.";
 
