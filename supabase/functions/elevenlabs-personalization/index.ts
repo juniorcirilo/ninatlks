@@ -20,6 +20,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "*",
 };
 
+const PT_LANGUAGE = "pt";
+const PT_BR_LANGUAGE_INSTRUCTION =
+  "\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- Use vocabulário, tratamento e pronúncia naturais do Brasil; nunca use português de Portugal.\n- A primeira fala deve ser em português brasileiro.\n- Nunca cumprimente nem responda em inglês.";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return j({ error: "method not allowed" }, 405);
@@ -201,7 +205,7 @@ Deno.serve(async (req) => {
   // SEMPRE contenha o header de regras SDR (fluxo por call_purpose,
   // compliance, tools), mesmo se a persona tiver um sysprompt curto.
   const promptWithGuardrails = buildSystemPromptWithGuardrails(personaSystemPrompt);
-  const enrichedPrompt = promptWithGuardrails + contextBlock;
+  const enrichedPrompt = `${promptWithGuardrails}${contextBlock}${PT_BR_LANGUAGE_INSTRUCTION}`;
 
   // first_message: respeita o opener cadastrado na persona — só substitui
   // as variáveis dinâmicas. O aviso de gravação fica no system_prompt
@@ -228,7 +232,7 @@ Deno.serve(async (req) => {
       agent: {
         prompt: { prompt: enrichedPrompt },
         first_message: greeting,
-        language: "pt",
+        language: PT_LANGUAGE,
       },
     },
     dynamic_variables: dynamicVariables,
