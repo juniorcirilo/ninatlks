@@ -31,6 +31,9 @@ const corsHeaders = {
 };
 
 const EL_BASE = "https://api.elevenlabs.io";
+const PT_LANGUAGE = "pt";
+const PT_BR_LANGUAGE_INSTRUCTION =
+  "\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- Use vocabulário, tratamento e pronúncia naturais do Brasil; nunca use português de Portugal.\n- A primeira fala deve ser em português brasileiro.\n- Nunca cumprimente nem responda em inglês.";
 
 async function elRequest(
   apiKey: string,
@@ -112,7 +115,7 @@ Deno.serve(async (req) => {
   // Injeta header de regras SDR automaticamente — usuário pode escrever
   // prompt curto sem variáveis e mesmo assim o agente recebe contexto
   // por call_purpose, fluxo de qualificação e instruções das tools.
-  const systemPrompt = buildSystemPromptWithGuardrails(rawSystemPrompt);
+  const systemPrompt = `${buildSystemPromptWithGuardrails(rawSystemPrompt)}${PT_BR_LANGUAGE_INSTRUCTION}`;
   const firstMessage = (persona.first_message as string | null) ??
     `Oi {{lead_name}}, aqui é {{agent_name}} da {{company_name}}. Esta chamada pode ser gravada. Em que posso ajudar?`;
 
@@ -223,7 +226,7 @@ Deno.serve(async (req) => {
       },
       agent: {
         first_message: firstMessage,
-        language: "pt",
+        language: PT_LANGUAGE,
         dynamic_variables: {
           dynamic_variable_placeholders: dynamicVariablePlaceholders,
         },
