@@ -135,10 +135,13 @@ Deno.serve(async (req) => {
     }
 
     const header = rows[0].map((h) => h.trim().toLowerCase());
-    const nameIdx = header.indexOf("name");
-    if (nameIdx < 0) {
+    const NAME_ALIASES = ["name", "nome", "full_name", "fullname", "contact_name", "nome_completo"];
+    const hasNameCol = NAME_ALIASES.some((c) => header.includes(c));
+    const hasPhoneCol = ["phone_number", "phone", "phonenumber", "telefone", "celular"].some((c) => header.includes(c));
+    const hasEmailCol = header.includes("email") || header.includes("e-mail");
+    if (!hasNameCol && !hasPhoneCol && !hasEmailCol) {
       return new Response(
-        JSON.stringify({ error: "Missing required 'name' column" }),
+        JSON.stringify({ error: "CSV precisa ter pelo menos uma coluna: name/nome, phone_number/telefone ou email" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -171,12 +174,23 @@ Deno.serve(async (req) => {
           const v = row[idx]?.trim();
           return v && v.length > 0 ? v : null;
         };
+        const getAny = (cols: string[]) => {
+          for (const c of cols) {
+            const v = get(c);
+            if (v) return v;
+          }
+          return null;
+        };
 
-        const name = get("name");
+        const email = (getAny(["email", "e-mail"]))?.toLowerCase() ?? null;
+        const phone = getAny(["phone_number", "phone", "phonenumber", "telefone", "celular"]);
+        let name = getAny(NAME_ALIASES);
+        if (!name) name = email ?? phone ?? null;
         if (!name) {
-          errors.push({ row: rowNum, message: "Missing name" });
+          errors.push({ row: rowNum, message: "Linha sem name/email/telefone" });
           continue;
         }
+
 
         const email = get("email")?.toLowerCase() ?? null;
         const phone =
