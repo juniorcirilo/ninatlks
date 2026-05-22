@@ -198,6 +198,21 @@ function CentralPage() {
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setProdOpen(true)}>
             <BarChart3 className="h-3.5 w-3.5" /> Produtividade
           </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setDedupeOpen(true)}>
+            <GitMerge className="h-3.5 w-3.5" /> Duplicados
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => {
+              if (!filtered.length) { toast.error("Nada para exportar"); return; }
+              downloadCsv(`contatos-${new Date().toISOString().slice(0, 10)}.csv`, contactsToCsv(filtered));
+              toast.success(`${filtered.length} contato(s) exportado(s)`);
+            }}
+          >
+            <Download className="h-3.5 w-3.5" /> Exportar
+          </Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setImportOpen(true)}>
             <Upload className="h-3.5 w-3.5" /> Importar CSV
           </Button>
