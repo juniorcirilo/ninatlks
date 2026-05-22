@@ -224,6 +224,9 @@ function CentralPage() {
               <ClipboardList className="h-3.5 w-3.5" /> Listas
             </Link>
           </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setNewOpen(true)}>
+            <Plus className="h-3.5 w-3.5" /> Novo contato
+          </Button>
           <Button asChild size="sm" className="gap-1.5">
             <Link to="/campanhas/nova">
               <Rocket className="h-3.5 w-3.5" /> Nova campanha
