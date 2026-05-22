@@ -120,6 +120,7 @@ function CentralPage() {
   const [campaignOpen, setCampaignOpen] = useState(false);
   const [dedupeOpen, setDedupeOpen] = useState(false);
   const [prodOpen, setProdOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
   
   
 
