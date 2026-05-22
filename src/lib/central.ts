@@ -464,3 +464,129 @@ export function timeAgoShort(iso?: string | null): string {
   if (days < 30) return `${days}d`;
   return new Date(iso).toLocaleDateString("pt-BR");
 }
+
+// ============ Round-robin owner assignment ============
+export async function bulkAssignRoundRobin(
+  contactIds: string[],
+  ownerIds: string[],
+): Promise<{ assigned: number }> {
+  if (!contactIds.length || !ownerIds.length) return { assigned: 0 };
+  // Group contactIds by owner index → minimize round-trips
+  const groups: Record<string, string[]> = {};
+  contactIds.forEach((cid, i) => {
+    const owner = ownerIds[i % ownerIds.length];
+    (groups[owner] ??= []).push(cid);
+  });
+  for (const [owner, ids] of Object.entries(groups)) {
+    const { error } = await (supabase as any)
+      .from("contacts")
+      .update({ owner_user_id: owner })
+      .in("id", ids);
+    if (error) throw error;
+  }
+  return { assigned: contactIds.length };
+}
+
+// ============ Dedupe / Merge suggestions ============
+export type DuplicateGroup = {
+  key: string;
+  kind: "phone" | "email";
+  contacts: CentralContact[];
+};
+
+export function findDuplicateGroups(rows: CentralContact[]): DuplicateGroup[] {
+  const byPhone = new Map<string, CentralContact[]>();
+  const byEmail = new Map<string, CentralContact[]>();
+  rows.forEach((r) => {
+    if (r.phone_number) {
+      const k = r.phone_number.replace(/\D/g, "");
+      if (k.length >= 8) {
+        if (!byPhone.has(k)) byPhone.set(k, []);
+        byPhone.get(k)!.push(r);
+      }
+    }
+    if (r.email) {
+      const k = r.email.trim().toLowerCase();
+      if (k.includes("@")) {
+        if (!byEmail.has(k)) byEmail.set(k, []);
+        byEmail.get(k)!.push(r);
+      }
+    }
+  });
+  const groups: DuplicateGroup[] = [];
+  byPhone.forEach((list, key) => {
+    if (list.length > 1) groups.push({ key, kind: "phone", contacts: list });
+  });
+  byEmail.forEach((list, key) => {
+    if (list.length > 1) {
+      // skip if this email-group is fully contained in an existing phone-group
+      const ids = new Set(list.map((c) => c.id));
+      const overlap = groups.some(
+        (g) => g.contacts.length === list.length && g.contacts.every((c) => ids.has(c.id)),
+      );
+      if (!overlap) groups.push({ key, kind: "email", contacts: list });
+    }
+  });
+  return groups.sort((a, b) => b.contacts.length - a.contacts.length);
+}
+
+export function pickPrimaryContact(list: CentralContact[]): CentralContact {
+  // Best primary = highest score, then most recent activity
+  return [...list].sort((a, b) => {
+    const s = (b.score ?? 0) - (a.score ?? 0);
+    if (s !== 0) return s;
+    const ta = a.last_activity_at ? new Date(a.last_activity_at).getTime() : 0;
+    const tb = b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0;
+    return tb - ta;
+  })[0];
+}
+
+// ============ CSV export ============
+export function contactsToCsv(rows: CentralContact[]): string {
+  const headers = [
+    "nome",
+    "telefone",
+    "email",
+    "score",
+    "ciclo_vida",
+    "status_operacional",
+    "ultima_atividade",
+    "ultima_ligacao",
+    "ultimo_whatsapp",
+    "sentimento",
+  ];
+  const esc = (v: any) => {
+    const s = v == null ? "" : String(v);
+    return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [headers.join(",")];
+  rows.forEach((r) => {
+    lines.push(
+      [
+        r.name,
+        r.phone_number,
+        r.email,
+        r.score,
+        LIFECYCLE_LABEL[r.lifecycle_stage],
+        OPERATIONAL_LABEL[r.operational_status],
+        r.last_activity_at,
+        r.last_call_at,
+        r.last_whatsapp_at,
+        r.last_sentiment,
+      ].map(esc).join(","),
+    );
+  });
+  return lines.join("\n");
+}
+
+export function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
