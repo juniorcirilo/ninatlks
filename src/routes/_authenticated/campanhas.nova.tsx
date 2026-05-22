@@ -59,7 +59,8 @@ function NewCampaignPage() {
             .from("agent_personas")
             .select("id,name,voice_clone_id,status,enabled")
             .eq("account_id", accountId)
-            .eq("status", "active")
+            .eq("enabled", true)
+            .in("status", ["active", "draft", "training"])
             .order("name"),
           (supabase as any)
             .from("phone_numbers")
