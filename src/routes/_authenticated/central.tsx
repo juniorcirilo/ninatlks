@@ -62,6 +62,7 @@ import {
   pickPrimaryContact,
   contactsToCsv,
   downloadCsv,
+  createManualContact,
   QUICK_FILTERS,
   LIFECYCLE_LABEL,
   OPERATIONAL_LABEL,
