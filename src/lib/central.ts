@@ -251,6 +251,177 @@ export async function importContactsCsv(
   return { created: (data ?? []).length, skipped: rows.length - payload.length };
 }
 
+// ============ Team / Owner ============
+export type TeamLite = { user_id: string; name: string | null; email: string | null };
+export async function fetchTeam(accountId: string): Promise<TeamLite[]> {
+  const { data, error } = await (supabase as any).rpc("team_list_members", {
+    p_account_id: accountId,
+  });
+  if (error) throw error;
+  return ((data ?? []) as any[]).map((m) => ({
+    user_id: m.user_id,
+    name: m.name ?? null,
+    email: m.email ?? null,
+  }));
+}
+
+export async function bulkAssignOwner(contactIds: string[], ownerUserId: string | null) {
+  if (!contactIds.length) return;
+  const { error } = await (supabase as any)
+    .from("contacts")
+    .update({ owner_user_id: ownerUserId })
+    .in("id", contactIds);
+  if (error) throw error;
+}
+
+export async function bulkSetLifecycle(contactIds: string[], stage: LifecycleStage) {
+  if (!contactIds.length) return;
+  const { error } = await (supabase as any)
+    .from("contacts")
+    .update({ lifecycle_stage: stage })
+    .in("id", contactIds);
+  if (error) throw error;
+}
+
+export async function bulkSetOperationalStatus(contactIds: string[], status: OperationalStatus) {
+  if (!contactIds.length) return;
+  const { error } = await (supabase as any)
+    .from("contacts")
+    .update({ operational_status: status })
+    .in("id", contactIds);
+  if (error) throw error;
+}
+
+// ============ Tags ============
+export async function fetchTagSuggestions(accountId: string): Promise<string[]> {
+  const { data, error } = await (supabase as any)
+    .from("contact_tags")
+    .select("tag")
+    .eq("account_id", accountId)
+    .limit(500);
+  if (error) throw error;
+  const set = new Set<string>();
+  (data ?? []).forEach((r: any) => r.tag && set.add(r.tag));
+  return Array.from(set).sort();
+}
+
+export async function bulkAddTag(accountId: string, contactIds: string[], tag: string) {
+  if (!contactIds.length || !tag.trim()) return;
+  const rows = contactIds.map((cid) => ({
+    account_id: accountId,
+    contact_id: cid,
+    tag: tag.trim(),
+  }));
+  const { error } = await (supabase as any)
+    .from("contact_tags")
+    .upsert(rows, { onConflict: "contact_id,tag", ignoreDuplicates: true });
+  if (error) throw error;
+}
+
+// ============ Campaigns ============
+export type CampaignLite = { id: string; name: string; status: string; campaign_kind: string | null };
+export async function fetchEditableCampaigns(accountId: string): Promise<CampaignLite[]> {
+  const { data, error } = await (supabase as any)
+    .from("voice_campaigns")
+    .select("id,name,status,campaign_kind")
+    .eq("account_id", accountId)
+    .in("status", ["draft", "scheduled", "paused"])
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as CampaignLite[];
+}
+
+export async function bulkAddToCampaign(
+  accountId: string,
+  campaignId: string,
+  contacts: { id: string; phone_number: string | null }[],
+): Promise<{ added: number; skipped: number }> {
+  const valid = contacts.filter((c) => c.phone_number && c.phone_number.replace(/\D/g, "").length >= 8);
+  if (!valid.length) return { added: 0, skipped: contacts.length };
+  const rows = valid.map((c) => ({
+    account_id: accountId,
+    campaign_id: campaignId,
+    contact_id: c.id,
+    to_number: c.phone_number!,
+    phone_number: c.phone_number!,
+    status: "queued",
+  }));
+  const { data, error } = await (supabase as any)
+    .from("voice_campaign_contacts")
+    .insert(rows)
+    .select("id");
+  if (error) throw error;
+  const added = (data ?? []).length;
+  // bump total_contacts (best-effort)
+  await (supabase as any).rpc("noop").catch(() => {});
+  await (supabase as any)
+    .from("voice_campaigns")
+    .update({ total_contacts: (await (supabase as any)
+      .from("voice_campaign_contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId)).count ?? 0 })
+    .eq("id", campaignId)
+    .then(() => {}, () => {});
+  return { added, skipped: contacts.length - added };
+}
+
+// ============ Productivity ============
+export type OwnerProductivity = {
+  user_id: string | null;
+  name: string;
+  contacts: number;
+  hot: number;
+  customers: number;
+  delinquent: number;
+  last7d_calls: number;
+  last7d_whatsapp: number;
+};
+
+export async function fetchProductivity(accountId: string): Promise<OwnerProductivity[]> {
+  const [team, contacts] = await Promise.all([
+    fetchTeam(accountId),
+    (supabase as any)
+      .from("contacts")
+      .select("owner_user_id,score,lifecycle_stage,last_call_at,last_whatsapp_at")
+      .eq("account_id", accountId)
+      .eq("blocked", false)
+      .limit(2000),
+  ]);
+  const rows: any[] = contacts.data ?? [];
+  const sevenAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const map = new Map<string, OwnerProductivity>();
+  const ensure = (uid: string | null, name: string) => {
+    const key = uid ?? "__unassigned";
+    if (!map.has(key))
+      map.set(key, {
+        user_id: uid,
+        name,
+        contacts: 0,
+        hot: 0,
+        customers: 0,
+        delinquent: 0,
+        last7d_calls: 0,
+        last7d_whatsapp: 0,
+      });
+    return map.get(key)!;
+  };
+  ensure(null, "Sem responsável");
+  team.forEach((t) => ensure(t.user_id, t.name ?? t.email ?? "Operador"));
+  rows.forEach((r) => {
+    const owner = r.owner_user_id ?? null;
+    const t = team.find((x) => x.user_id === owner);
+    const rec = ensure(owner, t?.name ?? t?.email ?? (owner ? "Operador" : "Sem responsável"));
+    rec.contacts += 1;
+    if ((r.score ?? 0) >= 75) rec.hot += 1;
+    if (r.lifecycle_stage === "customer") rec.customers += 1;
+    if (r.lifecycle_stage === "delinquent") rec.delinquent += 1;
+    if (r.last_call_at && new Date(r.last_call_at).getTime() >= sevenAgo) rec.last7d_calls += 1;
+    if (r.last_whatsapp_at && new Date(r.last_whatsapp_at).getTime() >= sevenAgo)
+      rec.last7d_whatsapp += 1;
+  });
+  return Array.from(map.values()).sort((a, b) => b.contacts - a.contacts);
+}
+
 export async function fetchContactTimeline(contactId: string, accountId: string) {
   const [calls, convs, lists] = await Promise.all([
     (supabase as any)
