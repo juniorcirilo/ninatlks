@@ -401,6 +401,13 @@ function CentralPage() {
         onClose={() => setProdOpen(false)}
         accountId={accountId ?? ""}
       />
+
+      <DedupeDialog
+        open={dedupeOpen}
+        onClose={() => setDedupeOpen(false)}
+        rows={rows}
+        onMerged={() => load()}
+      />
     </div>
   );
 }
