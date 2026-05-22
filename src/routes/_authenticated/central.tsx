@@ -542,17 +542,31 @@ function BulkOwnerDialog({
   open, onClose, accountId, contactIds, onDone,
 }: { open: boolean; onClose: () => void; accountId: string; contactIds: string[]; onDone: () => void }) {
   const [team, setTeam] = useState<TeamLite[]>([]);
+  const [mode, setMode] = useState<"single" | "rr">("single");
   const [owner, setOwner] = useState<string>("__none");
+  const [rrPicked, setRrPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!open || !accountId) return;
-    fetchTeam(accountId).then(setTeam).catch(() => {});
+    fetchTeam(accountId).then((t) => {
+      setTeam(t);
+      setRrPicked(new Set(t.map((x) => x.user_id)));
+    }).catch(() => {});
   }, [open, accountId]);
+  const toggleRr = (uid: string) =>
+    setRrPicked((p) => { const n = new Set(p); n.has(uid) ? n.delete(uid) : n.add(uid); return n; });
   const submit = async () => {
     setBusy(true);
     try {
-      await bulkAssignOwner(contactIds, owner === "__none" ? null : owner);
-      toast.success("Responsável atualizado");
+      if (mode === "rr") {
+        const owners = Array.from(rrPicked);
+        if (!owners.length) { toast.error("Selecione ao menos 1 operador"); return; }
+        const r = await bulkAssignRoundRobin(contactIds, owners);
+        toast.success(`${r.assigned} contato(s) distribuído(s) entre ${owners.length} operador(es)`);
+      } else {
+        await bulkAssignOwner(contactIds, owner === "__none" ? null : owner);
+        toast.success("Responsável atualizado");
+      }
       onDone();
     } catch (e: any) {
       toast.error(e?.message ?? "Falha");
@@ -566,20 +580,124 @@ function BulkOwnerDialog({
         <DialogHeader>
           <DialogTitle>Atribuir responsável a {contactIds.length} contato(s)</DialogTitle>
         </DialogHeader>
-        <Select value={owner} onValueChange={setOwner}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none">Sem responsável</SelectItem>
+        <div className="flex gap-2">
+          <Button size="sm" variant={mode === "single" ? "default" : "outline"} onClick={() => setMode("single")}>
+            Único
+          </Button>
+          <Button size="sm" variant={mode === "rr" ? "default" : "outline"} onClick={() => setMode("rr")} className="gap-1.5">
+            <Shuffle className="h-3.5 w-3.5" /> Round-robin
+          </Button>
+        </div>
+        {mode === "single" ? (
+          <Select value={owner} onValueChange={setOwner}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none">Sem responsável</SelectItem>
+              {team.map((t) => (
+                <SelectItem key={t.user_id} value={t.user_id}>{t.name ?? t.email ?? t.user_id}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-3 text-xs">
+            <p className="mb-1 text-muted-foreground">
+              Distribui igualmente entre os operadores selecionados.
+            </p>
             {team.map((t) => (
-              <SelectItem key={t.user_id} value={t.user_id}>{t.name ?? t.email ?? t.user_id}</SelectItem>
+              <label key={t.user_id} className="flex cursor-pointer items-center gap-2">
+                <Checkbox checked={rrPicked.has(t.user_id)} onCheckedChange={() => toggleRr(t.user_id)} />
+                <span>{t.name ?? t.email ?? t.user_id}</span>
+              </label>
             ))}
-          </SelectContent>
-        </Select>
+            {team.length === 0 && <p className="text-muted-foreground">Sem operadores na equipe.</p>}
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
           <Button onClick={submit} disabled={busy}>
             {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Confirmar
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DedupeDialog({
+  open, onClose, rows, onMerged,
+}: { open: boolean; onClose: () => void; rows: CentralContact[]; onMerged: () => void }) {
+  const groups = useMemo(() => (open ? findDuplicateGroups(rows) : []), [open, rows]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const handleMerge = async (g: DuplicateGroup) => {
+    const primary = pickPrimaryContact(g.contacts);
+    const dupes = g.contacts.filter((c) => c.id !== primary.id).map((c) => c.id);
+    if (!confirm(`Mesclar ${dupes.length} duplicado(s) em "${primary.name ?? primary.phone_number ?? primary.id}"?`)) return;
+    setBusy(g.key);
+    try {
+      await mergeContacts(primary.id, dupes);
+      toast.success(`Mesclado: ${dupes.length} duplicado(s)`);
+      onMerged();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha no merge");
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Contatos duplicados ({groups.length} grupo{groups.length === 1 ? "" : "s"})</DialogTitle>
+        </DialogHeader>
+        {groups.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            Nenhum duplicado detectado por telefone ou email.
+          </p>
+        ) : (
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+            {groups.map((g) => {
+              const primary = pickPrimaryContact(g.contacts);
+              return (
+                <div key={`${g.kind}:${g.key}`} className="rounded-lg border border-border bg-muted/10 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-xs">
+                      <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase text-violet-300">
+                        {g.kind}
+                      </span>{" "}
+                      <span className="font-mono text-foreground">{g.key}</span>{" "}
+                      <span className="text-muted-foreground">· {g.contacts.length} contatos</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={busy === g.key}
+                      onClick={() => handleMerge(g)}
+                    >
+                      {busy === g.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitMerge className="h-3.5 w-3.5" />}
+                      Mesclar
+                    </Button>
+                  </div>
+                  <ul className="space-y-1 text-xs">
+                    {g.contacts.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between rounded border border-border/60 bg-card px-2 py-1">
+                        <span className={c.id === primary.id ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                          {c.id === primary.id && <span className="mr-1 text-[10px] text-emerald-400">PRIMÁRIO</span>}
+                          {c.name ?? c.phone_number ?? c.email ?? c.id}
+                        </span>
+                        <span className="text-[11px] tabular-nums text-muted-foreground">
+                          score {c.score ?? 0} · {timeAgoShort(c.last_activity_at)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
