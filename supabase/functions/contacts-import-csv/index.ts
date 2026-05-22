@@ -190,13 +190,9 @@ Deno.serve(async (req) => {
           errors.push({ row: rowNum, message: "Linha sem name/email/telefone" });
           continue;
         }
-
-
-        const email = get("email")?.toLowerCase() ?? null;
-        const phone =
-          get("phone_number") ?? get("phone") ?? get("phonenumber") ?? null;
         const location = get("location");
         const company = get("company");
+
 
         // Dedupe by email
         if (email) {
