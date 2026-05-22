@@ -414,6 +414,13 @@ function CentralPage() {
         rows={rows}
         onMerged={() => load()}
       />
+
+      <NewContactDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        accountId={accountId ?? ""}
+        onDone={() => { setNewOpen(false); load(); }}
+      />
     </div>
   );
 }
