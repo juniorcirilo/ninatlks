@@ -312,12 +312,21 @@ function CentralPage() {
       />
 
       {picked.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-elevation-3">
+        <div className="fixed bottom-6 left-1/2 z-40 flex max-w-[95vw] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-elevation-3">
           <span className="text-xs text-muted-foreground">
             {picked.size} selecionado(s)
           </span>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkOpen(true)}>
-            <ListPlus className="h-3.5 w-3.5" /> Adicionar à lista
+            <ListPlus className="h-3.5 w-3.5" /> Lista
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setCampaignOpen(true)}>
+            <RocketIcon className="h-3.5 w-3.5" /> Campanha
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setOwnerOpen(true)}>
+            <UserPlus className="h-3.5 w-3.5" /> Responsável
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTagOpen(true)}>
+            <Tag className="h-3.5 w-3.5" /> Tag
           </Button>
           <Button size="sm" variant="ghost" onClick={clearPicked}>
             Limpar
@@ -333,11 +342,41 @@ function CentralPage() {
         onDone={() => { clearPicked(); setBulkOpen(false); }}
       />
 
+      <BulkOwnerDialog
+        open={ownerOpen}
+        onClose={() => setOwnerOpen(false)}
+        accountId={accountId ?? ""}
+        contactIds={Array.from(picked)}
+        onDone={() => { clearPicked(); setOwnerOpen(false); load(); }}
+      />
+
+      <BulkTagDialog
+        open={tagOpen}
+        onClose={() => setTagOpen(false)}
+        accountId={accountId ?? ""}
+        contactIds={Array.from(picked)}
+        onDone={() => { clearPicked(); setTagOpen(false); }}
+      />
+
+      <BulkCampaignDialog
+        open={campaignOpen}
+        onClose={() => setCampaignOpen(false)}
+        accountId={accountId ?? ""}
+        contacts={rows.filter((r) => picked.has(r.id)).map((r) => ({ id: r.id, phone_number: r.phone_number }))}
+        onDone={() => { clearPicked(); setCampaignOpen(false); }}
+      />
+
       <ImportCsvDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
         accountId={accountId ?? ""}
         onDone={() => { setImportOpen(false); load(); }}
+      />
+
+      <ProductivityDialog
+        open={prodOpen}
+        onClose={() => setProdOpen(false)}
+        accountId={accountId ?? ""}
       />
     </div>
   );
