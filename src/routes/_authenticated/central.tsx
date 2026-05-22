@@ -18,6 +18,7 @@ import {
   Clock,
   PhoneCall,
   Bot,
+  Plus,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
 import { Input } from "@/components/ui/input";
