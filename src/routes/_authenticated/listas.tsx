@@ -108,7 +108,7 @@ function ListsPage() {
       if (stageValid) filters.stage_id = filterStage.trim();
       if (filterTag.trim()) filters.tag = filterTag.trim();
 
-      // EDIT MODE: only update metadata
+      // EDIT MODE: update metadata + optionally append new contacts (CSV or filters)
       if (editingId) {
         const { error: uerr } = await (supabase as any)
           .from("contact_lists")
@@ -120,7 +120,58 @@ function ListsPage() {
           })
           .eq("id", editingId);
         if (uerr) throw uerr;
-        toast.success("Lista atualizada");
+
+        // 1. Optional CSV import (creates new contacts in the account)
+        if (csvFile) {
+          const csv = await csvFile.text();
+          const { data: importRes, error: importErr } = await (supabase as any).functions.invoke(
+            "contacts-import-csv",
+            { body: { csv } },
+          );
+          if (importErr) throw new Error(importErr.message ?? "falha ao importar CSV");
+          const imported = importRes?.imported ?? 0;
+          if (imported > 0) toast.success(`${imported} contatos importados do CSV`);
+        }
+
+        // 2. Append matching contacts to the list (only the ones not already members)
+        let cq = (supabase as any)
+          .from("contacts")
+          .select("id")
+          .eq("account_id", accountId)
+          .not("phone_number", "is", null)
+          .eq("blocked", false)
+          .limit(5000);
+        if (stageValid) cq = cq.eq("stage_id", filterStage.trim());
+        const { data: cdata, error: cerr } = await cq;
+        if (cerr) throw cerr;
+
+        if (cdata && cdata.length > 0) {
+          const { data: existing } = await (supabase as any)
+            .from("contact_list_members")
+            .select("contact_id")
+            .eq("list_id", editingId);
+          const have = new Set((existing ?? []).map((r: any) => r.contact_id));
+          const toAdd = cdata
+            .filter((c: any) => !have.has(c.id))
+            .map((c: any) => ({ list_id: editingId, contact_id: c.id, account_id: accountId }));
+          if (toAdd.length > 0) {
+            const { error: ierr } = await (supabase as any)
+              .from("contact_list_members")
+              .insert(toAdd);
+            if (ierr) throw ierr;
+            const newCount = have.size + toAdd.length;
+            await (supabase as any)
+              .from("contact_lists")
+              .update({ member_count: newCount })
+              .eq("id", editingId);
+            toast.success(`Lista atualizada — ${toAdd.length} novo(s) contato(s) adicionado(s)`);
+          } else {
+            toast.success("Lista atualizada");
+          }
+        } else {
+          toast.success("Lista atualizada");
+        }
+
         resetForm();
         setCreating(false);
         refresh();
@@ -280,30 +331,28 @@ function ListsPage() {
                   />
                 </Field>
               </div>
-              {!editingId && (
-                <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
-                  <label className="block text-xs font-medium text-foreground">
-                    Importar contatos via CSV (opcional)
-                  </label>
-                  <input
-                    type="file"
-                    accept=".csv,text/csv"
-                    onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
-                    className="mt-2 block w-full text-xs"
-                  />
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Colunas aceitas: <code className="font-mono">name</code> (obrigatório), <code className="font-mono">phone_number</code>, <code className="font-mono">email</code>, <code className="font-mono">company</code>, <code className="font-mono">location</code>.
-                  </p>
-                  {csvFile && (
-                    <p className="mt-1 text-[11px] text-primary">Arquivo: {csvFile.name}</p>
-                  )}
-                </div>
-              )}
-              {!editingId && (
-                <p className="text-[11px] text-muted-foreground">
-                  Sem CSV, a lista usa contatos já cadastrados (com telefone e não bloqueados). Sem filtros, importa todos.
+              <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
+                <label className="block text-xs font-medium text-foreground">
+                  {editingId ? "Adicionar contatos via CSV (opcional)" : "Importar contatos via CSV (opcional)"}
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
+                  className="mt-2 block w-full text-xs"
+                />
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Colunas aceitas: <code className="font-mono">name</code> (obrigatório), <code className="font-mono">phone_number</code>, <code className="font-mono">email</code>, <code className="font-mono">company</code>, <code className="font-mono">location</code>.
                 </p>
-              )}
+                {csvFile && (
+                  <p className="mt-1 text-[11px] text-primary">Arquivo: {csvFile.name}</p>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {editingId
+                  ? "Ao salvar, novos contatos (do CSV e/ou que correspondam ao filtro) serão adicionados à lista. Contatos já presentes não são duplicados."
+                  : "Sem CSV, a lista usa contatos já cadastrados (com telefone e não bloqueados). Sem filtros, importa todos."}
+              </p>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => {
