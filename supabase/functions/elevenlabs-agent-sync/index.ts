@@ -223,7 +223,7 @@ Deno.serve(async (req) => {
       },
       agent: {
         first_message: firstMessage,
-        language: "pt-br",
+        language: "pt",
         dynamic_variables: {
           dynamic_variable_placeholders: dynamicVariablePlaceholders,
         },
