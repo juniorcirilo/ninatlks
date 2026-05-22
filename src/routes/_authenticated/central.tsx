@@ -187,6 +187,9 @@ function CentralPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setProdOpen(true)}>
+            <BarChart3 className="h-3.5 w-3.5" /> Produtividade
+          </Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setImportOpen(true)}>
             <Upload className="h-3.5 w-3.5" /> Importar CSV
           </Button>
