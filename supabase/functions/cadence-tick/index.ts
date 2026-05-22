@@ -19,8 +19,9 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+const PT_LANGUAGE = "pt";
 const PT_BR_LANGUAGE_INSTRUCTION =
-  "\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- A primeira fala deve ser em português brasileiro.\n- Nunca use inglês, mesmo se o runtime ou telefonia sugerirem outro idioma.";
+  "\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- Use vocabulário, tratamento e pronúncia naturais do Brasil; nunca use português de Portugal.\n- A primeira fala deve ser em português brasileiro.\n- Nunca cumprimente nem responda em inglês.";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -186,7 +187,7 @@ async function dispatchVoiceFollowup(
         conversation_config_override: {
           asr: { keywords: ["português", "Brasil", "Nina"] },
           agent: {
-            language: "pt-br",
+            language: PT_LANGUAGE,
             first_message: firstMessage,
             prompt: { prompt: systemPrompt },
           },
