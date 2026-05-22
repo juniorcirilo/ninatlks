@@ -105,7 +105,7 @@ export async function fetchCentralContacts(accountId: string): Promise<CentralCo
     .eq("account_id", accountId)
     .eq("blocked", false)
     .order("last_activity_at", { ascending: false, nullsFirst: false })
-    .limit(500);
+    .limit(1000);
   if (error) throw error;
   return (data ?? []) as CentralContact[];
 }
