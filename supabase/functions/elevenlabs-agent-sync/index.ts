@@ -510,6 +510,17 @@ Deno.serve(async (req) => {
       evaluation: {
         criteria: evaluationCriteria,
       },
+      overrides: {
+        conversation_config_override: {
+          agent: {
+            first_message: true,
+            language: true,
+            prompt: { prompt: true },
+          },
+          asr: { keywords: true },
+          tts: { voice_id: true },
+        },
+      },
     },
   };
 
