@@ -49,6 +49,7 @@ import {
   importContactsCsv,
   fetchTeam,
   bulkAssignOwner,
+  bulkAssignRoundRobin,
   bulkSetLifecycle,
   bulkSetOperationalStatus,
   fetchTagSuggestions,
@@ -56,6 +57,10 @@ import {
   fetchEditableCampaigns,
   bulkAddToCampaign,
   fetchProductivity,
+  findDuplicateGroups,
+  pickPrimaryContact,
+  contactsToCsv,
+  downloadCsv,
   QUICK_FILTERS,
   LIFECYCLE_LABEL,
   OPERATIONAL_LABEL,
@@ -69,9 +74,10 @@ import {
   type TeamLite,
   type CampaignLite,
   type OwnerProductivity,
+  type DuplicateGroup,
 } from "@/lib/central";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, ListPlus, FolderPlus, UserPlus, Tag, Rocket as RocketIcon, BarChart3 } from "lucide-react";
+import { Upload, Download, GitMerge, ListPlus, FolderPlus, UserPlus, Tag, Rocket as RocketIcon, BarChart3, Shuffle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +85,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { mergeContacts } from "@/lib/contacts";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
