@@ -108,7 +108,7 @@ function ListsPage() {
       if (stageValid) filters.stage_id = filterStage.trim();
       if (filterTag.trim()) filters.tag = filterTag.trim();
 
-      // EDIT MODE: only update metadata
+      // EDIT MODE: update metadata + optionally append new contacts (CSV or filters)
       if (editingId) {
         const { error: uerr } = await (supabase as any)
           .from("contact_lists")
@@ -120,7 +120,58 @@ function ListsPage() {
           })
           .eq("id", editingId);
         if (uerr) throw uerr;
-        toast.success("Lista atualizada");
+
+        // 1. Optional CSV import (creates new contacts in the account)
+        if (csvFile) {
+          const csv = await csvFile.text();
+          const { data: importRes, error: importErr } = await (supabase as any).functions.invoke(
+            "contacts-import-csv",
+            { body: { csv } },
+          );
+          if (importErr) throw new Error(importErr.message ?? "falha ao importar CSV");
+          const imported = importRes?.imported ?? 0;
+          if (imported > 0) toast.success(`${imported} contatos importados do CSV`);
+        }
+
+        // 2. Append matching contacts to the list (only the ones not already members)
+        let cq = (supabase as any)
+          .from("contacts")
+          .select("id")
+          .eq("account_id", accountId)
+          .not("phone_number", "is", null)
+          .eq("blocked", false)
+          .limit(5000);
+        if (stageValid) cq = cq.eq("stage_id", filterStage.trim());
+        const { data: cdata, error: cerr } = await cq;
+        if (cerr) throw cerr;
+
+        if (cdata && cdata.length > 0) {
+          const { data: existing } = await (supabase as any)
+            .from("contact_list_members")
+            .select("contact_id")
+            .eq("list_id", editingId);
+          const have = new Set((existing ?? []).map((r: any) => r.contact_id));
+          const toAdd = cdata
+            .filter((c: any) => !have.has(c.id))
+            .map((c: any) => ({ list_id: editingId, contact_id: c.id, account_id: accountId }));
+          if (toAdd.length > 0) {
+            const { error: ierr } = await (supabase as any)
+              .from("contact_list_members")
+              .insert(toAdd);
+            if (ierr) throw ierr;
+            const newCount = have.size + toAdd.length;
+            await (supabase as any)
+              .from("contact_lists")
+              .update({ member_count: newCount })
+              .eq("id", editingId);
+            toast.success(`Lista atualizada — ${toAdd.length} novo(s) contato(s) adicionado(s)`);
+          } else {
+            toast.success("Lista atualizada");
+          }
+        } else {
+          toast.success("Lista atualizada");
+        }
+
         resetForm();
         setCreating(false);
         refresh();
