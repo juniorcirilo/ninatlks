@@ -47,6 +47,15 @@ import {
   addContactsToList,
   createListFromContacts,
   importContactsCsv,
+  fetchTeam,
+  bulkAssignOwner,
+  bulkSetLifecycle,
+  bulkSetOperationalStatus,
+  fetchTagSuggestions,
+  bulkAddTag,
+  fetchEditableCampaigns,
+  bulkAddToCampaign,
+  fetchProductivity,
   QUICK_FILTERS,
   LIFECYCLE_LABEL,
   OPERATIONAL_LABEL,
@@ -57,9 +66,12 @@ import {
   type LifecycleStage,
   type OperationalStatus,
   type ListLite,
+  type TeamLite,
+  type CampaignLite,
+  type OwnerProductivity,
 } from "@/lib/central";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, ListPlus, FolderPlus } from "lucide-react";
+import { Upload, ListPlus, FolderPlus, UserPlus, Tag, Rocket as RocketIcon, BarChart3 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -94,6 +106,11 @@ function CentralPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [ownerOpen, setOwnerOpen] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [campaignOpen, setCampaignOpen] = useState(false);
+  const [prodOpen, setProdOpen] = useState(false);
+  
   
 
   const togglePick = (id: string) =>
@@ -170,6 +187,9 @@ function CentralPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setProdOpen(true)}>
+            <BarChart3 className="h-3.5 w-3.5" /> Produtividade
+          </Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setImportOpen(true)}>
             <Upload className="h-3.5 w-3.5" /> Importar CSV
           </Button>
@@ -292,12 +312,21 @@ function CentralPage() {
       />
 
       {picked.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-elevation-3">
+        <div className="fixed bottom-6 left-1/2 z-40 flex max-w-[95vw] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-elevation-3">
           <span className="text-xs text-muted-foreground">
             {picked.size} selecionado(s)
           </span>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkOpen(true)}>
-            <ListPlus className="h-3.5 w-3.5" /> Adicionar à lista
+            <ListPlus className="h-3.5 w-3.5" /> Lista
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setCampaignOpen(true)}>
+            <RocketIcon className="h-3.5 w-3.5" /> Campanha
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setOwnerOpen(true)}>
+            <UserPlus className="h-3.5 w-3.5" /> Responsável
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTagOpen(true)}>
+            <Tag className="h-3.5 w-3.5" /> Tag
           </Button>
           <Button size="sm" variant="ghost" onClick={clearPicked}>
             Limpar
@@ -313,11 +342,41 @@ function CentralPage() {
         onDone={() => { clearPicked(); setBulkOpen(false); }}
       />
 
+      <BulkOwnerDialog
+        open={ownerOpen}
+        onClose={() => setOwnerOpen(false)}
+        accountId={accountId ?? ""}
+        contactIds={Array.from(picked)}
+        onDone={() => { clearPicked(); setOwnerOpen(false); load(); }}
+      />
+
+      <BulkTagDialog
+        open={tagOpen}
+        onClose={() => setTagOpen(false)}
+        accountId={accountId ?? ""}
+        contactIds={Array.from(picked)}
+        onDone={() => { clearPicked(); setTagOpen(false); }}
+      />
+
+      <BulkCampaignDialog
+        open={campaignOpen}
+        onClose={() => setCampaignOpen(false)}
+        accountId={accountId ?? ""}
+        contacts={rows.filter((r) => picked.has(r.id)).map((r) => ({ id: r.id, phone_number: r.phone_number }))}
+        onDone={() => { clearPicked(); setCampaignOpen(false); }}
+      />
+
       <ImportCsvDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
         accountId={accountId ?? ""}
         onDone={() => { setImportOpen(false); load(); }}
+      />
+
+      <ProductivityDialog
+        open={prodOpen}
+        onClose={() => setProdOpen(false)}
+        accountId={accountId ?? ""}
       />
     </div>
   );
@@ -443,6 +502,226 @@ function ImportCsvDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={busy}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkOwnerDialog({
+  open, onClose, accountId, contactIds, onDone,
+}: { open: boolean; onClose: () => void; accountId: string; contactIds: string[]; onDone: () => void }) {
+  const [team, setTeam] = useState<TeamLite[]>([]);
+  const [owner, setOwner] = useState<string>("__none");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open || !accountId) return;
+    fetchTeam(accountId).then(setTeam).catch(() => {});
+  }, [open, accountId]);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      await bulkAssignOwner(contactIds, owner === "__none" ? null : owner);
+      toast.success("Responsável atualizado");
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Atribuir responsável a {contactIds.length} contato(s)</DialogTitle>
+        </DialogHeader>
+        <Select value={owner} onValueChange={setOwner}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none">Sem responsável</SelectItem>
+            {team.map((t) => (
+              <SelectItem key={t.user_id} value={t.user_id}>{t.name ?? t.email ?? t.user_id}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Confirmar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkTagDialog({
+  open, onClose, accountId, contactIds, onDone,
+}: { open: boolean; onClose: () => void; accountId: string; contactIds: string[]; onDone: () => void }) {
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [tag, setTag] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open || !accountId) return;
+    fetchTagSuggestions(accountId).then(setSuggestions).catch(() => {});
+  }, [open, accountId]);
+  const submit = async () => {
+    if (!tag.trim()) { toast.error("Informe a tag"); return; }
+    setBusy(true);
+    try {
+      await bulkAddTag(accountId, contactIds, tag.trim());
+      toast.success(`Tag aplicada a ${contactIds.length} contato(s)`);
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Aplicar tag a {contactIds.length} contato(s)</DialogTitle>
+        </DialogHeader>
+        <Input placeholder="Nome da tag" value={tag} onChange={(e) => setTag(e.target.value)} />
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {suggestions.slice(0, 20).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setTag(s)}
+                className="rounded-full border border-border bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground hover:border-violet-500/40 hover:text-foreground"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Aplicar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkCampaignDialog({
+  open, onClose, accountId, contacts, onDone,
+}: { open: boolean; onClose: () => void; accountId: string; contacts: { id: string; phone_number: string | null }[]; onDone: () => void }) {
+  const [campaigns, setCampaigns] = useState<CampaignLite[]>([]);
+  const [target, setTarget] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!open || !accountId) return;
+    fetchEditableCampaigns(accountId).then((c) => {
+      setCampaigns(c);
+      if (c[0]) setTarget(c[0].id);
+    }).catch(() => {});
+  }, [open, accountId]);
+  const submit = async () => {
+    if (!target) { toast.error("Selecione uma campanha"); return; }
+    setBusy(true);
+    try {
+      const res = await bulkAddToCampaign(accountId, target, contacts);
+      toast.success(`${res.added} adicionado(s)${res.skipped ? `, ${res.skipped} sem telefone` : ""}`);
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adicionar {contacts.length} contato(s) a campanha</DialogTitle>
+        </DialogHeader>
+        {campaigns.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            Nenhuma campanha em rascunho/agendada/pausada. Crie uma campanha primeiro.
+          </p>
+        ) : (
+          <Select value={target} onValueChange={setTarget}>
+            <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
+            <SelectContent>
+              {campaigns.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name} <span className="ml-1 text-[10px] text-muted-foreground">· {c.status}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button onClick={submit} disabled={busy || !campaigns.length}>
+            {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Confirmar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProductivityDialog({
+  open, onClose, accountId,
+}: { open: boolean; onClose: () => void; accountId: string }) {
+  const [rows, setRows] = useState<OwnerProductivity[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!open || !accountId) return;
+    setLoading(true);
+    fetchProductivity(accountId).then(setRows).catch(() => setRows([])).finally(() => setLoading(false));
+  }, [open, accountId]);
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Produtividade por responsável</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+        ) : rows.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Sem dados ainda.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <th className="px-2 py-2">Operador</th>
+                  <th className="px-2 py-2 text-right">Contatos</th>
+                  <th className="px-2 py-2 text-right">Quentes</th>
+                  <th className="px-2 py-2 text-right">Clientes</th>
+                  <th className="px-2 py-2 text-right">Inadimpl.</th>
+                  <th className="px-2 py-2 text-right">Calls 7d</th>
+                  <th className="px-2 py-2 text-right">WA 7d</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.user_id ?? "__none"} className="border-b border-border/60">
+                    <td className="px-2 py-2 font-medium text-foreground">{r.name}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{r.contacts}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-amber-300">{r.hot}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-emerald-300">{r.customers}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-rose-300">{r.delinquent}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{r.last7d_calls}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">{r.last7d_whatsapp}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Fechar</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
