@@ -89,10 +89,9 @@ Deno.serve(async (req) => {
       phoneNumber: body.to_number,
       outcome: `blocked:${guard.reason}`,
     });
-    return j(
-      { error: guard.message, reason: guard.reason, details: guard.details },
-      422,
-    );
+    // Bloqueios esperados de regra de discagem (ex: too_soon) não devem
+    // sair como HTTP 4xx, porque o preview trata Edge 4xx como runtime error.
+    return j({ ok: false, error: guard.message, reason: guard.reason, details: guard.details });
   }
   const toE164 = guard.e164;
 

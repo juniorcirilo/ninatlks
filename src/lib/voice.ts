@@ -278,13 +278,13 @@ export async function placeCall(input: {
     };
   }
   const d = data as Record<string, any>;
-  if (d?.status === "failed") {
+  if (d?.ok === false || d?.error || d?.status === "failed") {
     return {
       ok: false,
       callId: d.callId ?? "",
       via: "twilio",
       reason: d.reason,
-      message: d.message,
+      message: d.error ?? d.message,
     };
   }
   return {
