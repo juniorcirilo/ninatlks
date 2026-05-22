@@ -116,6 +116,7 @@ function CentralPage() {
   const [ownerOpen, setOwnerOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
+  const [dedupeOpen, setDedupeOpen] = useState(false);
   const [prodOpen, setProdOpen] = useState(false);
   
   
