@@ -47,6 +47,15 @@ import {
   addContactsToList,
   createListFromContacts,
   importContactsCsv,
+  fetchTeam,
+  bulkAssignOwner,
+  bulkSetLifecycle,
+  bulkSetOperationalStatus,
+  fetchTagSuggestions,
+  bulkAddTag,
+  fetchEditableCampaigns,
+  bulkAddToCampaign,
+  fetchProductivity,
   QUICK_FILTERS,
   LIFECYCLE_LABEL,
   OPERATIONAL_LABEL,
@@ -57,9 +66,12 @@ import {
   type LifecycleStage,
   type OperationalStatus,
   type ListLite,
+  type TeamLite,
+  type CampaignLite,
+  type OwnerProductivity,
 } from "@/lib/central";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Upload, ListPlus, FolderPlus } from "lucide-react";
+import { Upload, ListPlus, FolderPlus, UserPlus, Tag, Rocket as RocketIcon, BarChart3 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
