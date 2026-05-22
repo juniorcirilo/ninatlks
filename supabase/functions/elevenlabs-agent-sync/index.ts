@@ -511,6 +511,7 @@ Deno.serve(async (req) => {
         criteria: evaluationCriteria,
       },
       overrides: {
+        enable_conversation_initiation_client_data_from_webhook: true,
         conversation_config_override: {
           agent: {
             first_message: true,
