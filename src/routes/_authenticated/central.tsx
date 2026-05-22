@@ -18,6 +18,7 @@ import {
   Clock,
   PhoneCall,
   Bot,
+  Plus,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
 import { Input } from "@/components/ui/input";
@@ -61,6 +62,7 @@ import {
   pickPrimaryContact,
   contactsToCsv,
   downloadCsv,
+  createManualContact,
   QUICK_FILTERS,
   LIFECYCLE_LABEL,
   OPERATIONAL_LABEL,
@@ -118,6 +120,7 @@ function CentralPage() {
   const [campaignOpen, setCampaignOpen] = useState(false);
   const [dedupeOpen, setDedupeOpen] = useState(false);
   const [prodOpen, setProdOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
   
   
 
@@ -220,6 +223,9 @@ function CentralPage() {
             <Link to="/listas">
               <ClipboardList className="h-3.5 w-3.5" /> Listas
             </Link>
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setNewOpen(true)}>
+            <Plus className="h-3.5 w-3.5" /> Novo contato
           </Button>
           <Button asChild size="sm" className="gap-1.5">
             <Link to="/campanhas/nova">
@@ -407,6 +413,13 @@ function CentralPage() {
         onClose={() => setDedupeOpen(false)}
         rows={rows}
         onMerged={() => load()}
+      />
+
+      <NewContactDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        accountId={accountId ?? ""}
+        onDone={() => { setNewOpen(false); load(); }}
       />
     </div>
   );
@@ -1154,5 +1167,61 @@ function ContactDrawer({
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function NewContactDialog({
+  open, onClose, accountId, onDone,
+}: { open: boolean; onClose: () => void; accountId: string; onDone: () => void }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!name.trim()) { toast.error("Informe o nome do contato"); return; }
+    if (!phone.trim() && !email.trim()) { toast.error("Informe telefone ou email"); return; }
+    setBusy(true);
+    try {
+      await createManualContact(accountId, { name: name.trim(), phone_number: phone.trim(), email: email.trim() });
+      toast.success("Contato criado");
+      setName(""); setPhone(""); setEmail("");
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erro ao criar contato");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Novo contato</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Nome *</label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Telefone</label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+55 11 99999-9999" />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label>
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" type="email" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button size="sm" onClick={handleSubmit} disabled={busy || !name.trim()}>
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+            Criar contato
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

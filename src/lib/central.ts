@@ -579,6 +579,31 @@ export function contactsToCsv(rows: CentralContact[]): string {
   return lines.join("\n");
 }
 
+export async function createManualContact(
+  accountId: string,
+  input: { name: string; phone_number?: string; email?: string },
+) {
+  const normalizedPhone = input.phone_number ? input.phone_number.replace(/\D/g, "") : null;
+  const identifier = input.email
+    ? `email:${input.email}`
+    : normalizedPhone
+      ? `phone:${normalizedPhone}`
+      : `anon:${crypto.randomUUID()}`;
+  const { data, error } = await (supabase as any)
+    .from("contacts")
+    .insert({
+      account_id: accountId,
+      name: input.name || null,
+      phone_number: normalizedPhone ? `+${normalizedPhone}` : null,
+      email: input.email || null,
+      identifier,
+    })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id as string;
+}
+
 export function downloadCsv(filename: string, csv: string) {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
