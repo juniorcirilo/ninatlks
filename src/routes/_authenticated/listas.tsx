@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Users, Trash2, Rocket, ShieldCheck, Pencil, Clock, Ban } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, Plus, Users, Trash2, Rocket, ShieldCheck, Pencil, Clock, Ban, UserPlus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
 import { supabase } from "@/integrations/supabase/client";
