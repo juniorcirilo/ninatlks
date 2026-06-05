@@ -1074,3 +1074,239 @@ function kindClass(kind: string | null): string {
       return "bg-muted text-muted-foreground ring-border";
   }
 }
+
+type PickerContact = {
+  id: string;
+  name: string | null;
+  phone_number: string | null;
+  email: string | null;
+};
+
+function ContactPickerDialog({
+  accountId,
+  listId,
+  onClose,
+  onDone,
+}: {
+  accountId: string;
+  listId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [contacts, setContacts] = useState<PickerContact[]>([]);
+  const [existing, setExisting] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [q, setQ] = useState("");
+  const [onlyWithPhone, setOnlyWithPhone] = useState(true);
+  const [hideExisting, setHideExisting] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const [{ data: cdata, error: cerr }, { data: mdata }] = await Promise.all([
+          (supabase as any)
+            .from("contacts")
+            .select("id,name,phone_number,email")
+            .eq("account_id", accountId)
+            .eq("blocked", false)
+            .order("name", { ascending: true })
+            .limit(2000),
+          (supabase as any)
+            .from("contact_list_members")
+            .select("contact_id")
+            .eq("list_id", listId),
+        ]);
+        if (cerr) throw cerr;
+        setContacts((cdata ?? []) as PickerContact[]);
+        setExisting(new Set((mdata ?? []).map((r: any) => r.contact_id)));
+      } catch (e: any) {
+        toast.error(e?.message ?? "Falha ao carregar contatos");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [accountId, listId]);
+
+  const filtered = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return contacts.filter((c) => {
+      if (onlyWithPhone && !c.phone_number) return false;
+      if (hideExisting && existing.has(c.id)) return false;
+      if (!term) return true;
+      return (
+        (c.name ?? "").toLowerCase().includes(term) ||
+        (c.phone_number ?? "").toLowerCase().includes(term) ||
+        (c.email ?? "").toLowerCase().includes(term)
+      );
+    });
+  }, [contacts, q, existing, onlyWithPhone, hideExisting]);
+
+  const toggle = (id: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllVisible = () => {
+    setPicked(new Set([...picked, ...filtered.map((c) => c.id)]));
+  };
+
+  const save = async () => {
+    if (picked.size === 0) {
+      toast.error("Selecione ao menos um contato");
+      return;
+    }
+    setSaving(true);
+    try {
+      const rows = Array.from(picked).map((cid) => ({
+        list_id: listId,
+        contact_id: cid,
+        account_id: accountId,
+      }));
+      const { error } = await (supabase as any)
+        .from("contact_list_members")
+        .upsert(rows, { onConflict: "list_id,contact_id", ignoreDuplicates: true });
+      if (error) throw error;
+      toast.success(`${picked.size} contato(s) adicionado(s) à lista`);
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao adicionar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl" style={{ maxHeight: "85vh" }}>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold">Adicionar contatos existentes à lista</h2>
+            <p className="text-xs text-muted-foreground">
+              {contacts.length} contatos na base · {existing.size} já na lista
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-2 border-b border-border px-4 py-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar nome, telefone ou email…"
+              className="w-full rounded-md border border-input bg-background py-1.5 pl-9 pr-3 text-sm"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <label className="inline-flex items-center gap-1.5">
+              <input type="checkbox" checked={onlyWithPhone} onChange={(e) => setOnlyWithPhone(e.target.checked)} />
+              Somente com telefone
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <input type="checkbox" checked={hideExisting} onChange={(e) => setHideExisting(e.target.checked)} />
+              Ocultar já presentes
+            </label>
+            <button
+              onClick={selectAllVisible}
+              className="ml-auto rounded-md border border-input px-2 py-1 hover:bg-muted"
+            >
+              Selecionar visíveis ({filtered.length})
+            </button>
+            {picked.size > 0 && (
+              <button
+                onClick={() => setPicked(new Set())}
+                className="rounded-md border border-input px-2 py-1 hover:bg-muted"
+              >
+                Limpar ({picked.size})
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex h-40 items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+              Nenhum contato encontrado.
+            </div>
+          ) : (
+            <ul className="divide-y divide-border">
+              {filtered.slice(0, 500).map((c) => {
+                const isExisting = existing.has(c.id);
+                const isPicked = picked.has(c.id);
+                return (
+                  <li
+                    key={c.id}
+                    onClick={() => !isExisting && toggle(c.id)}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 px-4 py-2 text-sm hover:bg-muted/40",
+                      isExisting && "cursor-not-allowed opacity-60",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isPicked || isExisting}
+                      disabled={isExisting}
+                      onChange={() => toggle(c.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{c.name ?? "(sem nome)"}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {c.phone_number ?? "—"}{c.email ? ` · ${c.email}` : ""}
+                      </div>
+                    </div>
+                    {isExisting && <span className="text-[10px] uppercase text-muted-foreground">já na lista</span>}
+                  </li>
+                );
+              })}
+              {filtered.length > 500 && (
+                <li className="px-4 py-2 text-center text-xs text-muted-foreground">
+                  Mostrando 500 de {filtered.length}. Refine a busca para ver mais.
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          <span className="text-xs text-muted-foreground">{picked.size} selecionado(s)</span>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-md border border-input bg-background px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={save}
+              disabled={saving || picked.size === 0}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Adicionar à lista
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
