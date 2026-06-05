@@ -380,6 +380,8 @@ async function dispatchOne(admin: SupabaseClient, row: any, log: any) {
     .from("voice_campaign_contacts")
     .update({
       status: "placed",
+      attempts: (row.attempts ?? 0) + 1,
+      last_attempt_at: new Date().toISOString(),
       voice_call_id: voiceCallId,
       dispatched_at: new Date().toISOString(),
     })
