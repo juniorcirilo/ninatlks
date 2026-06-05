@@ -435,6 +435,12 @@ function ListsPage() {
                             <Rocket className="h-3 w-3" /> Campanha
                           </button>
                           <button
+                            onClick={() => setPickerListId(r.id)}
+                            title="Adicionar contatos existentes"
+                            className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
+                          >
+                            <UserPlus className="h-3 w-3" /> Contatos
+                          <button
                             onClick={() => startEdit(r)}
                             title="Editar lista"
                             className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
