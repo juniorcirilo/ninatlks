@@ -465,6 +465,18 @@ function ListsPage() {
           </div>
         </>
       )}
+
+      {pickerListId && accountId && (
+        <ContactPickerDialog
+          accountId={accountId}
+          listId={pickerListId}
+          onClose={() => setPickerListId(null)}
+          onDone={() => {
+            setPickerListId(null);
+            refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
