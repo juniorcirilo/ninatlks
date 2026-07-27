@@ -9,23 +9,22 @@
 //   - request_handoff: passa para humano de CS
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { query, insert } from "@/lib/db";
 import { runAgentLoop, type ToolDef } from "./runner";
 
 const MODEL = "google/gemini-2.5-flash";
 
 async function execFindMeeting(accountId: string, args: { contact_id: string }) {
-  const { data, error } = await supabaseAdmin
-    .from("scheduled_meetings")
-    .select("id, title, starts_at, status, attended_at")
-    .eq("account_id", accountId)
-    .eq("contact_id", args.contact_id)
-    .order("starts_at", { ascending: false })
-    .limit(3);
-  if (error) return { error: error.message };
-  return { meetings: data ?? [] };
+  const data = await query(
+    `SELECT id, title, starts_at, status, attended_at
+     FROM scheduled_meetings
+     WHERE account_id = $1 AND contact_id = $2
+     ORDER BY starts_at DESC LIMIT 3`,
+    [accountId, args.contact_id],
+  );
+  return { meetings: data };
 }
 
 async function execLogCsat(
@@ -37,9 +36,8 @@ async function execLogCsat(
   if (!conversationId) {
     return { ok: true, note: "csat lógico (sem conversation_id)", risk: args.score <= 2 ? "high" : args.score === 3 ? "medium" : "low" };
   }
-  const { data, error } = await supabaseAdmin
-    .from("csat_surveys")
-    .insert([{
+  try {
+    const [row] = await insert<{ id: string }>("csat_surveys", {
       account_id: accountId,
       contact_id: args.contact_id ?? null,
       conversation_id: conversationId,
@@ -48,11 +46,11 @@ async function execLogCsat(
       handler_type: "agent",
       status: "answered",
       answered_at: new Date().toISOString(),
-    }])
-    .select("id")
-    .single();
-  if (error) return { error: error.message };
-  return { ok: true, survey_id: data.id, risk: args.score <= 2 ? "high" : args.score === 3 ? "medium" : "low" };
+    });
+    return { ok: true, survey_id: row.id, risk: args.score <= 2 ? "high" : args.score === 3 ? "medium" : "low" };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 async function execLogOutcome(
@@ -61,16 +59,17 @@ async function execLogOutcome(
   args: { outcome: string; notes?: string },
 ) {
   if (!conversationId) return { ok: true, note: "sem conversa ativa" };
-  const { error } = await supabaseAdmin
-    .from("conversation_outcomes")
-    .insert([{
+  try {
+    await insert("conversation_outcomes", {
       account_id: accountId,
       conversation_id: conversationId,
       outcome_type: args.outcome.slice(0, 40),
       source: "carla",
-      metadata: { notes: args.notes ?? null } as never,
-    }]);
-  if (error) return { error: error.message };
+      metadata: { notes: args.notes ?? null },
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
   return { ok: true };
 }
 
@@ -81,19 +80,18 @@ async function execHandoff(
   args: { reason: string },
 ) {
   if (!conversationId) return { ok: true, note: "sem conversa ativa — handoff lógico" };
-  const { data, error } = await supabaseAdmin
-    .from("agent_handoffs")
-    .insert([{
+  try {
+    const [row] = await insert<{ id: string }>("agent_handoffs", {
       account_id: accountId,
       conversation_id: conversationId,
       from_persona_id: fromPersonaId,
       reason: args.reason,
       context: { requested_by: "carla", target: "human" },
-    }])
-    .select("id")
-    .single();
-  if (error) return { error: error.message };
-  return { ok: true, handoff_id: data.id };
+    });
+    return { ok: true, handoff_id: row.id };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 const TOOLS: ToolDef[] = [
@@ -163,7 +161,7 @@ REGRAS:
 - Português brasileiro, máximo 3 frases por mensagem.`;
 
 export const askCarla = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
       accountId: z.string().uuid(),
@@ -198,33 +196,26 @@ export const askCarla = createServerFn({ method: "POST" })
   });
 
 async function ensureCarlaPersona(accountId: string): Promise<string> {
-  const { data: existing } = await supabaseAdmin
-    .from("agent_personas")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("name", "Carla")
-    .maybeSingle();
-  if (existing) return existing.id;
+  const found = await query<{ id: string }>(
+    `SELECT id FROM agent_personas WHERE account_id = $1 AND name = $2`,
+    [accountId, "Carla"],
+  );
+  if (found.length > 0) return found[0].id;
 
-  const { data: persona, error } = await supabaseAdmin
-    .from("agent_personas")
-    .insert([{
-      account_id: accountId,
-      name: "Carla",
-      description: "Customer Success — CSAT e retenção",
-      system_prompt: CARLA_SYSTEM,
-      status: "active",
-      enabled: true,
-      llm_model: MODEL,
-      llm_temperature: 0.4,
-      llm_max_tokens: 500,
-      first_message: "Oi! Aqui é a Carla, do pós-venda. Posso te perguntar como foi sua última experiência?",
-    }])
-    .select("id")
-    .single();
-  if (error) throw new Error(`seed persona Carla: ${error.message}`);
+  const [persona] = await insert<{ id: string }>("agent_personas", {
+    account_id: accountId,
+    name: "Carla",
+    description: "Customer Success — CSAT e retenção",
+    system_prompt: CARLA_SYSTEM,
+    status: "active",
+    enabled: true,
+    llm_model: MODEL,
+    llm_temperature: 0.4,
+    llm_max_tokens: 500,
+    first_message: "Oi! Aqui é a Carla, do pós-venda. Posso te perguntar como foi sua última experiência?",
+  });
 
-  await supabaseAdmin.from("agent_roles").insert([{
+  await insert("agent_roles", {
     account_id: accountId,
     persona_id: persona.id,
     kind: "suporte",
@@ -237,7 +228,7 @@ async function ensureCarlaPersona(accountId: string): Promise<string> {
       { when: "pedido_devolucao", action: "handoff_human" },
     ],
     daily_message_budget: 1500,
-  }]);
+  });
 
   return persona.id;
 }

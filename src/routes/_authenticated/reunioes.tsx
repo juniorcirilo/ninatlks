@@ -27,12 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { WeekCalendar, startOfWeek } from "@/components/meetings/WeekCalendar";
 import { MeetingsKanban } from "@/components/meetings/MeetingsKanban";
@@ -90,7 +85,10 @@ function MeetingsPage() {
 
   const stats = useMemo(() => {
     const now = Date.now();
-    let upcoming = 0, attended = 0, no_show = 0, thisWeek = 0;
+    let upcoming = 0,
+      attended = 0,
+      no_show = 0,
+      thisWeek = 0;
     const wkStart = startOfWeek(new Date()).getTime();
     const wkEnd = wkStart + 7 * 86400_000;
     for (const m of data) {
@@ -146,13 +144,35 @@ function MeetingsPage() {
       {/* View switcher */}
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
-          <ViewBtn active={view === "calendar"} onClick={() => setView("calendar")} icon={CalendarDays} label="Calendário" />
-          <ViewBtn active={view === "kanban"} onClick={() => setView("kanban")} icon={LayoutGrid} label="Kanban" />
-          <ViewBtn active={view === "list"} onClick={() => setView("list")} icon={List} label="Lista" />
-          <ViewBtn active={view === "doctors"} onClick={() => setView("doctors")} icon={Stethoscope} label="Médicos" />
+          <ViewBtn
+            active={view === "calendar"}
+            onClick={() => setView("calendar")}
+            icon={CalendarDays}
+            label="Calendário"
+          />
+          <ViewBtn
+            active={view === "kanban"}
+            onClick={() => setView("kanban")}
+            icon={LayoutGrid}
+            label="Kanban"
+          />
+          <ViewBtn
+            active={view === "list"}
+            onClick={() => setView("list")}
+            icon={List}
+            label="Lista"
+          />
+          <ViewBtn
+            active={view === "doctors"}
+            onClick={() => setView("doctors")}
+            icon={Stethoscope}
+            label="Médicos"
+          />
         </div>
         <div className="text-[11px] text-muted-foreground">
-          {view === "doctors" ? "Configure quem a Nina pode marcar" : `${data.length} ${data.length === 1 ? "reunião" : "reuniões"} no período`}
+          {view === "doctors"
+            ? "Configure quem a Nina pode marcar"
+            : `${data.length} ${data.length === 1 ? "reunião" : "reuniões"} no período`}
         </div>
       </div>
 
@@ -167,13 +187,9 @@ function MeetingsPage() {
         />
       )}
 
-      {view === "kanban" && (
-        <MeetingsKanban meetings={data} onCardClick={setSelected} />
-      )}
+      {view === "kanban" && <MeetingsKanban meetings={data} onCardClick={setSelected} />}
 
-      {view === "list" && (
-        <ListView meetings={data} onSelect={setSelected} />
-      )}
+      {view === "list" && <ListView meetings={data} onSelect={setSelected} />}
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <SheetContent className="w-[480px] sm:max-w-[480px]">
@@ -193,8 +209,16 @@ function MeetingsPage() {
 }
 
 function ViewBtn({
-  active, onClick, icon: Icon, label,
-}: { active: boolean; onClick: () => void; icon: React.ComponentType<{ className?: string }>; label: string }) {
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}) {
   return (
     <button
       onClick={onClick}
@@ -247,7 +271,11 @@ function ListView({ meetings, onSelect }: { meetings: Meeting[]; onSelect: (m: M
           <div key={day}>
             <div className="mb-2 flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground">
               <span className={cn(isToday && "font-semibold text-primary")}>
-                {new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" }).format(d)}
+                {new Intl.DateTimeFormat("pt-BR", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "long",
+                }).format(d)}
               </span>
               {isToday && (
                 <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
@@ -294,7 +322,9 @@ function MeetingRow({ meeting, onClick }: { meeting: Meeting; onClick: () => voi
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
           <span>
-            {new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(new Date(meeting.starts_at))}
+            {new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(
+              new Date(meeting.starts_at),
+            )}
             {meeting.duration_minutes ? ` · ${meeting.duration_minutes}min` : ""}
           </span>
           {meeting.attendee_name && (
@@ -316,21 +346,17 @@ function MeetingRow({ meeting, onClick }: { meeting: Meeting; onClick: () => voi
   );
 }
 
-function MeetingDetail({
-  meeting,
-  onChanged,
-}: {
-  meeting: Meeting;
-  onChanged: () => void;
-}) {
+function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: () => void }) {
+  const { accountId } = useAccount();
   const tone = MEETING_STATUS_LABEL[meeting.status];
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [savingStatus, setSavingStatus] = useState<MeetingStatus | null>(null);
 
   async function applyStatus(status: MeetingStatus, cancellationReason?: string) {
+    if (!accountId) return;
     setSavingStatus(status);
     try {
-      await setMeetingOutcome(meeting.id, status, {
+      await setMeetingOutcome(accountId, meeting.id, status, {
         notes: notes !== meeting.notes ? notes : undefined,
         cancellationReason,
       });
@@ -375,34 +401,38 @@ function MeetingDetail({
           )}
           {meeting.attendee_name && (
             <Row icon={<UserIcon className="h-3.5 w-3.5 text-muted-foreground" />}>
-              Conduzido por <span className="font-medium text-foreground">{meeting.attendee_name}</span>
+              Conduzido por{" "}
+              <span className="font-medium text-foreground">{meeting.attendee_name}</span>
             </Row>
           )}
         </div>
 
-        {meeting.briefing && (meeting.briefing.dor || meeting.briefing.fit || meeting.briefing.next_action) && (
-          <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
-              <Sparkles className="h-3 w-3" />
-              Briefing IA
-            </div>
-            {meeting.briefing.dor && <Field label="Dor" value={meeting.briefing.dor} />}
-            {meeting.briefing.fit && <Field label="Fit" value={meeting.briefing.fit} />}
-            {meeting.briefing.objections && meeting.briefing.objections.length > 0 && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Objeções
-                </div>
-                <ul className="mt-1 space-y-0.5 text-xs text-foreground">
-                  {meeting.briefing.objections.map((o, i) => (
-                    <li key={i}>· {o}</li>
-                  ))}
-                </ul>
+        {meeting.briefing &&
+          (meeting.briefing.dor || meeting.briefing.fit || meeting.briefing.next_action) && (
+            <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                <Sparkles className="h-3 w-3" />
+                Briefing IA
               </div>
-            )}
-            {meeting.briefing.next_action && <Field label="Próxima ação" value={meeting.briefing.next_action} />}
-          </div>
-        )}
+              {meeting.briefing.dor && <Field label="Dor" value={meeting.briefing.dor} />}
+              {meeting.briefing.fit && <Field label="Fit" value={meeting.briefing.fit} />}
+              {meeting.briefing.objections && meeting.briefing.objections.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Objeções
+                  </div>
+                  <ul className="mt-1 space-y-0.5 text-xs text-foreground">
+                    {meeting.briefing.objections.map((o, i) => (
+                      <li key={i}>· {o}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {meeting.briefing.next_action && (
+                <Field label="Próxima ação" value={meeting.briefing.next_action} />
+              )}
+            </div>
+          )}
 
         <div>
           <div className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -422,19 +452,43 @@ function MeetingDetail({
               Marcar como
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <Button size="sm" variant="outline" disabled={!!savingStatus} onClick={() => applyStatus("attended")} className="gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!savingStatus}
+                onClick={() => applyStatus("attended")}
+                className="gap-1.5"
+              >
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                 Realizada
               </Button>
-              <Button size="sm" variant="outline" disabled={!!savingStatus} onClick={() => applyStatus("no_show")} className="gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!savingStatus}
+                onClick={() => applyStatus("no_show")}
+                className="gap-1.5"
+              >
                 <X className="h-3.5 w-3.5 text-rose-500" />
                 No-show
               </Button>
-              <Button size="sm" variant="outline" disabled={!!savingStatus} onClick={() => applyStatus("rescheduled")} className="gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!!savingStatus}
+                onClick={() => applyStatus("rescheduled")}
+                className="gap-1.5"
+              >
                 <RotateCcw className="h-3.5 w-3.5 text-primary" />
                 Remarcada
               </Button>
-              <Button size="sm" variant="ghost" disabled={!!savingStatus} onClick={() => applyStatus("canceled", "manual")} className="text-muted-foreground">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={!!savingStatus}
+                onClick={() => applyStatus("canceled", "manual")}
+                className="text-muted-foreground"
+              >
                 Cancelar
               </Button>
             </div>
@@ -443,7 +497,9 @@ function MeetingDetail({
 
         {meeting.cancellation_reason && (
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-3 text-xs text-rose-600 dark:text-rose-300">
-            <div className="text-[10px] uppercase tracking-wider opacity-70">Motivo do cancelamento</div>
+            <div className="text-[10px] uppercase tracking-wider opacity-70">
+              Motivo do cancelamento
+            </div>
             <div className="mt-0.5">{meeting.cancellation_reason}</div>
           </div>
         )}

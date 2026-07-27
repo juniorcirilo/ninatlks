@@ -8,9 +8,8 @@
 // Setup no Resend: criar Webhook → Email.received → URL desta rota → secret
 // gravado em RESEND_WEBHOOK_SECRET.
 
-import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { query, getOne, insert } from "@/lib/db";
 
 interface ResendInboundPayload {
   type?: string;
@@ -58,7 +57,6 @@ export const Route = createFileRoute("/api/public/hooks/resend-inbound")({
         }
 
         if (payload.type !== "email.received" && payload.type !== "email.inbound") {
-          // Outros eventos (delivered, bounced) — apenas logar.
           return new Response("ignored", { status: 200 });
         }
 
@@ -67,30 +65,25 @@ export const Route = createFileRoute("/api/public/hooks/resend-inbound")({
         if (!fromEmail || !toEmail) return new Response("missing addresses", { status: 400 });
 
         // Achar inbox por endereço (config.address) ou primeiro email inbox do account.
-        const { data: channel } = await supabaseAdmin
-          .from("channels")
-          .select("id, account_id, inboxes(id)")
-          .eq("channel_type", "email")
-          .filter("config->>address", "eq", toEmail)
-          .limit(1)
-          .maybeSingle();
+        const channel = await getOne(
+          `SELECT c.id, c.account_id, i.id as inbox_id FROM channels c
+           LEFT JOIN inboxes i ON i.channel_id = c.id
+           WHERE c.channel_type = 'email' AND c.config->>'address' = $1
+           LIMIT 1`,
+          [toEmail],
+        );
 
         let inboxId: string | null = null;
         let accountId: string | null = null;
         if (channel) {
-          accountId = (channel as { account_id: string }).account_id;
-          inboxId =
-            ((channel as { inboxes?: Array<{ id: string }> }).inboxes ?? [])[0]?.id ?? null;
+          accountId = channel.account_id;
+          inboxId = channel.inbox_id ?? null;
         } else {
-          // Fallback: primeiro inbox email do único account (single-tenant).
-          const { data: anyInbox } = await supabaseAdmin
-            .from("inboxes")
-            .select("id, account_id")
-            .eq("channel_type", "email")
-            .limit(1)
-            .maybeSingle();
-          inboxId = (anyInbox as { id?: string } | null)?.id ?? null;
-          accountId = (anyInbox as { account_id?: string } | null)?.account_id ?? null;
+          const anyInbox = await getOne(
+            `SELECT id, account_id FROM inboxes WHERE channel_type = 'email' LIMIT 1`,
+          );
+          inboxId = anyInbox?.id ?? null;
+          accountId = anyInbox?.account_id ?? null;
         }
 
         if (!inboxId || !accountId) {
@@ -98,59 +91,42 @@ export const Route = createFileRoute("/api/public/hooks/resend-inbound")({
         }
 
         // Upsert contact por email no account.
-        const { data: existingContact } = await supabaseAdmin
-          .from("contacts")
-          .select("id")
-          .eq("account_id", accountId)
-          .eq("email", fromEmail)
-          .maybeSingle();
+        const existingContact = await getOne(
+          `SELECT id FROM contacts WHERE account_id = $1 AND email = $2`,
+          [accountId, fromEmail],
+        );
 
-        let contactId = (existingContact as { id?: string } | null)?.id ?? null;
+        let contactId = existingContact?.id ?? null;
         if (!contactId) {
-          const { data: newContact, error: cErr } = await supabaseAdmin
-            .from("contacts")
-            .insert([{
-              account_id: accountId,
-              email: fromEmail,
-              name: payload.data?.from?.name ?? fromEmail,
-              source: "email",
-            }])
-            .select("id")
-            .single();
-          if (cErr) return new Response(`contact: ${cErr.message}`, { status: 500 });
-          contactId = newContact.id;
+          const newContact = await insert("contacts", {
+            account_id: accountId,
+            email: fromEmail,
+            name: payload.data?.from?.name ?? fromEmail,
+            source: "email",
+          });
+          contactId = newContact[0]?.id;
         }
 
         // Achar conversation ativa (status=0) ou criar nova.
-        const { data: openConv } = await supabaseAdmin
-          .from("conversations")
-          .select("id")
-          .eq("contact_id", contactId)
-          .eq("inbox_id", inboxId)
-          .eq("status", 0)
-          .order("last_activity_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const openConv = await getOne(
+          `SELECT id FROM conversations WHERE contact_id = $1 AND inbox_id = $2 AND status = 0 ORDER BY last_activity_at DESC LIMIT 1`,
+          [contactId, inboxId],
+        );
 
-        let conversationId = (openConv as { id?: string } | null)?.id ?? null;
+        let conversationId = openConv?.id ?? null;
         if (!conversationId) {
-          const { data: newConv, error: convErr } = await supabaseAdmin
-            .from("conversations")
-            .insert([{
-              account_id: accountId,
-              inbox_id: inboxId,
-              contact_id: contactId,
-              status: 0,
-              additional_attributes: { email_subject: payload.data?.subject ?? "" },
-            }])
-            .select("id")
-            .single();
-          if (convErr) return new Response(`conv: ${convErr.message}`, { status: 500 });
-          conversationId = newConv.id;
+          const newConv = await insert("conversations", {
+            account_id: accountId,
+            inbox_id: inboxId,
+            contact_id: contactId,
+            status: 0,
+            additional_attributes: { email_subject: payload.data?.subject ?? "" },
+          });
+          conversationId = newConv[0]?.id;
         }
 
         const content = (payload.data?.text ?? payload.data?.html ?? "").slice(0, 50_000);
-        const { error: mErr } = await supabaseAdmin.from("messages").insert([{
+        await insert("messages", {
           account_id: accountId,
           conversation_id: conversationId,
           inbox_id: inboxId,
@@ -165,8 +141,7 @@ export const Route = createFileRoute("/api/public/hooks/resend-inbound")({
             subject: payload.data?.subject ?? "",
             headers: payload.data?.headers ?? {},
           },
-        }]);
-        if (mErr) return new Response(`msg: ${mErr.message}`, { status: 500 });
+        });
 
         return new Response(JSON.stringify({ ok: true, conversationId }), {
           status: 200,

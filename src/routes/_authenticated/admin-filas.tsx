@@ -68,6 +68,31 @@ function AdminFilasPage() {
         }
       />
 
+      {(summary.isError || failed.isError) && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
+            <span className="text-destructive">
+              Falha ao carregar dados das filas
+              {summary.error instanceof Error
+                ? `: ${summary.error.message}`
+                : failed.error instanceof Error
+                  ? `: ${failed.error.message}`
+                  : "."}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void summary.refetch();
+                void failed.refetch();
+              }}
+            >
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <SummaryGrid data={summary.data} loading={summary.isLoading} />
 
       <Card>
@@ -86,7 +111,7 @@ function AdminFilasPage() {
 }
 
 function SummaryGrid({ data, loading }: { data: QueueSummary | undefined; loading: boolean }) {
-  if (loading || !data) {
+  if (loading || !data || !data.dispatch || !data.followUps || !data.workflows || !data.webhooks) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (

@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Mail, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { LegalLayout } from "./privacy";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/data-deletion")({
   head: () => ({
@@ -33,18 +34,15 @@ function DataDeletionPage() {
     setState("submitting");
     setErrorMsg(null);
     try {
-      const { data, error } = await supabase.functions.invoke<{
-        ok: boolean;
-        confirmation_id: string;
-      }>("data-deletion-request", {
-        body: { email, identifier, reason },
-      });
-      if (error) throw error;
+      const data = await apiClient.post<{ ok: boolean; confirmation_id: string }>(
+        "/webhooks/meta/data-deletion",
+        { email, identifier, reason },
+      );
       if (!data?.ok) throw new Error("Resposta inválida");
       setConfirmationId(data.confirmation_id);
       setState("done");
     } catch (err: any) {
-      setErrorMsg(err?.message ?? "Não conseguimos enviar sua solicitação.");
+      setErrorMsg(err?.body?.message ?? err?.message ?? "Não conseguimos enviar sua solicitação.");
       setState("error");
     }
   }

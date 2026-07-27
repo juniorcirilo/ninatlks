@@ -1,3 +1,4 @@
+import { query } from "@/lib/db";
 // Sugestão de resposta IA para cockpit de takeover humano (Fase 2B).
 //
 // Carrega últimas N mensagens + persona vinculada ao inbox + perfil do contato
@@ -6,65 +7,98 @@
 // reduzir latência percebida no cockpit.
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
 const HISTORY_LIMIT = 12;
 
 export const suggestReply = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
-    z.object({
-      conversationId: z.string().uuid(),
-      tone: z.enum(["neutral", "friendly", "formal", "empathetic"]).default("friendly"),
-      hint: z.string().max(280).optional(),
-    }).parse(d),
+    z
+      .object({
+        conversationId: z.string().uuid(),
+        tone: z.enum(["neutral", "friendly", "formal", "empathetic"]).default("friendly"),
+        hint: z.string().max(280).optional(),
+      })
+      .parse(d),
   )
   .handler(async function* ({ data, context }) {
-    const { supabase } = context;
+    const accountId = context.accountId;
+    if (!accountId) throw new Error("Unauthorized");
 
-    const [{ data: conv }, { data: msgs }] = await Promise.all([
-      supabase
-        .from("conversations")
-        .select("id, account_id, inbox_id, contact_id, contacts(name, briefing), inboxes(name, channel_type)")
-        .eq("id", data.conversationId)
-        .maybeSingle(),
-      supabase
-        .from("messages")
-        .select("content, sender_type, created_at")
-        .eq("conversation_id", data.conversationId)
-        .eq("private", false)
-        .order("created_at", { ascending: false })
-        .limit(HISTORY_LIMIT),
+    const [convRows, msgs] = await Promise.all([
+      query<{
+        id: string;
+        account_id: string;
+        inbox_id: string;
+        contact_id: string;
+        contact_name: string | null;
+        contact_briefing: unknown;
+        inbox_name: string | null;
+        inbox_channel_type: string | null;
+      }>(
+        `SELECT c.id, c.account_id, c.inbox_id, c.contact_id,
+                ct.name AS contact_name, ct.briefing AS contact_briefing,
+                i.name AS inbox_name, i.channel_type AS inbox_channel_type
+         FROM conversations c
+         LEFT JOIN contacts ct ON ct.id = c.contact_id
+         LEFT JOIN inboxes i ON i.id = c.inbox_id
+         WHERE c.id = $1
+         LIMIT 1`,
+        [data.conversationId],
+      ),
+      query<{ content: string | null; sender_type: string; created_at: string }>(
+        `SELECT content, sender_type, created_at
+         FROM messages
+         WHERE conversation_id = $1 AND private = $2
+         ORDER BY created_at DESC
+         LIMIT $3`,
+        [data.conversationId, false, HISTORY_LIMIT],
+      ),
     ]);
+    const conv = convRows[0] ?? null;
 
     if (!conv) {
       yield { delta: "Conversa não encontrada." };
       return;
     }
 
-    // Persona ativa do inbox (se houver).
-    const { data: deployment } = await supabase
-      .from("agent_persona_deployments")
-      .select("agent_personas(name, system_prompt)")
-      .eq("inbox_id", (conv as { inbox_id: string }).inbox_id)
-      .eq("enabled", true)
-      .limit(1)
-      .maybeSingle();
-    const persona =
-      (deployment as { agent_personas?: { name?: string; system_prompt?: string } } | null)
-        ?.agent_personas ?? null;
+    const accountId2 = conv.account_id ?? accountId;
 
-    const contact = (conv as { contacts?: { name?: string; briefing?: unknown } }).contacts ?? {};
+    // Persona ativa do inbox (se houver).
+    const deploymentRows = await query<{
+      persona_name: string | null;
+      persona_system_prompt: string | null;
+    }>(
+      `SELECT ap.name AS persona_name, ap.system_prompt AS persona_system_prompt
+       FROM agent_persona_deployments d
+       LEFT JOIN agent_personas ap ON ap.id = d.persona_id
+       WHERE d.inbox_id = $1 AND d.enabled = TRUE
+       LIMIT 1`,
+      [conv.inbox_id],
+    );
+    const personaRow = deploymentRows[0] ?? null;
+    const persona = personaRow
+      ? {
+          name: personaRow.persona_name ?? undefined,
+          system_prompt: personaRow.persona_system_prompt ?? undefined,
+        }
+      : null;
+
+    const contact = {
+      name: conv.contact_name,
+      briefing: conv.contact_briefing,
+    };
     const history = (msgs ?? [])
       .reverse()
-      .map((m) => ({
+      .map((m: any) => ({
         role: m.sender_type === "Contact" ? ("user" as const) : ("assistant" as const),
         content: (m.content as string | null) ?? "",
       }))
-      .filter((m) => m.content.trim().length > 0);
+      .filter((m: any) => m.content.trim().length > 0);
 
     const toneMap: Record<string, string> = {
       neutral: "neutro e direto",
@@ -86,7 +120,9 @@ export const suggestReply = createServerFn({ method: "POST" })
       "- Não inclua saudação se a conversa já está em andamento.",
       contact.name ? `Cliente se chama: ${contact.name}` : "",
       data.hint ? `Direção do atendente: ${data.hint}` : "",
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) {

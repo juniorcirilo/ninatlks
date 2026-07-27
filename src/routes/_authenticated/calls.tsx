@@ -17,6 +17,7 @@ import { useAccount } from "@/lib/account-context";
 import {
   fetchCalls,
   fetchCallDetail,
+  generateCallSummary,
   formatDuration,
   formatCallTime,
   CALL_DIRECTION_LABEL,
@@ -30,14 +31,8 @@ import {
 } from "@/lib/calls";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({
@@ -45,8 +40,7 @@ export const Route = createFileRoute("/_authenticated/calls")({
       { title: "Ligações — Nina Talks" },
       {
         name: "description",
-        content:
-          "Histórico de ligações da Nina com transcrição, sentimento e briefing.",
+        content: "Histórico de ligações da Nina com transcrição, sentimento e briefing.",
       },
     ],
   }),
@@ -92,7 +86,8 @@ function CallsPage() {
   }, [data, search]);
 
   const counts = useMemo(() => {
-    let inbound = 0, outbound = 0;
+    let inbound = 0,
+      outbound = 0;
     for (const c of data) {
       if (c.direction === "inbound") inbound++;
       else outbound++;
@@ -104,9 +99,7 @@ function CallsPage() {
     <div className="mx-auto w-full max-w-5xl px-6 py-8">
       <header className="mb-6">
         <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Ligações
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Ligações</h1>
           {!loading && (
             <span className="text-sm text-muted-foreground">
               {data.length} {data.length === 1 ? "registro" : "registros"}
@@ -114,8 +107,8 @@ function CallsPage() {
           )}
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Histórico de chamadas atendidas e disparadas pela Nina, com transcrição,
-          sentimento e briefing IA.
+          Histórico de chamadas atendidas e disparadas pela Nina, com transcrição, sentimento e
+          briefing IA.
         </p>
       </header>
 
@@ -160,32 +153,22 @@ function CallsPage() {
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Phone className="h-5 w-5 text-primary" />
           </div>
-          <p className="text-sm font-medium text-foreground">
-            Nenhuma ligação com esses filtros.
-          </p>
+          <p className="text-sm font-medium text-foreground">Nenhuma ligação com esses filtros.</p>
           <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-            Ligações aparecem aqui assim que a Nina atender ou disparar uma
-            chamada.
+            Ligações aparecem aqui assim que a Nina atender ou disparar uma chamada.
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => (
-            <CallRow
-              key={c.id}
-              call={c}
-              onClick={() => setSelectedId(c.id)}
-            />
+            <CallRow key={c.id} call={c} onClick={() => setSelectedId(c.id)} />
           ))}
         </div>
       )}
 
-      <Sheet
-        open={!!selectedId}
-        onOpenChange={(o) => !o && setSelectedId(null)}
-      >
+      <Sheet open={!!selectedId} onOpenChange={(o) => !o && setSelectedId(null)}>
         <SheetContent className="w-[560px] sm:max-w-[560px] overflow-y-auto">
-          {selectedId && <CallDetailSheet callId={selectedId} />}
+          {selectedId && accountId && <CallDetailSheet accountId={accountId} callId={selectedId} />}
         </SheetContent>
       </Sheet>
     </div>
@@ -240,18 +223,11 @@ function initialsFrom(name: string | null, phone: string | null): string {
   return "?";
 }
 
-function CallRow({
-  call,
-  onClick,
-}: {
-  call: CallSummary;
-  onClick: () => void;
-}) {
-  const dirIcon =
-    call.direction === "inbound" ? PhoneIncoming : PhoneOutgoing;
+function CallRow({ call, onClick }: { call: CallSummary; onClick: () => void }) {
+  const dirIcon = call.direction === "inbound" ? PhoneIncoming : PhoneOutgoing;
   const DirIcon = dirIcon;
   const outcome = call.outcome_category
-    ? OUTCOME_LABEL[call.outcome_category] ?? OUTCOME_LABEL.other
+    ? (OUTCOME_LABEL[call.outcome_category] ?? OUTCOME_LABEL.other)
     : null;
   const displayName = call.contact_name ?? call.contact_phone ?? "Lead";
 
@@ -264,9 +240,7 @@ function CallRow({
         <div
           className={cn(
             "flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold",
-            call.contact_name
-              ? "bg-primary/10 text-primary"
-              : "bg-muted text-muted-foreground",
+            call.contact_name ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
           )}
         >
           {initialsFrom(call.contact_name, call.contact_phone)}
@@ -274,9 +248,7 @@ function CallRow({
         <div
           className={cn(
             "absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-card",
-            call.direction === "inbound"
-              ? "bg-sky-100 text-sky-700"
-              : "bg-primary/15 text-primary",
+            call.direction === "inbound" ? "bg-sky-500/15 text-sky-400" : "bg-primary/15 text-primary",
           )}
         >
           <DirIcon className="h-3 w-3" />
@@ -285,9 +257,7 @@ function CallRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-semibold text-foreground">
-            {displayName}
-          </span>
+          <span className="truncate text-sm font-semibold text-foreground">{displayName}</span>
           {call.contact_name && call.contact_phone && (
             <span className="truncate text-xs text-muted-foreground tabular-nums">
               · {call.contact_phone}
@@ -300,15 +270,11 @@ function CallRow({
           {call.duration_seconds > 0 && (
             <>
               <span className="text-border">·</span>
-              <span className="tabular-nums">
-                {formatDuration(call.duration_seconds)}
-              </span>
+              <span className="tabular-nums">{formatDuration(call.duration_seconds)}</span>
             </>
           )}
           <span className="text-border">·</span>
-          <span className={cn("font-medium", STATUS_TONE[call.status])}>
-            {call.status}
-          </span>
+          <span className={cn("font-medium", STATUS_TONE[call.status])}>{call.status}</span>
           {call.call_purpose !== "discovery" && (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground/70">
               {CALL_PURPOSE_LABEL[call.call_purpose] ?? call.call_purpose}
@@ -324,10 +290,7 @@ function CallRow({
 
       {outcome && (
         <span
-          className={cn(
-            "shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium",
-            outcome.cls,
-          )}
+          className={cn("shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium", outcome.cls)}
         >
           {outcome.label}
         </span>
@@ -336,11 +299,7 @@ function CallRow({
   );
 }
 
-function SentimentBadge({
-  sentiment,
-}: {
-  sentiment: "positive" | "neutral" | "negative" | null;
-}) {
+function SentimentBadge({ sentiment }: { sentiment: "positive" | "neutral" | "negative" | null }) {
   if (!sentiment) return null;
   const Icon = sentiment === "positive" ? Smile : sentiment === "negative" ? Frown : Meh;
   const cls =
@@ -352,17 +311,17 @@ function SentimentBadge({
   return <Icon className={cn("h-3.5 w-3.5", cls)} />;
 }
 
-function CallDetailSheet({ callId }: { callId: string }) {
+function CallDetailSheet({ accountId, callId }: { accountId: string; callId: string }) {
   const [detail, setDetail] = useState<CallDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    fetchCallDetail(callId)
+    fetchCallDetail(accountId, callId)
       .then(setDetail)
       .catch((e) => toast.error(e?.message ?? "falha ao carregar"))
       .finally(() => setLoading(false));
-  }, [callId]);
+  }, [accountId, callId]);
 
   if (loading) {
     return (
@@ -380,16 +339,14 @@ function CallDetailSheet({ callId }: { callId: string }) {
   }
 
   const outcome = detail.outcome_category
-    ? OUTCOME_LABEL[detail.outcome_category] ?? OUTCOME_LABEL.other
+    ? (OUTCOME_LABEL[detail.outcome_category] ?? OUTCOME_LABEL.other)
     : null;
   const briefing = detail.classification?.briefing ?? null;
 
   return (
     <>
       <SheetHeader>
-        <SheetTitle>
-          {detail.contact_name ?? detail.contact_phone ?? "Ligação"}
-        </SheetTitle>
+        <SheetTitle>{detail.contact_name ?? detail.contact_phone ?? "Ligação"}</SheetTitle>
       </SheetHeader>
 
       <div className="mt-4 space-y-4">
@@ -399,7 +356,7 @@ function CallDetailSheet({ callId }: { callId: string }) {
             className={cn(
               "rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
               detail.direction === "inbound"
-                ? "bg-sky-500/10 text-sky-700 ring-sky-500/20"
+                ? "bg-sky-500/10 text-sky-400 ring-sky-500/20"
                 : "bg-primary/10 text-primary ring-primary/20",
             )}
           >
@@ -445,18 +402,16 @@ function CallDetailSheet({ callId }: { callId: string }) {
 
         {/* Resumo IA */}
         <AiSummaryBlock
+          accountId={accountId}
           callId={detail.id}
           initial={detail.ai_summary}
           onUpdate={(s) => setDetail((prev) => (prev ? { ...prev, ai_summary: s } : prev))}
         />
 
-
         {(detail.outcome_summary || detail.sentiment_aggregate) && (
           <div className="space-y-2 rounded-xl border border-border bg-card p-3">
             {detail.outcome_summary && (
-              <p className="text-xs leading-relaxed text-foreground/80">
-                {detail.outcome_summary}
-              </p>
+              <p className="text-xs leading-relaxed text-foreground/80">{detail.outcome_summary}</p>
             )}
             {detail.sentiment_aggregate && (
               <div className="flex items-center gap-2 text-[11px]">
@@ -476,32 +431,32 @@ function CallDetailSheet({ callId }: { callId: string }) {
 
         {/* Briefing */}
         {briefing &&
-          (briefing.dor || briefing.fit || briefing.next_action ||
+          (briefing.dor ||
+            briefing.fit ||
+            briefing.next_action ||
             (briefing.objections && briefing.objections.length > 0)) && (
-          <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
-              <Sparkles className="h-3 w-3" />
-              Briefing IA
-            </div>
-            {briefing.dor && <Field label="Dor" value={briefing.dor} />}
-            {briefing.fit && <Field label="Fit" value={briefing.fit} />}
-            {briefing.objections && briefing.objections.length > 0 && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Objeções
-                </div>
-                <ul className="mt-1 space-y-0.5 text-xs text-foreground/80">
-                  {briefing.objections.map((o, i) => (
-                    <li key={i}>· {o}</li>
-                  ))}
-                </ul>
+            <div className="space-y-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
+                <Sparkles className="h-3 w-3" />
+                Briefing IA
               </div>
-            )}
-            {briefing.next_action && (
-              <Field label="Próxima ação" value={briefing.next_action} />
-            )}
-          </div>
-        )}
+              {briefing.dor && <Field label="Dor" value={briefing.dor} />}
+              {briefing.fit && <Field label="Fit" value={briefing.fit} />}
+              {briefing.objections && briefing.objections.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Objeções
+                  </div>
+                  <ul className="mt-1 space-y-0.5 text-xs text-foreground/80">
+                    {briefing.objections.map((o, i) => (
+                      <li key={i}>· {o}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {briefing.next_action && <Field label="Próxima ação" value={briefing.next_action} />}
+            </div>
+          )}
 
         {/* Recording */}
         {detail.recording_url && (
@@ -510,12 +465,7 @@ function CallDetailSheet({ callId }: { callId: string }) {
               <Volume2 className="h-3 w-3" />
               Gravação
             </div>
-            <audio
-              src={detail.recording_url}
-              controls
-              preload="none"
-              className="w-full"
-            />
+            <audio src={detail.recording_url} controls preload="none" className="w-full" />
           </div>
         )}
 
@@ -549,12 +499,10 @@ function TranscriptTurnRow({ turn }: { turn: TranscriptTurn }) {
       )}
     >
       <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
-        <span className={isAgent ? "text-primary" : "text-sky-700"}>
+        <span className={isAgent ? "text-primary" : "text-sky-400"}>
           {isAgent ? "Nina" : "Lead"}
         </span>
-        {turn.sentiment && (
-          <SentimentBadge sentiment={turn.sentiment} />
-        )}
+        {turn.sentiment && <SentimentBadge sentiment={turn.sentiment} />}
       </div>
       <p className="leading-relaxed text-foreground/85">{turn.text}</p>
     </div>
@@ -580,10 +528,12 @@ function Field({ label, value }: { label: string; value: string }) {
 }
 
 function AiSummaryBlock({
+  accountId,
   callId,
   initial,
   onUpdate,
 }: {
+  accountId: string | null;
   callId: string;
   initial: string | null;
   onUpdate: (s: string) => void;
@@ -596,23 +546,20 @@ function AiSummaryBlock({
   }, [initial, callId]);
 
   const generate = async () => {
+    if (!accountId) return;
     setLoading(true);
     try {
-      const { data, error } = await (supabase.functions as any).invoke(
-        "call-summary-generate",
-        { body: { call_id: callId } },
-      );
-      if (error) throw error;
-      const s = (data as any)?.summary as string | undefined;
-      if (s) {
-        setText(s);
-        onUpdate(s);
+      const result = await generateCallSummary(accountId, callId, true);
+      if (result.ok && result.ai_summary) {
+        setText(result.ai_summary);
+        onUpdate(result.ai_summary);
         toast.success("Resumo gerado");
       } else {
-        toast.error("Não foi possível gerar o resumo");
+        toast.error(result.error ?? "Não foi possível gerar o resumo");
       }
     } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao gerar resumo");
+      const apiError = e?.body?.error as string | undefined;
+      toast.error(apiError ?? e?.message ?? "Erro ao gerar resumo");
     } finally {
       setLoading(false);
     }
@@ -635,12 +582,11 @@ function AiSummaryBlock({
         </button>
       </div>
       {text ? (
-        <div className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/85">
-          {text}
-        </div>
+        <div className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/85">{text}</div>
       ) : (
         <p className="text-[11px] text-muted-foreground">
-          Nenhum resumo ainda. Clique em “Gerar resumo” para criar um briefing executivo desta ligação.
+          Nenhum resumo ainda. Clique em “Gerar resumo” para criar um briefing executivo desta
+          ligação.
         </p>
       )}
     </div>

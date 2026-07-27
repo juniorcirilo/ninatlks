@@ -2,7 +2,6 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { BarChart3, Bot, Users, Smile, ArrowRightLeft, CalendarCheck, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +15,10 @@ export const Route = createFileRoute("/_authenticated/agents-analytics")({
   head: () => ({
     meta: [
       { title: "Analytics IA — Nexus" },
-      { name: "description", content: "KPIs por Funcionário IA: handoffs, CSAT, reuniões geradas e cobertura." },
+      {
+        name: "description",
+        content: "KPIs por Funcionário IA: handoffs, CSAT, reuniões geradas e cobertura.",
+      },
     ],
   }),
   component: AnalyticsPage,
@@ -30,7 +32,6 @@ const WINDOWS = [
 
 function AnalyticsPage() {
   const { accountId } = useAccount();
-  const fn = useServerFn(getAgentAnalytics);
   const [windowDays, setWindowDays] = useState(30);
   const [data, setData] = useState<AnalyticsResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,11 +39,11 @@ function AnalyticsPage() {
   useEffect(() => {
     if (!accountId) return;
     setLoading(true);
-    fn({ data: { accountId, windowDays } })
+    getAgentAnalytics({ accountId, windowDays })
       .then(setData)
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [accountId, windowDays, fn]);
+  }, [accountId, windowDays]);
 
   return (
     <div className="space-y-6">
@@ -66,6 +67,7 @@ function AnalyticsPage() {
         }
       />
 
+      <div className="space-y-6 px-6 pb-6">
       {loading && (
         <div className="flex items-center justify-center py-20 text-muted-foreground">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando KPIs...
@@ -76,16 +78,34 @@ function AnalyticsPage() {
         <>
           {/* KPIs globais */}
           <div className="grid gap-4 md:grid-cols-4">
-            <KpiCard icon={<Bot className="h-4 w-4" />} label="Personas ativas" value={data.total_personas} />
-            <KpiCard icon={<ArrowRightLeft className="h-4 w-4" />} label="Handoffs no período" value={data.total_handoffs} />
-            <KpiCard icon={<CalendarCheck className="h-4 w-4" />} label="Reuniões geradas" value={data.total_meetings} />
+            <KpiCard
+              icon={<Bot className="h-4 w-4" />}
+              label="Personas ativas"
+              value={data.total_personas}
+            />
+            <KpiCard
+              icon={<ArrowRightLeft className="h-4 w-4" />}
+              label="Handoffs no período"
+              value={data.total_handoffs}
+            />
+            <KpiCard
+              icon={<CalendarCheck className="h-4 w-4" />}
+              label="Reuniões geradas"
+              value={data.total_meetings}
+            />
             <KpiCard
               icon={<Smile className="h-4 w-4" />}
               label="CSAT médio"
-              value={typeof data.csat_avg_global === "number" ? data.csat_avg_global.toFixed(2) : "—"}
+              value={
+                typeof data.csat_avg_global === "number" ? data.csat_avg_global.toFixed(2) : "—"
+              }
               accent={
                 typeof data.csat_avg_global === "number"
-                  ? data.csat_avg_global >= 4 ? "good" : data.csat_avg_global >= 3 ? "warn" : "bad"
+                  ? data.csat_avg_global >= 4
+                    ? "good"
+                    : data.csat_avg_global >= 3
+                      ? "warn"
+                      : "bad"
                   : undefined
               }
             />
@@ -101,7 +121,8 @@ function AnalyticsPage() {
             <CardContent className="p-0">
               {(data.per_persona ?? []).length === 0 ? (
                 <div className="px-6 py-10 text-center text-sm text-muted-foreground">
-                  Nenhuma persona instalada ainda. Vá em <strong>Playground IA</strong> e converse com Bruno, Ana ou Carla — elas são criadas no primeiro uso.
+                  Nenhuma persona instalada ainda. Vá em <strong>Playground IA</strong> e converse
+                  com Bruno, Ana ou Carla — elas são criadas no primeiro uso.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -119,23 +140,40 @@ function AnalyticsPage() {
                     </thead>
                     <tbody>
                       {(data.per_persona ?? []).map((p) => (
-                        <tr key={p.persona_id} className="border-b last:border-b-0 hover:bg-muted/40">
+                        <tr
+                          key={p.persona_id}
+                          className="border-b last:border-b-0 hover:bg-muted/40"
+                        >
                           <td className="px-6 py-3 font-medium flex items-center gap-2">
                             <Bot className="h-4 w-4 text-primary" /> {p.name}
                           </td>
                           <td className="px-3 py-3 text-muted-foreground">{p.kind}</td>
                           <td className="px-3 py-3 text-right tabular-nums">{p.handoffs_out}</td>
-                          <td className="px-3 py-3 text-right tabular-nums">{p.meetings_scheduled || "—"}</td>
-                          <td className={cn("px-3 py-3 text-right tabular-nums",
-                            p.csat_avg === null ? "text-muted-foreground"
-                              : p.csat_avg >= 4 ? "text-emerald-600"
-                              : p.csat_avg >= 3 ? "text-amber-600"
-                              : "text-red-600")}>
+                          <td className="px-3 py-3 text-right tabular-nums">
+                            {p.meetings_scheduled || "—"}
+                          </td>
+                          <td
+                            className={cn(
+                              "px-3 py-3 text-right tabular-nums",
+                              p.csat_avg === null
+                                ? "text-muted-foreground"
+                                : p.csat_avg >= 4
+                                  ? "text-emerald-600"
+                                  : p.csat_avg >= 3
+                                    ? "text-amber-600"
+                                    : "text-red-600",
+                            )}
+                          >
                             {p.csat_avg !== null ? `${p.csat_avg} (${p.csat_count})` : "—"}
                           </td>
-                          <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">{p.csat_low_pct}%</td>
+                          <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
+                            {p.csat_low_pct}%
+                          </td>
                           <td className="px-6 py-3 text-right">
-                            <Badge variant={p.status === "active" ? "default" : "secondary"} className="text-[10px]">
+                            <Badge
+                              variant={p.status === "active" ? "default" : "secondary"}
+                              className="text-[10px]"
+                            >
                               {p.status}
                             </Badge>
                           </td>
@@ -150,26 +188,41 @@ function AnalyticsPage() {
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Users className="h-3 w-3" />
-            Janela: últimos {data.window_days} dias. KPIs atualizados em tempo real a cada mudança de período.
+            Janela: últimos {data.window_days} dias. KPIs atualizados em tempo real a cada mudança
+            de período.
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
 
-function KpiCard({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: number | string; accent?: "good" | "warn" | "bad" }) {
+function KpiCard({
+  icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number | string;
+  accent?: "good" | "warn" | "bad";
+}) {
   return (
     <Card>
       <CardContent className="p-4 space-y-1">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {icon} {label}
         </div>
-        <div className={cn("text-2xl font-semibold tabular-nums",
-          accent === "good" && "text-emerald-600",
-          accent === "warn" && "text-amber-600",
-          accent === "bad" && "text-red-600",
-        )}>
+        <div
+          className={cn(
+            "text-2xl font-semibold tabular-nums",
+            accent === "good" && "text-emerald-600",
+            accent === "warn" && "text-amber-600",
+            accent === "bad" && "text-red-600",
+          )}
+        >
           {value}
         </div>
       </CardContent>

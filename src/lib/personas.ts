@@ -1,7 +1,7 @@
 /**
  * Agent Personas — style cloning, deployment, compose reply
  */
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 export type PersonaStatus = "draft" | "training" | "active" | "retired" | "archived";
 export type DeploymentMode = "always" | "after_hours" | "overflow" | "shadow" | "cron";
@@ -54,7 +54,6 @@ export interface PersonaDeployment {
   autonomy: DeploymentAutonomy;
   confidence_threshold: number;
   daily_message_budget: number;
-  messages_sent_today: number;
 }
 
 export interface ComposedReply {
@@ -86,15 +85,99 @@ export const AUTONOMY_LABELS: Record<DeploymentAutonomy, string> = {
   shadow: "Sombra",
 };
 
+// The API returns camelCase (TypeORM entity props) — this app's UI/lib code
+// speaks the original Supabase snake_case shape. Adapt at the edge instead
+// of touching every call site.
+type ApiPersona = {
+  id: string;
+  accountId: string;
+  sourceUserId: string | null;
+  name: string;
+  description: string | null;
+  styleProfile: Record<string, unknown>;
+  systemPrompt: string | null;
+  voiceProvider: string | null;
+  voiceCloneId: string | null;
+  voiceConfig: Record<string, unknown>;
+  sampleCount: number;
+  status: PersonaStatus;
+  version: number;
+  enabled: boolean;
+  elevenlabsAgentId: string | null;
+  elevenlabsKnowledgeBaseIds: string[];
+  firstMessage: string | null;
+  turnConfig: Persona["turn_config"];
+  ttsConfig: Persona["tts_config"];
+  asrKeywords: string[];
+  llmTemperature: number;
+  llmMaxTokens: number;
+  llmModel: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function toPersona(p: ApiPersona): Persona {
+  return {
+    id: p.id,
+    account_id: p.accountId,
+    source_user_id: p.sourceUserId,
+    name: p.name,
+    description: p.description,
+    style_profile: p.styleProfile,
+    system_prompt: p.systemPrompt,
+    voice_provider: p.voiceProvider,
+    voice_clone_id: p.voiceCloneId,
+    voice_config: p.voiceConfig,
+    sample_count: p.sampleCount,
+    status: p.status,
+    version: p.version,
+    enabled: p.enabled,
+    elevenlabs_agent_id: p.elevenlabsAgentId,
+    elevenlabs_knowledge_base_ids: p.elevenlabsKnowledgeBaseIds,
+    first_message: p.firstMessage,
+    turn_config: p.turnConfig ?? {},
+    tts_config: p.ttsConfig ?? {},
+    asr_keywords: p.asrKeywords ?? [],
+    llm_temperature: p.llmTemperature,
+    llm_max_tokens: p.llmMaxTokens,
+    llm_model: p.llmModel,
+    created_at: p.createdAt,
+    updated_at: p.updatedAt,
+  };
+}
+
+type ApiDeployment = {
+  id: number;
+  personaId: string;
+  inboxId: string;
+  accountId: string;
+  enabled: boolean;
+  mode: DeploymentMode;
+  schedule: Record<string, unknown>;
+  autonomy: DeploymentAutonomy;
+  confidenceThreshold: number;
+  dailyMessageBudget: number;
+};
+
+function toDeployment(d: ApiDeployment): PersonaDeployment {
+  return {
+    id: d.id,
+    persona_id: d.personaId,
+    inbox_id: d.inboxId,
+    account_id: d.accountId,
+    enabled: d.enabled,
+    mode: d.mode,
+    schedule: d.schedule,
+    autonomy: d.autonomy,
+    confidence_threshold: d.confidenceThreshold,
+    daily_message_budget: d.dailyMessageBudget,
+  };
+}
+
 // ── CRUD ──────────────────────────────────────────────────────────
 export async function fetchPersonas(accountId: string) {
-  const { data, error } = await supabase
-    .from("agent_personas")
-    .select("*")
-    .eq("account_id", accountId)
-    .order("updated_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as unknown as Persona[];
+  const rows = await apiClient.get<ApiPersona[]>(`/accounts/${accountId}/personas`);
+  return rows.map(toPersona);
 }
 
 export async function createPersona(input: {
@@ -103,74 +186,56 @@ export async function createPersona(input: {
   description?: string;
   sourceUserId?: string | null;
 }) {
-  // source_user_id na schema antiga era NOT NULL (copiar estilo de um humano).
-  // Para SDR não faz sentido obrigatório; fallback pro user atual garante o
-  // insert passar na constraint enquanto a migration do nullable não roda.
-  let sourceUserId = input.sourceUserId ?? null;
-  if (!sourceUserId) {
-    const { data: userData } = await supabase.auth.getUser();
-    sourceUserId = userData.user?.id ?? null;
-  }
-
-  const { data, error } = await supabase
-    .from("agent_personas")
-    .insert({
-      account_id: input.accountId,
-      name: input.name,
-      description: input.description ?? null,
-      source_user_id: sourceUserId,
-      status: "active",
-    } as any)
-    .select()
-    .single();
-  if (error) throw error;
-  return data as unknown as Persona;
+  const row = await apiClient.post<ApiPersona>(`/accounts/${input.accountId}/personas`, {
+    name: input.name,
+    description: input.description,
+    sourceUserId: input.sourceUserId ?? undefined,
+  });
+  return toPersona(row);
 }
 
-export async function updatePersona(id: string, updates: Partial<Persona>) {
-  const { data, error } = await supabase
-    .from("agent_personas")
-    .update(updates as any)
-    .eq("id", id)
-    .select()
-    .single();
-  if (error) throw error;
-  return data as unknown as Persona;
+export async function updatePersona(accountId: string, id: string, updates: Partial<Persona>) {
+  const body: Record<string, unknown> = {};
+  if (updates.name !== undefined) body.name = updates.name;
+  if (updates.description !== undefined) body.description = updates.description;
+  if (updates.status !== undefined) body.status = updates.status;
+  if (updates.enabled !== undefined) body.enabled = updates.enabled;
+  if (updates.system_prompt !== undefined) body.systemPrompt = updates.system_prompt;
+  if (updates.voice_provider !== undefined) body.voiceProvider = updates.voice_provider;
+  if (updates.voice_clone_id !== undefined) body.voiceCloneId = updates.voice_clone_id;
+  if (updates.voice_config !== undefined) body.voiceConfig = updates.voice_config;
+  if (updates.first_message !== undefined) body.firstMessage = updates.first_message;
+  if (updates.turn_config !== undefined) body.turnConfig = updates.turn_config;
+  if (updates.tts_config !== undefined) body.ttsConfig = updates.tts_config;
+  if (updates.asr_keywords !== undefined) body.asrKeywords = updates.asr_keywords;
+  if (updates.llm_temperature !== undefined) body.llmTemperature = updates.llm_temperature;
+  if (updates.llm_max_tokens !== undefined) body.llmMaxTokens = updates.llm_max_tokens;
+  if (updates.llm_model !== undefined) body.llmModel = updates.llm_model;
+
+  const row = await apiClient.patch<ApiPersona>(`/accounts/${accountId}/personas/${id}`, body);
+  return toPersona(row);
 }
 
-export async function deletePersona(id: string) {
-  const { error } = await supabase.from("agent_personas").delete().eq("id", id);
-  if (error) throw error;
+export async function deletePersona(accountId: string, id: string) {
+  await apiClient.delete(`/accounts/${accountId}/personas/${id}`);
 }
 
 // ── Deployments ───────────────────────────────────────────────────
-export async function fetchDeployments(personaId: string) {
-  const { data, error } = await supabase
-    .from("agent_persona_deployments")
-    .select("*")
-    .eq("persona_id", personaId);
-  if (error) throw error;
-  return (data ?? []) as unknown as PersonaDeployment[];
+export async function fetchDeployments(accountId: string, personaId: string) {
+  const rows = await apiClient.get<ApiDeployment[]>(
+    `/accounts/${accountId}/personas/${personaId}/deployments`,
+  );
+  return rows.map(toDeployment);
 }
 
-export async function deleteDeployment(id: number) {
-  const { error } = await supabase.from("agent_persona_deployments").delete().eq("id", id);
-  if (error) throw error;
+export async function deleteDeployment(accountId: string, id: number) {
+  await apiClient.delete(`/accounts/${accountId}/persona-deployments/${id}`);
 }
 
 export async function findActiveDeploymentForInbox(accountId: string, inboxId: string) {
-  const { data, error } = await supabase
-    .from("agent_persona_deployments")
-    .select("*, agent_personas!inner(id, name, status)")
-    .eq("account_id", accountId)
-    .eq("inbox_id", inboxId)
-    .eq("enabled", true)
-    .eq("agent_personas.status", "active")
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  return apiClient.get<(ApiDeployment & { persona_name: string; persona_status: string }) | null>(
+    `/accounts/${accountId}/persona-deployments/active-for-inbox?inboxId=${inboxId}`,
+  );
 }
 
 export async function deployPersona(input: {
@@ -183,45 +248,38 @@ export async function deployPersona(input: {
   confidenceThreshold?: number;
   dailyMessageBudget?: number;
 }) {
-  const { data, error } = await supabase
-    .from("agent_persona_deployments")
-    .upsert(
-      {
-        persona_id: input.personaId,
-        account_id: input.accountId,
-        inbox_id: input.inboxId,
-        enabled: input.enabled ?? true,
-        mode: input.mode ?? "always",
-        autonomy: input.autonomy ?? "auto",
-        confidence_threshold: input.confidenceThreshold ?? 0.4,
-        daily_message_budget: input.dailyMessageBudget ?? 100,
-      } as any,
-      { onConflict: "persona_id,inbox_id" },
-    )
-    .select()
-    .single();
-  if (error) throw error;
-  return data as unknown as PersonaDeployment;
+  const row = await apiClient.post<ApiDeployment>(
+    `/accounts/${input.accountId}/persona-deployments`,
+    {
+      personaId: input.personaId,
+      inboxId: input.inboxId,
+      enabled: input.enabled,
+      mode: input.mode,
+      autonomy: input.autonomy,
+      confidenceThreshold: input.confidenceThreshold,
+      dailyMessageBudget: input.dailyMessageBudget,
+    },
+  );
+  return toDeployment(row);
 }
 
-// ── AI actions (edge functions) ───────────────────────────────────
-export async function distillPersona(personaId: string) {
-  const { data, error } = await supabase.functions.invoke("persona-distill", {
-    body: { personaId },
-  });
-  if (error) throw error;
-  return data as { sampleCount: number; styleProfile: Record<string, unknown> };
+// ── AI actions (edge functions) ────────────────────────────────────
+// Ported to new backend where endpoints exist; AI-powered actions (distill,
+// suggest, generate-prompt) are Fase 8 and still need backend implementation.
+export async function distillPersona(accountId: string, personaId: string) {
+  const data = await apiClient.post<{ sampleCount: number; styleProfile: Record<string, unknown> }>(
+    `/accounts/${accountId}/personas/${personaId}/distill`,
+    {},
+  );
+  return data;
 }
 
-export async function suggestReply(input: {
-  conversationId: string;
-  personaId?: string;
-}) {
-  const { data, error } = await supabase.functions.invoke("persona-suggest", {
-    body: input,
-  });
-  if (error) throw error;
-  return data as ComposedReply;
+export async function suggestReply(accountId: string, personaId: string, input: { conversationId: string }) {
+  const data = await apiClient.post<ComposedReply>(
+    `/accounts/${accountId}/personas/${personaId}/suggest-reply`,
+    { conversationId: input.conversationId },
+  );
+  return data;
 }
 
 /**
@@ -229,24 +287,23 @@ export async function suggestReply(input: {
  * Input: a brief description of what the agent should do. Output: a
  * full, structured prompt optimized for voice conversation.
  */
-export async function generatePersonaPrompt(args: {
+export async function generatePersonaPrompt(accountId: string, personaId: string, args: {
   description: string;
   personaName?: string;
   existingPrompt?: string;
   refine?: boolean;
 }) {
-  const { data, error } = await supabase.functions.invoke("persona-prompt-generate", {
-    body: {
+  const data = await apiClient.post<{ ok?: boolean; error?: string; prompt?: string }>(
+    `/accounts/${accountId}/personas/${personaId}/generate-prompt`,
+    {
       description: args.description,
-      persona_name: args.personaName,
-      existing_prompt: args.existingPrompt,
+      personaName: args.personaName,
+      existingPrompt: args.existingPrompt,
       refine: !!args.refine,
     },
-  });
-  if (error) throw new Error(error.message || "Falha ao gerar prompt com IA");
-  const d = data as { ok?: boolean; error?: string; prompt?: string };
-  if (d.error || !d.ok || !d.prompt) throw new Error(d.error ?? "Resposta vazia");
-  return d.prompt;
+  );
+  if (data.error || !data.ok || !data.prompt) throw new Error(data.error ?? "Resposta vazia");
+  return data.prompt;
 }
 
 /**
@@ -254,13 +311,12 @@ export async function generatePersonaPrompt(args: {
  * Creates the agent on first call; PATCHes on subsequent calls.
  * Persists elevenlabs_agent_id back onto the persona row.
  */
-export async function syncElevenLabsAgent(personaId: string) {
-  const { data, error } = await supabase.functions.invoke("elevenlabs-agent-sync", {
-    body: { persona_id: personaId },
-  });
-  if (error) throw new Error(error.message || "Falha ao sincronizar com ElevenLabs");
-  if (!(data as any)?.ok) throw new Error((data as any)?.error ?? "Sync falhou");
-  return data as { ok: true; elevenlabs_agent_id: string; persona_id: string };
+export async function syncElevenLabsAgent(accountId: string, personaId: string) {
+  const data = await apiClient.post<{ ok: true; elevenlabs_agent_id: string; persona_id: string }>(
+    `/accounts/${accountId}/elevenlabs/agent-sync`,
+    { personaId },
+  );
+  return data;
 }
 
 /**
@@ -273,11 +329,16 @@ export async function addKnowledgeBaseText(args: {
   name: string;
   text: string;
 }) {
-  const { data, error } = await supabase.functions.invoke("elevenlabs-kb-add", {
-    body: args,
-  });
-  if (error) throw new Error(error.message || "Falha ao adicionar conhecimento");
-  return data as { ok: true; document_id: string };
+  const data = await apiClient.post<{ ok: true; document_id: string }>(
+    `/accounts/${args.accountId}/elevenlabs/kb-add`,
+    {
+      personaId: args.personaId,
+      name: args.name,
+      text: args.text,
+      type: "text",
+    },
+  );
+  return data;
 }
 
 /**
@@ -289,11 +350,16 @@ export async function addKnowledgeBaseUrl(args: {
   name: string;
   url: string;
 }) {
-  const { data, error } = await supabase.functions.invoke("elevenlabs-kb-add", {
-    body: { ...args, type: "url" },
-  });
-  if (error) throw new Error(error.message || "Falha ao adicionar URL");
-  return data as { ok: true; document_id: string };
+  const data = await apiClient.post<{ ok: true; document_id: string }>(
+    `/accounts/${args.accountId}/elevenlabs/kb-add`,
+    {
+      personaId: args.personaId,
+      name: args.name,
+      url: args.url,
+      type: "url",
+    },
+  );
+  return data;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────

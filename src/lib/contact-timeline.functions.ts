@@ -1,3 +1,4 @@
+import { query, getOne } from "@/lib/db";
 // Cross-channel unified timeline por contato (Fase 2 — Omnichannel+).
 //
 // Junta numa única linha do tempo:
@@ -10,8 +11,8 @@
 // correto e permitir filtro por canal/tipo.
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type TimelineKind = "message" | "call" | "meeting" | "takeover";
 
@@ -45,65 +46,84 @@ export interface ContactTimeline {
 }
 
 export const getContactTimeline = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) => z.object({ contactId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }): Promise<ContactTimeline> => {
-    const { supabase } = context;
+    const accountId = context.accountId;
+    if (!accountId) throw new Error("Unauthorized");
     const { contactId } = data;
 
-    const { data: contact, error: cErr } = await supabase
-      .from("contacts")
-      .select("id, name, email, phone_number")
-      .eq("id", contactId)
-      .maybeSingle();
-    if (cErr) throw new Error(cErr.message);
+    const contact = await getOne<{
+      id: string;
+      name: string | null;
+      email: string | null;
+      phone_number: string | null;
+    }>(
+      `SELECT id, name, email, phone_number
+       FROM contacts
+       WHERE id = $1
+       LIMIT 1`,
+      [contactId],
+    );
     if (!contact) throw new Error("Contato não encontrado");
 
     const [convsRes, callsRes, meetingsRes] = await Promise.all([
-      supabase
-        .from("conversations")
-        .select("id, inbox_id, status, last_activity_at, inboxes(name, channel_type)")
-        .eq("contact_id", contactId)
-        .order("last_activity_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("voice_calls")
-        .select("id, direction, status, duration_seconds, from_number, to_number, conversation_id, started_at, created_at")
-        .or(`from_number.eq.${contact.phone_number ?? "__none__"},to_number.eq.${contact.phone_number ?? "__none__"}`)
-        .order("created_at", { ascending: false })
-        .limit(50),
-      supabase
-        .from("scheduled_meetings")
-        .select("id, title, starts_at, status, meeting_url, provider")
-        .eq("contact_id", contactId)
-        .order("starts_at", { ascending: false })
-        .limit(20),
+      query<Record<string, unknown>>(
+        `SELECT c.id, c.inbox_id, c.status, c.last_activity_at,
+                i.name AS inbox_name, i.channel_type AS inbox_channel_type
+         FROM conversations c
+         LEFT JOIN inboxes i ON i.id = c.inbox_id
+         WHERE c.contact_id = $1
+         ORDER BY c.last_activity_at DESC
+         LIMIT 50`,
+        [contactId],
+      ),
+      query<Record<string, unknown>>(
+        `SELECT id, direction, status, duration_seconds, from_number, to_number, conversation_id, started_at, created_at
+         FROM voice_calls
+         WHERE from_number = $1 OR to_number = $1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [contact.phone_number ?? "__none__"],
+      ),
+      query<{
+        id: string;
+        title: string | null;
+        starts_at: string;
+        status: string;
+        meeting_url: string | null;
+        provider: string | null;
+      }>(
+        `SELECT id, title, starts_at, status, meeting_url, provider
+         FROM scheduled_meetings
+         WHERE contact_id = $1
+         ORDER BY starts_at DESC
+         LIMIT 20`,
+        [contactId],
+      ),
     ]);
 
-    if (convsRes.error) throw new Error(convsRes.error.message);
-    const conversations = (convsRes.data ?? []) as Array<Record<string, unknown>>;
+    const conversations = convsRes as Array<Record<string, unknown>>;
     const convIds = conversations.map((c) => c.id as string);
 
     // Buscar mensagens das conversations encontradas (cap 200 mais recentes).
     let messages: Array<Record<string, unknown>> = [];
     if (convIds.length > 0) {
-      const { data: msgs, error: mErr } = await supabase
-        .from("messages")
-        .select("id, conversation_id, content, message_type, sender_type, private, created_at, content_attributes")
-        .in("conversation_id", convIds)
-        .eq("private", false)
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (mErr) throw new Error(mErr.message);
-      messages = msgs ?? [];
+      messages = await query<Record<string, unknown>>(
+        `SELECT id, conversation_id, content, message_type, sender_type, private, created_at, content_attributes
+         FROM messages
+         WHERE conversation_id = ANY($1) AND private = $2
+         ORDER BY created_at DESC
+         LIMIT 200`,
+        [convIds, false],
+      );
     }
 
     const convChannel = new Map<string, { channelType: string | null; name: string | null }>();
     for (const c of conversations) {
-      const inbox = (c.inboxes as { name?: string; channel_type?: string } | null) ?? null;
       convChannel.set(c.id as string, {
-        channelType: inbox?.channel_type ?? null,
-        name: inbox?.name ?? null,
+        channelType: (c.inbox_channel_type as string | null) ?? null,
+        name: (c.inbox_name as string | null) ?? null,
       });
     }
 
@@ -127,7 +147,7 @@ export const getContactTimeline = createServerFn({ method: "GET" })
       });
     }
 
-    for (const v of (callsRes.data ?? []) as Array<Record<string, unknown>>) {
+    for (const v of callsRes as Array<Record<string, unknown>>) {
       const ts = (v.started_at ?? v.created_at) as string;
       items.push({
         id: `call-${v.id}`,
@@ -144,7 +164,7 @@ export const getContactTimeline = createServerFn({ method: "GET" })
       });
     }
 
-    for (const mt of (meetingsRes.data ?? []) as Array<Record<string, unknown>>) {
+    for (const mt of meetingsRes as Array<Record<string, unknown>>) {
       items.push({
         id: `meet-${mt.id}`,
         kind: "meeting",
@@ -159,8 +179,6 @@ export const getContactTimeline = createServerFn({ method: "GET" })
         },
       });
     }
-
-
 
     items.sort((a, b) => (b.at > a.at ? 1 : -1));
 
@@ -178,11 +196,10 @@ export const getContactTimeline = createServerFn({ method: "GET" })
         phone: contact.phone_number,
       },
       conversations: conversations.map((c) => {
-        const inbox = (c.inboxes as { name?: string; channel_type?: string } | null) ?? null;
         return {
           id: c.id as string,
-          inboxName: inbox?.name ?? null,
-          channelType: inbox?.channel_type ?? null,
+          inboxName: (c.inbox_name as string | null) ?? null,
+          channelType: (c.inbox_channel_type as string | null) ?? null,
           status: c.status as number,
           lastActivityAt: c.last_activity_at as string,
           messageCount: msgCountByConv.get(c.id as string) ?? 0,

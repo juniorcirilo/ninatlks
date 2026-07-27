@@ -14,11 +14,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useAccount } from "@/lib/account-context";
-import {
-  fetchSdrSnapshot,
-  formatSentiment,
-  type SdrSnapshot,
-} from "@/lib/dashboard-sdr";
+import { fetchSdrSnapshot, formatSentiment, type SdrSnapshot } from "@/lib/dashboard-sdr";
 import { stageTone } from "@/lib/pipeline";
 import { formatMeetingTime } from "@/lib/meetings";
 import { cn } from "@/lib/utils";
@@ -72,17 +68,14 @@ function DashboardPage() {
       .finally(() => setLoading(false));
   }, [accountId, accountLoading]);
 
-  const firstName = user?.user_metadata?.name?.split(" ")[0] ?? "tudo bem";
+  const firstName = (user?.displayName ?? user?.name)?.split(" ")[0] ?? "tudo bem";
 
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Olá, {firstName}.
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Olá, {firstName}.</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Nina Talks · agente de SDR por voz. Atende, qualifica, agenda e
-          entrega briefing.
+          Nina Talks · agente de SDR por voz. Atende, qualifica, agenda e entrega briefing.
         </p>
       </header>
 
@@ -180,9 +173,7 @@ function DashboardPage() {
                 {data.upcoming_meetings.length === 0 ? (
                   <EmptyCard text="Nenhuma reunião nos próximos 7 dias." />
                 ) : (
-                  data.upcoming_meetings.map((m) => (
-                    <UpcomingMeetingRow key={m.id} meeting={m} />
-                  ))
+                  data.upcoming_meetings.map((m) => <UpcomingMeetingRow key={m.id} meeting={m} />)
                 )}
               </div>
             </div>
@@ -251,25 +242,15 @@ function Kpi({
       <div className={cn("mt-3 text-2xl font-semibold tracking-tight text-foreground", valueClass)}>
         {value}
       </div>
-      {hint && (
-        <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>
-      )}
+      {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
     </div>
   );
 }
 
-function SectionHeader({
-  title,
-  cta,
-}: {
-  title: string;
-  cta?: React.ReactNode;
-}) {
+function SectionHeader({ title, cta }: { title: string; cta?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <h2 className="text-sm font-semibold tracking-tight text-foreground">
-        {title}
-      </h2>
+      <h2 className="text-sm font-semibold tracking-tight text-foreground">{title}</h2>
       {cta}
     </div>
   );
@@ -294,11 +275,7 @@ function StageCard({
       to="/pipeline"
       className={cn(
         "rounded-xl border bg-card p-3 shadow-elevation-1 transition hover:border-accent/40 hover:shadow-elevation-2",
-        isWon
-          ? "border-success/40"
-          : isLost
-            ? "border-destructive/40"
-            : "border-border",
+        isWon ? "border-success/40" : isLost ? "border-destructive/40" : "border-border",
       )}
     >
       <div className="flex items-center gap-1.5">
@@ -310,11 +287,7 @@ function StageCard({
   );
 }
 
-function UpcomingMeetingRow({
-  meeting,
-}: {
-  meeting: SdrSnapshot["upcoming_meetings"][number];
-}) {
+function UpcomingMeetingRow({ meeting }: { meeting: SdrSnapshot["upcoming_meetings"][number] }) {
   return (
     <Link
       to="/reunioes"

@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Copy, Check, Loader2, KeyRound, PhoneCall, UserPlus, Lock, Mail } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,6 +18,7 @@ import {
 import { advanceOnboardingStep, reopenOnboarding } from "@/lib/onboarding";
 import { WebhookDeliveriesPanel } from "@/components/settings/WebhookDeliveriesPanel";
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -103,24 +103,16 @@ function AccountTab() {
     }
     setChanging(true);
     try {
-      // Reautentica com a senha atual antes de trocar.
-      const { error: signErr } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
+      await apiClient.post("/auth/change-password", {
+        currentPassword,
+        newPassword,
       });
-      if (signErr) {
-        toast.error("Senha atual incorreta.");
-        return;
-      }
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
       toast.success("Senha atualizada com sucesso.");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+    } catch (e: any) {
+      toast.error(e?.body?.message ?? e?.message ?? "Falha ao alterar senha");
     } finally {
       setChanging(false);
     }
@@ -130,14 +122,17 @@ function AccountTab() {
     if (!user?.email) return;
     setSendingReset(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      const result = await apiClient.post<{ ok: boolean; token?: string }>("/auth/forgot-password", {
+        email: user.email,
       });
-      if (error) {
-        toast.error(error.message);
-        return;
+      if (result.token) {
+        await navigator.clipboard.writeText(`${window.location.origin}/reset-password?token=${result.token}`);
+        toast.success("Link de redefinição copiado para a área de transferência");
+      } else {
+        toast.success(`Enviamos um link de redefinição para ${user.email}.`);
       }
-      toast.success(`Enviamos um link de redefinição para ${user.email}.`);
+    } catch (e: any) {
+      toast.error(e?.body?.message ?? e?.message ?? "Falha ao enviar link");
     } finally {
       setSendingReset(false);
     }
@@ -628,15 +623,16 @@ function ApiKeysTab() {
   const reload = async () => {
     if (!accountId) return;
     setLoading(true);
-    const { supabase } = await import("@/integrations/supabase/client");
-    const { data, error } = await supabase.rpc("list_account_secrets", { p_account_id: accountId });
-    if (error) {
-      toast.error("Não foi possível carregar as chaves");
+    try {
+      const data = await apiClient.get<Array<{ provider: string; key_name: string; updated_at: string }>>(
+        `/accounts/${accountId}/secrets`,
+      );
+      setSecrets(data ?? []);
+    } catch (e: any) {
+      toast.error(e?.body?.message ?? "Não foi possível carregar as chaves");
+    } finally {
       setLoading(false);
-      return;
     }
-    setSecrets((data as Array<{ provider: string; key_name: string; updated_at: string }>) ?? []);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -759,21 +755,18 @@ function ProviderEditDialog({
     }
     setSaving(true);
     try {
-      const { supabase } = await import("@/integrations/supabase/client");
       for (const field of filled) {
-        const { error } = await supabase.rpc("set_account_secret", {
-          p_account_id: accountId,
-          p_provider: provider.provider,
-          p_key_name: field.key,
-          p_value: values[field.key].trim(),
-          p_metadata: {},
+        await apiClient.post(`/accounts/${accountId}/secrets`, {
+          provider: provider.provider,
+          keyName: field.key,
+          value: values[field.key].trim(),
+          metadata: {},
         });
-        if (error) throw error;
       }
       toast.success(`${provider.name} salvo com sucesso.`);
       onSaved();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao salvar";
+    } catch (err: any) {
+      const msg = err?.body?.message ?? err?.message ?? "Erro ao salvar";
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -784,18 +777,13 @@ function ProviderEditDialog({
     if (!confirm(`Remover todas as chaves de ${provider.name}?`)) return;
     setRemoving(true);
     try {
-      const { supabase } = await import("@/integrations/supabase/client");
       for (const field of provider.fields) {
-        await supabase.rpc("delete_account_secret", {
-          p_account_id: accountId,
-          p_provider: provider.provider,
-          p_key_name: field.key,
-        });
+        await apiClient.delete(`/accounts/${accountId}/secrets/${provider.provider}/${field.key}`);
       }
       toast.success(`${provider.name} removido.`);
       onSaved();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Erro ao remover";
+    } catch (err: any) {
+      const msg = err?.body?.message ?? err?.message ?? "Erro ao remover";
       toast.error(msg);
     } finally {
       setRemoving(false);

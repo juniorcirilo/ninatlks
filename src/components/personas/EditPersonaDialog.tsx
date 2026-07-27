@@ -3,7 +3,18 @@
 // Replaces the previous inline Mic/Settings expansion — one click, one place.
 
 import { useEffect, useState } from "react";
-import { Bot, Loader2, Trash2, Sparkles, Zap, BookOpen, Plus, X, Wand2, Sliders } from "lucide-react";
+import {
+  Bot,
+  Loader2,
+  Trash2,
+  Sparkles,
+  Zap,
+  BookOpen,
+  Plus,
+  X,
+  Wand2,
+  Sliders,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -107,7 +118,9 @@ export function EditPersonaDialog({
     setTtsSimilarity(typeof tts.similarity_boost === "number" ? tts.similarity_boost : 0.85);
     setAsrKeywords((persona.asr_keywords ?? []).join(", "));
     setLlmTemperature(persona.llm_temperature ?? 0.5);
-    setLlmMaxTokens(persona.llm_max_tokens && persona.llm_max_tokens >= 200 ? persona.llm_max_tokens : 400);
+    setLlmMaxTokens(
+      persona.llm_max_tokens && persona.llm_max_tokens >= 200 ? persona.llm_max_tokens : 400,
+    );
     setLlmModel(persona.llm_model ?? "gemini-2.5-flash");
   }, [open, persona]);
 
@@ -120,7 +133,7 @@ export function EditPersonaDialog({
     }
     setSaving(true);
     try {
-      await updatePersona(persona.id, {
+      await updatePersona(accountId, persona.id, {
         name: name.trim(),
         description: description.trim() || null,
         system_prompt: systemPrompt.trim() || null,
@@ -147,7 +160,7 @@ export function EditPersonaDialog({
       // Auto-sync com ElevenLabs após salvar — garante que o agente na ligação
       // use o prompt/voz/modelo recém editados (sem precisar do botão manual).
       try {
-        await syncElevenLabsAgent(persona.id);
+        await syncElevenLabsAgent(accountId, persona.id);
         toast.success("Salvo e sincronizado com a voz");
       } catch (syncErr: any) {
         const sm = syncErr?.message ?? "erro desconhecido";
@@ -171,7 +184,7 @@ export function EditPersonaDialog({
     setGenerating(true);
     setGenResult(null);
     try {
-      const prompt = await generatePersonaPrompt({
+      const prompt = await generatePersonaPrompt(accountId, persona!.id, {
         description: genDescription.trim(),
         personaName: name.trim() || persona!.name,
         existingPrompt: systemPrompt.trim() || undefined,
@@ -198,7 +211,7 @@ export function EditPersonaDialog({
   const handleDelete = async () => {
     if (!confirm(`Excluir agente "${persona.name}"? Ação irreversível.`)) return;
     try {
-      await deletePersona(persona.id);
+      await deletePersona(accountId, persona.id);
       toast.success("Agente excluído");
       onChanged();
       onClose();
@@ -212,14 +225,16 @@ export function EditPersonaDialog({
     setSyncing(true);
     try {
       // Persist current form state before syncing.
-      await updatePersona(persona!.id, {
+      await updatePersona(accountId, persona!.id, {
         name: name.trim(),
         description: description.trim() || null,
         system_prompt: systemPrompt.trim() || null,
         status,
       });
-      const result = await syncElevenLabsAgent(persona!.id);
-      toast.success(`Agente ElevenLabs sincronizado — ID: ${result.elevenlabs_agent_id.slice(0, 12)}…`);
+      const result = await syncElevenLabsAgent(accountId, persona!.id);
+      toast.success(
+        `Agente ElevenLabs sincronizado — ID: ${result.elevenlabs_agent_id.slice(0, 12)}…`,
+      );
       onChanged();
     } catch (e: any) {
       toast.error(e?.message ?? "Falha ao sincronizar com ElevenLabs");
@@ -231,7 +246,7 @@ export function EditPersonaDialog({
   const handleDistill = async () => {
     setDistilling(true);
     try {
-      const r = await distillPersona(persona.id);
+      const r = await distillPersona(accountId, persona.id);
       toast.success(`Estilo re-destilado de ${r.sampleCount} mensagens`);
       onChanged();
     } catch (e: any) {
@@ -279,15 +294,11 @@ export function EditPersonaDialog({
               onClick={() => setTab(t.key)}
               className={cn(
                 "relative px-3 py-2 text-[12px] transition-colors",
-                tab === t.key
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                tab === t.key ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
               {t.label}
-              {tab === t.key && (
-                <span className="absolute inset-x-2 bottom-0 h-px bg-primary" />
-              )}
+              {tab === t.key && <span className="absolute inset-x-2 bottom-0 h-px bg-primary" />}
             </button>
           ))}
         </div>
@@ -408,8 +419,8 @@ export function EditPersonaDialog({
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
-                  O ElevenLabs cuida de STT + LLM + TTS + RAG + tool calling integrados.
-                  Sincroniza depois de editar prompt/voz pra refletir na voz.
+                  O ElevenLabs cuida de STT + LLM + TTS + RAG + tool calling integrados. Sincroniza
+                  depois de editar prompt/voz pra refletir na voz.
                 </p>
                 {persona.elevenlabs_agent_id && (
                   <code className="block truncate rounded bg-muted px-1.5 py-0.5 text-[10px] text-primary">
@@ -443,6 +454,7 @@ export function EditPersonaDialog({
           {tab === "voice" && (
             <VoicePicker
               personaId={persona.id}
+              accountId={accountId}
               currentVoiceId={persona.voice_clone_id}
               onSaved={() => onChanged()}
             />
@@ -527,8 +539,8 @@ export function EditPersonaDialog({
               {systemPrompt ? "Refinar prompt com IA" : "Gerar prompt com IA"}
             </DialogTitle>
             <DialogDescription>
-              Descreve em 1-2 frases o que a IA deve fazer. Vou expandir em um
-              prompt completo otimizado pra voz.
+              Descreve em 1-2 frases o que a IA deve fazer. Vou expandir em um prompt completo
+              otimizado pra voz.
             </DialogDescription>
           </DialogHeader>
 
@@ -638,8 +650,8 @@ function KnowledgeTab({
           Sincronize o agente com ElevenLabs primeiro
         </div>
         <div className="mt-1 text-[11px] text-muted-foreground">
-          Vai na aba Cérebro → Sincronizar com EL. A knowledge base só funciona
-          em cima de um agent EL.
+          Vai na aba Cérebro → Sincronizar com EL. A knowledge base só funciona em cima de um agent
+          EL.
         </div>
       </div>
     );
@@ -691,9 +703,9 @@ function KnowledgeTab({
   return (
     <div className="space-y-3">
       <p className="text-[11px] text-muted-foreground">
-        Documentos que o agente consulta em tempo real durante a conversa (RAG).
-        Suporta URL pública (site, FAQ), texto livre, ou PDF (via upload futuro).
-        O agente escolhe automaticamente o que é relevante por pergunta.
+        Documentos que o agente consulta em tempo real durante a conversa (RAG). Suporta URL pública
+        (site, FAQ), texto livre, ou PDF (via upload futuro). O agente escolhe automaticamente o que
+        é relevante por pergunta.
       </p>
 
       <div className="rounded-md border border-border p-3">
@@ -736,17 +748,8 @@ function KnowledgeTab({
               className="text-[12px]"
             />
           )}
-          <Button
-            size="sm"
-            onClick={handleAdd}
-            disabled={addingKb}
-            className="w-full gap-1.5"
-          >
-            {addingKb ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Plus className="h-3 w-3" />
-            )}
+          <Button size="sm" onClick={handleAdd} disabled={addingKb} className="w-full gap-1.5">
+            {addingKb ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
             Adicionar conhecimento
           </Button>
         </div>
@@ -805,8 +808,8 @@ function AdvancedTab(p: {
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
         <Sliders className="h-3 w-3" />
-        Ajustes que afetam latência, reconhecimento de fala e estilo da voz.
-        Salve e re-sincronize com o EL pra aplicar na próxima ligação.
+        Ajustes que afetam latência, reconhecimento de fala e estilo da voz. Salve e re-sincronize
+        com o EL pra aplicar na próxima ligação.
       </div>
 
       {/* First message */}
@@ -832,7 +835,9 @@ function AdvancedTab(p: {
         </div>
         <div>
           <div className="flex items-center justify-between text-[11px]">
-            <Label>Timeout de silêncio: <strong>{p.turnTimeout}s</strong></Label>
+            <Label>
+              Timeout de silêncio: <strong>{p.turnTimeout}s</strong>
+            </Label>
             <span className="text-[10px] text-muted-foreground">rápido ↔ paciente</span>
           </div>
           <input
@@ -845,8 +850,8 @@ function AdvancedTab(p: {
             className="w-full accent-primary"
           />
           <p className="text-[10px] text-muted-foreground">
-            Segundos de silêncio antes da IA assumir que é sua vez de falar.
-            Menor = responde mais rápido, mas pode cortar o cliente.
+            Segundos de silêncio antes da IA assumir que é sua vez de falar. Menor = responde mais
+            rápido, mas pode cortar o cliente.
           </p>
         </div>
         <div>
@@ -890,7 +895,8 @@ function AdvancedTab(p: {
             className="w-full accent-primary"
           />
           <p className="text-[10px] text-muted-foreground">
-            Baixo = mais expressivo (emoção), alto = mais previsível. 0.3-0.5 é o sweet spot pra voz.
+            Baixo = mais expressivo (emoção), alto = mais previsível. 0.3-0.5 é o sweet spot pra
+            voz.
           </p>
         </div>
         <div>
@@ -938,8 +944,8 @@ function AdvancedTab(p: {
           className="text-[12px]"
         />
         <p className="text-[10px] text-muted-foreground">
-          Separado por vírgulas. Termos técnicos, nomes de marca e SKUs — ajuda o reconhecimento de fala
-          não confundir com palavras parecidas.
+          Separado por vírgulas. Termos técnicos, nomes de marca e SKUs — ajuda o reconhecimento de
+          fala não confundir com palavras parecidas.
         </p>
       </section>
 

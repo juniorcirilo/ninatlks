@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Power, Loader2, Inbox as InboxIcon } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import {
   fetchDeployments,
   deployPersona,
@@ -35,16 +35,11 @@ export function PersonaDeploymentsPanel({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: inboxData }, deps] = await Promise.all([
-        supabase
-          .from("inboxes")
-          .select("id, name, channel_type")
-          .eq("account_id", accountId)
-          .eq("enabled", true)
-          .order("name"),
-        fetchDeployments(personaId),
+      const [inboxData, deps] = await Promise.all([
+        apiClient.get<Inbox[]>(`/accounts/${accountId}/inboxes`),
+        fetchDeployments(accountId, personaId),
       ]);
-      setInboxes((inboxData ?? []) as Inbox[]);
+      setInboxes(inboxData ?? []);
       const map: Record<string, PersonaDeployment> = {};
       for (const d of deps) map[d.inbox_id] = d;
       setDeployments(map);
@@ -133,7 +128,7 @@ function DeploymentRow({
     } else if (enabled) {
       // disable by deleting (simpler than update)
       try {
-        await deleteDeployment(deployment.id);
+        await deleteDeployment(accountId, deployment.id);
         onChange();
         toast.success(`Removido de ${inbox.name}`);
       } catch (e: any) {
@@ -148,9 +143,7 @@ function DeploymentRow({
     <div
       className={cn(
         "rounded-lg border p-3 transition-colors",
-        enabled
-          ? "border-primary/40 bg-primary/5"
-          : "border-border bg-muted/40",
+        enabled ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40",
       )}
     >
       <div className="flex items-center justify-between gap-3">
@@ -167,15 +160,11 @@ function DeploymentRow({
           className={cn(
             "flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold transition-colors disabled:opacity-50",
             enabled
-              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+              ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15"
               : "bg-muted text-muted-foreground hover:text-foreground",
           )}
         >
-          {saving ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Power className="h-3 w-3" />
-          )}
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className="h-3 w-3" />}
           {enabled ? "Ativa" : "Inativa"}
         </button>
       </div>
@@ -183,26 +172,34 @@ function DeploymentRow({
       {enabled && deployment && (
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
-            <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Modo</label>
+            <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
+              Modo
+            </label>
             <select
               value={deployment.mode}
               onChange={(e) => upsert({ mode: e.target.value as DeploymentMode })}
               className="mt-0.5 w-full rounded-md border border-border bg-background px-2 py-1 text-[11px]"
             >
               {Object.entries(MODE_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
+                <option key={k} value={k}>
+                  {v}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Autonomia</label>
+            <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
+              Autonomia
+            </label>
             <select
               value={deployment.autonomy}
               onChange={(e) => upsert({ autonomy: e.target.value as DeploymentAutonomy })}
               className="mt-0.5 w-full rounded-md border border-border bg-background px-2 py-1 text-[11px]"
             >
               {Object.entries(AUTONOMY_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
+                <option key={k} value={k}>
+                  {v}
+                </option>
               ))}
             </select>
           </div>

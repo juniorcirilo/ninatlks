@@ -1,9 +1,9 @@
 /**
- * Thin browser client for the Evolution-backed WhatsApp channel edge functions.
- * The actual Evolution API key never reaches the browser — it's stored on
- * channels.config and used server-side by the edge functions.
+ * Thin browser client for the Evolution-backed WhatsApp channel endpoints.
+ * The actual Evolution API key never reaches the browser after provisioning
+ * — it's stored on channels.config and used server-side.
  */
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 export type EvolutionStatus = "disconnected" | "connecting" | "qr_ready" | "connected";
 
@@ -12,16 +12,14 @@ export async function testEvolution(args: {
   evolutionUrl: string;
   evolutionApiKey: string;
 }): Promise<{ ok: boolean; instance_count?: number; error?: string; hint?: string }> {
-  const { data, error } = await supabase.functions.invoke("evolution-provision", {
-    body: {
-      account_id: args.accountId,
-      mode: "test",
-      evolution_url: args.evolutionUrl,
-      evolution_api_key: args.evolutionApiKey,
-    },
-  });
-  if (error) return { ok: false, error: error.message };
-  return data as any;
+  try {
+    return await apiClient.post(`/accounts/${args.accountId}/evolution/test`, {
+      evolutionUrl: args.evolutionUrl,
+      evolutionApiKey: args.evolutionApiKey,
+    });
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "falha ao testar conexão" };
+  }
 }
 
 export async function provisionEvolution(args: {
@@ -38,61 +36,51 @@ export async function provisionEvolution(args: {
   status?: EvolutionStatus;
   error?: string;
 }> {
-  const { data, error } = await supabase.functions.invoke("evolution-provision", {
-    body: {
-      account_id: args.accountId,
-      mode: "provision",
-      evolution_url: args.evolutionUrl,
-      evolution_api_key: args.evolutionApiKey,
-      channel_id: args.channelId,
-      channel_name: args.channelName,
-    },
-  });
-  if (error) return { ok: false, error: error.message };
-  return data as any;
+  try {
+    return await apiClient.post(`/accounts/${args.accountId}/evolution/provision`, {
+      evolutionUrl: args.evolutionUrl,
+      evolutionApiKey: args.evolutionApiKey,
+      channelId: args.channelId,
+      channelName: args.channelName,
+    });
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "falha ao provisionar" };
+  }
 }
 
-export async function fetchQrcode(channelId: string): Promise<{
-  base64?: string | null;
-  pairingCode?: string | null;
-  error?: string;
-}> {
-  const { data, error } = await supabase.functions.invoke("evolution-qrcode", {
-    body: { channel_id: channelId },
-  });
-  if (error) return { error: error.message };
-  return data as any;
+export async function fetchQrcode(
+  accountId: string,
+  channelId: string,
+): Promise<{ base64?: string | null; pairingCode?: string | null; error?: string }> {
+  try {
+    return await apiClient.get(`/accounts/${accountId}/evolution/channels/${channelId}/qrcode`);
+  } catch (e: any) {
+    return { error: e?.message ?? "falha ao buscar QR code" };
+  }
 }
 
-export async function fetchEvolutionStatus(channelId: string): Promise<{
-  status?: EvolutionStatus | "not_found";
-  raw?: string | null;
-  error?: string;
-}> {
-  const { data, error } = await supabase.functions.invoke("evolution-status", {
-    body: { channel_id: channelId },
-  });
-  // Channel was deleted between the poll being scheduled and the request
-  // landing — treat as benign so the UI doesn't toast an error.
-  if (error) {
-    const msg = error.message ?? "";
-    if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
+export async function fetchEvolutionStatus(
+  accountId: string,
+  channelId: string,
+): Promise<{ status?: EvolutionStatus | "not_found"; raw?: string | null; error?: string }> {
+  try {
+    return await apiClient.get(`/accounts/${accountId}/evolution/channels/${channelId}/status`);
+  } catch (e: any) {
+    const msg = e?.message ?? "";
+    if (e?.status === 404 || msg.toLowerCase().includes("not found")) {
       return { status: "not_found" };
     }
     return { error: msg };
   }
-  return data as any;
 }
 
-export async function deleteEvolutionInstance(channelId: string): Promise<{
-  ok: boolean;
-  remote_deleted?: boolean;
-  remote_error?: string;
-  error?: string;
-}> {
-  const { data, error } = await supabase.functions.invoke("evolution-delete", {
-    body: { channel_id: channelId },
-  });
-  if (error) return { ok: false, error: error.message };
-  return data as any;
+export async function deleteEvolutionInstance(
+  accountId: string,
+  channelId: string,
+): Promise<{ ok: boolean; remote_deleted?: boolean; remote_error?: string; error?: string }> {
+  try {
+    return await apiClient.delete(`/accounts/${accountId}/evolution/channels/${channelId}`);
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "falha ao remover instância" };
+  }
 }

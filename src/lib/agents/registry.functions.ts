@@ -1,8 +1,7 @@
-// Lista as personas IA do workspace para a UI de playground/seleção.
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { query } from "@/lib/db";
 
 export type AgentKind = "bruno" | "ana" | "carla" | "clara" | "diego" | "elena" | "felipe";
 
@@ -25,16 +24,15 @@ const BUILTIN: AgentSummary[] = [
 ];
 
 export const listAgents = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) => z.object({ accountId: z.string().uuid() }).parse(d))
   .handler(async ({ data }) => {
     const names = BUILTIN.map((a) => a.name);
-    const { data: rows } = await supabaseAdmin
-      .from("agent_personas")
-      .select("id, name, status")
-      .eq("account_id", data.accountId)
-      .in("name", names);
-    const installed = new Set((rows ?? []).map((r) => r.name));
+    const rows = await query(
+      `SELECT id, name, status FROM agent_personas WHERE account_id = $1 AND name = ANY($2)`,
+      [data.accountId, names],
+    );
+    const installed = new Set(rows.map((r: any) => r.name));
     return {
       agents: BUILTIN.map((a) => ({ ...a, installed: installed.has(a.name) })),
     };

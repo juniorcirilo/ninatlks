@@ -2,28 +2,59 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Phone, PhoneCall, PhoneIncoming, PhoneOutgoing, Plus, Trash2, Mic,
-  Upload, Loader2, Copy, Check, AlertCircle, Power,
+  Phone,
+  PhoneCall,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Plus,
+  Trash2,
+  Mic,
+  Upload,
+  Loader2,
+  Copy,
+  Check,
+  AlertCircle,
+  Power,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { useAccount } from "@/lib/account-context";
-import { supabase } from "@/integrations/supabase/client";
 import {
-  fetchPhoneNumbers, createPhoneNumber, updatePhoneNumber, deletePhoneNumber,
-  fetchVoiceCalls, placeCall, cloneVoiceForPersona,
-  INBOUND_LABELS, STATUS_LABELS, STATUS_TONE,
-  type InboundBehavior, type PhoneNumber,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { useAccount } from "@/lib/account-context";
+import { subscribeTable } from "@/lib/realtime-client";
+import {
+  fetchPhoneNumbers,
+  createPhoneNumber,
+  updatePhoneNumber,
+  deletePhoneNumber,
+  fetchVoiceCalls,
+  placeCall,
+  cloneVoiceForPersona,
+  INBOUND_LABELS,
+  STATUS_LABELS,
+  STATUS_TONE,
+  type InboundBehavior,
+  type PhoneNumber,
 } from "@/lib/voice";
 import { fetchPersonas, type Persona } from "@/lib/personas";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -31,11 +62,15 @@ export const Route = createFileRoute("/_authenticated/phone-numbers")({
   head: () => ({
     meta: [
       { title: "Telefonia — Nina Talks" },
-      { name: "description", content: "Conecte números Twilio, voice clone e atendimento por voz com IA." },
+      {
+        name: "description",
+        content: "Conecte números Twilio, voice clone e atendimento por voz com IA.",
+      },
       { property: "og:title", content: "Telefonia — Nina Talks" },
       {
         property: "og:description",
-        content: "Números Twilio com compra self-service, gravação, transcrição Deepgram e voice clone por persona.",
+        content:
+          "Números Twilio com compra self-service, gravação, transcrição Deepgram e voice clone por persona.",
       },
     ],
   }),
@@ -66,12 +101,9 @@ function PhoneNumbersPage() {
   const inboxesQuery = useQuery({
     queryKey: ["inboxes", accountId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("inboxes")
-        .select("id, name, channel_type")
-        .eq("account_id", accountId!)
-        .order("name");
-      if (error) throw error;
+      const data = await apiClient.get<Array<{ id: string; name: string; channel_type: string | null }>>(
+        `/accounts/${accountId}/inboxes`,
+      );
       return data ?? [];
     },
     enabled: !!accountId,
@@ -88,33 +120,19 @@ function PhoneNumbersPage() {
   // replacing the 10s poll as primary update path.
   useEffect(() => {
     if (!accountId) return;
-    const channel = supabase
-      .channel(`voice-calls-list:${accountId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "voice_calls",
-          filter: `account_id=eq.${accountId}`,
-        },
-        () => qc.invalidateQueries({ queryKey: ["voice-calls", accountId] }),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return subscribeTable("voice_calls", (e) => {
+      if (e.accountId !== accountId) return;
+      qc.invalidateQueries({ queryKey: ["voice-calls", accountId] });
+    });
   }, [accountId, qc]);
 
   const accountQuery = useQuery({
     queryKey: ["account-flags", accountId],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("accounts")
-        .select("feature_flags")
-        .eq("id", accountId!)
-        .single();
-      return (data?.feature_flags ?? {}) as Record<string, unknown>;
+      const data = await apiClient.get<{ featureFlags: Record<string, unknown> }>(
+        `/accounts/${accountId}`,
+      );
+      return data.featureFlags ?? {};
     },
     enabled: !!accountId,
   });
@@ -124,7 +142,7 @@ function PhoneNumbersPage() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<PhoneNumber> }) =>
-      updatePhoneNumber(id, updates),
+      updatePhoneNumber(accountId!, id, updates),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["phone-numbers", accountId] });
       toast.success("Número atualizado");
@@ -133,7 +151,7 @@ function PhoneNumbersPage() {
   });
 
   const deleteMut = useMutation({
-    mutationFn: deletePhoneNumber,
+    mutationFn: (id: string) => deletePhoneNumber(accountId!, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["phone-numbers", accountId] });
       toast.success("Número removido");
@@ -186,7 +204,8 @@ function PhoneNumbersPage() {
                 <Phone className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">Nenhum número conectado ainda</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Compre um número no Twilio Console e cadastre aqui usando o formato E.164 (+5511...).
+                  Compre um número no Twilio Console e cadastre aqui usando o formato E.164
+                  (+5511...).
                 </p>
               </div>
             ) : (
@@ -222,7 +241,10 @@ function PhoneNumbersPage() {
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {personas.map((persona) => (
-                  <div key={persona.id} className="glass flex items-center justify-between rounded-xl p-4">
+                  <div
+                    key={persona.id}
+                    className="glass flex items-center justify-between rounded-xl p-4"
+                  >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="truncate text-sm font-semibold">{persona.name}</p>
@@ -238,11 +260,7 @@ function PhoneNumbersPage() {
                       </p>
                     </div>
                     {isAdmin && voiceCloneEnabled && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setCloneFor(persona)}
-                      >
+                      <Button size="sm" variant="outline" onClick={() => setCloneFor(persona)}>
                         <Upload className="h-3.5 w-3.5" />
                         {persona.voice_clone_id ? "Reclonar" : "Clonar"}
                       </Button>
@@ -302,7 +320,12 @@ function PhoneNumbersPage() {
                   </div>
                   <div className="mt-1 flex items-center justify-between text-muted-foreground">
                     <span>{c.duration_seconds}s</span>
-                    <span>{new Date(c.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                    <span>
+                      {new Date(c.created_at).toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
                   </div>
                   {(c as any).recording_url && (
                     <div className="mt-1.5 text-[9px] text-primary">🎧 gravação disponível</div>
@@ -356,6 +379,7 @@ function PhoneNumbersPage() {
       />
 
       <VoiceCallDetailSheet
+        accountId={accountId}
         call={activeCall}
         onClose={() => setActiveCall(null)}
         onRetry={() => {
@@ -395,6 +419,7 @@ function PhoneNumberCard({
     try {
       setDialing(true);
       const r = await placeCall({
+        accountId: phoneNumber.account_id,
         fromNumberId: phoneNumber.id,
         toNumber: target.trim(),
         personaId: phoneNumber.pinned_persona_id ?? undefined,
@@ -438,7 +463,7 @@ function PhoneNumberCard({
     });
     try {
       const { registerPhoneWithElevenLabs } = await import("@/lib/voice");
-      await registerPhoneWithElevenLabs(phoneNumber.id);
+      await registerPhoneWithElevenLabs(phoneNumber.account_id, phoneNumber.id);
       toast.success("IA ativada — inbound e outbound agora atendidos pelo ElevenLabs", {
         id: toastId,
         duration: 5000,
@@ -487,7 +512,7 @@ function PhoneNumberCard({
                 "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
                 phoneNumber.enabled
                   ? "border-success/40 text-success"
-                  : "border-border text-muted-foreground"
+                  : "border-border text-muted-foreground",
               )}
               title={phoneNumber.enabled ? "Desativar" : "Ativar"}
             >
@@ -522,7 +547,9 @@ function PhoneNumberCard({
             <SelectContent>
               <SelectItem value="none">— sem caixa —</SelectItem>
               {inboxes.map((i) => (
-                <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
+                <SelectItem key={i.id} value={i.id}>
+                  {i.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -565,7 +592,9 @@ function PhoneNumberCard({
             </SelectTrigger>
             <SelectContent>
               {(Object.keys(INBOUND_LABELS) as InboundBehavior[]).map((b) => (
-                <SelectItem key={b} value={b}>{INBOUND_LABELS[b]}</SelectItem>
+                <SelectItem key={b} value={b}>
+                  {INBOUND_LABELS[b]}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -573,45 +602,59 @@ function PhoneNumberCard({
       </div>
 
       {/* Activate IA (ElevenLabs native) — one-click registration. */}
-      {canEdit && !elActive && phoneNumber.pinned_persona_id && (() => {
-        const pinned = personas.find((p) => p.id === phoneNumber.pinned_persona_id);
-        const personaSynced = !!pinned?.elevenlabs_agent_id;
-        return (
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/[0.04] p-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-[13px] font-semibold text-primary">
-                <Mic className="h-3.5 w-3.5" /> Ativar IA nativa do ElevenLabs
+      {canEdit &&
+        !elActive &&
+        phoneNumber.pinned_persona_id &&
+        (() => {
+          const pinned = personas.find((p) => p.id === phoneNumber.pinned_persona_id);
+          const personaSynced = !!pinned?.elevenlabs_agent_id;
+          return (
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/[0.04] p-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold text-primary">
+                  <Mic className="h-3.5 w-3.5" /> Ativar IA nativa do ElevenLabs
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-foreground/80">
+                  {personaSynced ? (
+                    <>
+                      Vincula esse número ao agente da persona no EL. Toda ligação (inbound e
+                      outbound) passa a ser atendida direto por eles, com latência menor que a rota
+                      padrão.
+                    </>
+                  ) : (
+                    <>
+                      A persona <strong>{pinned?.name ?? "selecionada"}</strong> ainda não foi
+                      sincronizada com o ElevenLabs. Vá em{" "}
+                      <Link to="/agents" className="underline font-medium">
+                        Agentes
+                      </Link>{" "}
+                      e clique em <strong>"Sincronizar com EL"</strong> antes de ativar a IA aqui.
+                    </>
+                  )}
+                </p>
               </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-foreground/80">
-                {personaSynced ? (
-                  <>Vincula esse número ao agente da persona no EL. Toda ligação (inbound e outbound) passa a ser atendida direto por eles, com latência menor que a rota padrão.</>
+              <Button
+                size="sm"
+                onClick={handleActivateEl}
+                disabled={activating || !personaSynced}
+                className="shrink-0"
+                title={personaSynced ? undefined : "Sincronize a persona com EL primeiro"}
+              >
+                {activating ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Ativando…
+                  </>
                 ) : (
-                  <>A persona <strong>{pinned?.name ?? "selecionada"}</strong> ainda não foi sincronizada com o ElevenLabs. Vá em <Link to="/agents" className="underline font-medium">Agentes</Link> e clique em <strong>"Sincronizar com EL"</strong> antes de ativar a IA aqui.</>
+                  <>
+                    <Mic className="mr-1.5 h-3.5 w-3.5" />
+                    Ativar IA
+                  </>
                 )}
-              </p>
+              </Button>
             </div>
-            <Button
-              size="sm"
-              onClick={handleActivateEl}
-              disabled={activating || !personaSynced}
-              className="shrink-0"
-              title={personaSynced ? undefined : "Sincronize a persona com EL primeiro"}
-            >
-              {activating ? (
-                <>
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  Ativando…
-                </>
-              ) : (
-                <>
-                  <Mic className="mr-1.5 h-3.5 w-3.5" />
-                  Ativar IA
-                </>
-              )}
-            </Button>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       {/* IA active — persistent confirmation block */}
       {elActive && (
@@ -624,8 +667,8 @@ function PhoneNumberCard({
               IA do ElevenLabs ativa neste número
             </div>
             <p className="mt-0.5 text-[11px] leading-relaxed text-emerald-800/90">
-              Inbound e outbound estão sendo atendidos direto pelo agente da persona
-              fixada, via integração nativa Twilio ↔ ElevenLabs.
+              Inbound e outbound estão sendo atendidos direto pelo agente da persona fixada, via
+              integração nativa Twilio ↔ ElevenLabs.
             </p>
           </div>
         </div>
@@ -658,7 +701,11 @@ function PhoneNumberCard({
               disabled={dialing || !target.trim()}
               title={elActive ? "Liga via ElevenLabs native" : "Liga via Twilio /Calls.json"}
             >
-              {dialing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PhoneOutgoing className="h-3.5 w-3.5" />}
+              {dialing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <PhoneOutgoing className="h-3.5 w-3.5" />
+              )}
               {elActive ? "Ligar (IA)" : "Ligar"}
             </Button>
           </div>
@@ -670,7 +717,12 @@ function PhoneNumberCard({
 
 // ──────────────────────────────────────────────────────────────────
 function CreateNumberDialog({
-  open, onOpenChange, accountId, inboxes, personas, onCreated,
+  open,
+  onOpenChange,
+  accountId,
+  inboxes,
+  personas,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -705,7 +757,11 @@ function CreateNumberDialog({
       toast.success("Número adicionado");
       onCreated();
       onOpenChange(false);
-      setE164(""); setFriendly(""); setInboxId("none"); setPersonaId("none"); setBehavior("ai_answer");
+      setE164("");
+      setFriendly("");
+      setInboxId("none");
+      setPersonaId("none");
+      setBehavior("ai_answer");
     } catch (e: unknown) {
       const err = e as Error;
       toast.error(err.message ?? "Falha ao adicionar");
@@ -720,36 +776,58 @@ function CreateNumberDialog({
         <DialogHeader>
           <DialogTitle>Novo número de telefone</DialogTitle>
           <DialogDescription>
-            Conecte um número Twilio existente. Lembre de configurar os webhooks no Twilio Console depois.
+            Conecte um número Twilio existente. Lembre de configurar os webhooks no Twilio Console
+            depois.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-xs font-semibold">Número (E.164)</label>
-            <Input value={e164} onChange={(e) => setE164(e.target.value)} placeholder="+5511987654321" className="font-mono" />
+            <Input
+              value={e164}
+              onChange={(e) => setE164(e.target.value)}
+              placeholder="+5511987654321"
+              className="font-mono"
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold">Nome amigável (opcional)</label>
-            <Input value={friendly} onChange={(e) => setFriendly(e.target.value)} placeholder="SAC Brasil" />
+            <Input
+              value={friendly}
+              onChange={(e) => setFriendly(e.target.value)}
+              placeholder="SAC Brasil"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="mb-1 block text-xs font-semibold">Caixa de entrada</label>
               <Select value={inboxId} onValueChange={setInboxId}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— nenhuma —</SelectItem>
-                  {inboxes.map((i) => <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>)}
+                  {inboxes.map((i) => (
+                    <SelectItem key={i.id} value={i.id}>
+                      {i.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold">Persona</label>
               <Select value={personaId} onValueChange={setPersonaId}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">— nenhuma —</SelectItem>
-                  {personas.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {personas.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -757,17 +835,23 @@ function CreateNumberDialog({
           <div>
             <label className="mb-1 block text-xs font-semibold">Comportamento de entrada</label>
             <Select value={behavior} onValueChange={(v) => setBehavior(v as InboundBehavior)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {(Object.keys(INBOUND_LABELS) as InboundBehavior[]).map((b) => (
-                  <SelectItem key={b} value={b}>{INBOUND_LABELS[b]}</SelectItem>
+                  <SelectItem key={b} value={b}>
+                    {INBOUND_LABELS[b]}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
           <Button onClick={submit} disabled={saving || !e164.trim()}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             Adicionar
@@ -780,7 +864,9 @@ function CreateNumberDialog({
 
 // ──────────────────────────────────────────────────────────────────
 function VoiceCloneDialog({
-  persona, onClose, onCloned,
+  persona,
+  onClose,
+  onCloned,
 }: {
   persona: Persona | null;
   onClose: () => void;
@@ -789,13 +875,15 @@ function VoiceCloneDialog({
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  useEffect(() => { if (!persona) setFile(null); }, [persona]);
+  useEffect(() => {
+    if (!persona) setFile(null);
+  }, [persona]);
 
   async function submit() {
     if (!persona || !file) return;
     try {
       setUploading(true);
-      await cloneVoiceForPersona({ personaId: persona.id, file });
+      await cloneVoiceForPersona({ accountId: persona.account_id, personaId: persona.id, file });
       toast.success("Voz clonada com sucesso");
       onCloned();
     } catch (e: unknown) {
@@ -812,8 +900,8 @@ function VoiceCloneDialog({
         <DialogHeader>
           <DialogTitle>Clonar voz para {persona?.name}</DialogTitle>
           <DialogDescription>
-            Faça upload de 30s a 2min de áudio limpo da voz original (formato MP3/WAV/M4A).
-            A clonagem usa ElevenLabs Instant Voice Clone.
+            Faça upload de 30s a 2min de áudio limpo da voz original (formato MP3/WAV/M4A). A
+            clonagem usa ElevenLabs Instant Voice Clone.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -834,7 +922,9 @@ function VoiceCloneDialog({
           </label>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
           <Button onClick={submit} disabled={!file || uploading}>
             {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
             Clonar voz
@@ -847,9 +937,9 @@ function VoiceCloneDialog({
 
 // ──────────────────────────────────────────────────────────────────
 function TwilioInstructionsBox() {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? "";
-  const incoming = `${supabaseUrl}/functions/v1/twilio-incoming`;
-  const status = `${supabaseUrl}/functions/v1/twilio-status`;
+  const apiBase = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+  const incoming = `${apiBase}/webhooks/twilio/incoming`;
+  const status = `${apiBase}/webhooks/twilio/status`;
   const [copied, setCopied] = useState<string | null>(null);
 
   function copy(label: string, text: string) {
@@ -869,40 +959,66 @@ function TwilioInstructionsBox() {
       </p>
       <ul className="mb-4 space-y-1.5 text-xs text-muted-foreground">
         <li>
-          <strong className="text-foreground">Comprar número</strong> — busca direta no
-          inventário da Twilio (BR/US/etc.). Nós compramos, registramos e apontamos os
-          webhooks de voz e SMS automaticamente.
+          <strong className="text-foreground">Comprar número</strong> — busca direta no inventário
+          da Twilio (BR/US/etc.). Nós compramos, registramos e apontamos os webhooks de voz e SMS
+          automaticamente.
         </li>
         <li>
-          <strong className="text-foreground">Importar existente</strong> — ideal para o
-          número grátis do trial Twilio ou números que você já comprou. Re-aponta os
-          webhooks pra cá sem cobrar.
+          <strong className="text-foreground">Importar existente</strong> — ideal para o número
+          grátis do trial Twilio ou números que você já comprou. Re-aponta os webhooks pra cá sem
+          cobrar.
         </li>
         <li>
-          <strong className="text-foreground">Novo número</strong> — só cadastra o E.164.
-          Use quando o número está em outra subaccount Twilio. Nesse caso você cola as
-          URLs abaixo manualmente no Console.
+          <strong className="text-foreground">Novo número</strong> — só cadastra o E.164. Use quando
+          o número está em outra subaccount Twilio. Nesse caso você cola as URLs abaixo manualmente
+          no Console.
         </li>
       </ul>
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         URLs dos webhooks (apenas pro caso "Novo número"):
       </p>
       <div className="space-y-2">
-        <WebhookRow label="A CALL COMES IN (Voice)" hint="Webhook · HTTP POST" url={incoming} copied={copied === "in"} onCopy={() => copy("in", incoming)} />
-        <WebhookRow label="CALL STATUS CHANGES" hint="Webhook · HTTP POST" url={status} copied={copied === "st"} onCopy={() => copy("st", status)} />
+        <WebhookRow
+          label="A CALL COMES IN (Voice)"
+          hint="Webhook · HTTP POST"
+          url={incoming}
+          copied={copied === "in"}
+          onCopy={() => copy("in", incoming)}
+        />
+        <WebhookRow
+          label="CALL STATUS CHANGES"
+          hint="Webhook · HTTP POST"
+          url={status}
+          copied={copied === "st"}
+          onCopy={() => copy("st", status)}
+        />
       </div>
       <p className="mt-4 text-[11px] text-muted-foreground">
         ✓ Stack 100% serverless: a Twilio hospeda o áudio bidirecional via{" "}
-        <code className="rounded bg-background/60 px-1 font-mono text-[10px]">ConversationRelay</code>,
-        com STT pelo Deepgram (nova-3) e TTS pelo ElevenLabs. Quando a persona tem agente
-        ElevenLabs ConvAI sincronizado, a chamada vai direto pro WebSocket assinado da EL —
-        sem worker externo (Fly.io/Railway) e sem fila de áudio intermediária.
+        <code className="rounded bg-background/60 px-1 font-mono text-[10px]">
+          ConversationRelay
+        </code>
+        , com STT pelo Deepgram (nova-3) e TTS pelo ElevenLabs. Quando a persona tem agente
+        ElevenLabs ConvAI sincronizado, a chamada vai direto pro WebSocket assinado da EL — sem
+        worker externo (Fly.io/Railway) e sem fila de áudio intermediária.
       </p>
     </section>
   );
 }
 
-function WebhookRow({ label, hint, url, copied, onCopy }: { label: string; hint: string; url: string; copied: boolean; onCopy: () => void }) {
+function WebhookRow({
+  label,
+  hint,
+  url,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  hint: string;
+  url: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
   return (
     <div className="rounded-lg border border-border bg-card/40 p-3">
       <div className="flex items-center justify-between gap-2">
@@ -911,7 +1027,11 @@ function WebhookRow({ label, hint, url, copied, onCopy }: { label: string; hint:
           <p className="text-[10px] text-muted-foreground">{hint}</p>
         </div>
         <Button variant="outline" size="sm" onClick={onCopy}>
-          {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-success" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
           {copied ? "Copiado" : "Copiar"}
         </Button>
       </div>
@@ -1002,7 +1122,11 @@ function NumberBuyWizard({
           <div className="grid grid-cols-4 gap-2">
             <div>
               <Label className="text-xs">País</Label>
-              <Input value={countryCode} onChange={(e) => setCountryCode(e.target.value.toUpperCase())} maxLength={2} />
+              <Input
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value.toUpperCase())}
+                maxLength={2}
+              />
             </div>
             <div>
               <Label className="text-xs">Tipo</Label>
@@ -1018,11 +1142,19 @@ function NumberBuyWizard({
             </div>
             <div>
               <Label className="text-xs">Area code</Label>
-              <Input value={areaCode} onChange={(e) => setAreaCode(e.target.value)} placeholder="11" />
+              <Input
+                value={areaCode}
+                onChange={(e) => setAreaCode(e.target.value)}
+                placeholder="11"
+              />
             </div>
             <div>
               <Label className="text-xs">Contém</Label>
-              <Input value={contains} onChange={(e) => setContains(e.target.value)} placeholder="999*" />
+              <Input
+                value={contains}
+                onChange={(e) => setContains(e.target.value)}
+                placeholder="999*"
+              />
             </div>
           </div>
 
@@ -1042,7 +1174,9 @@ function NumberBuyWizard({
                   >
                     <option value="">— nenhuma —</option>
                     {inboxes.map((i) => (
-                      <option key={i.id} value={i.id}>{i.name}</option>
+                      <option key={i.id} value={i.id}>
+                        {i.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1055,7 +1189,9 @@ function NumberBuyWizard({
                   >
                     <option value="">— nenhuma —</option>
                     {personas.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1063,17 +1199,23 @@ function NumberBuyWizard({
 
               <div className="max-h-80 space-y-1.5 overflow-y-auto">
                 {results.map((r) => (
-                  <div key={r.phoneNumber} className="flex items-center justify-between rounded-md border border-white/[0.06] p-2.5">
+                  <div
+                    key={r.phoneNumber}
+                    className="flex items-center justify-between rounded-md border border-white/[0.06] p-2.5"
+                  >
                     <div>
                       <div className="font-mono text-xs">{r.phoneNumber}</div>
                       <div className="text-[10px] text-muted-foreground">
-                        {r.locality ?? ""} {r.region ?? ""} · {" "}
-                        {r.capabilities.voice && "📞 "}
+                        {r.locality ?? ""} {r.region ?? ""} · {r.capabilities.voice && "📞 "}
                         {r.capabilities.sms && "💬 "}
                         {r.capabilities.mms && "🖼️ "}
                       </div>
                     </div>
-                    <Button size="sm" onClick={() => handleBuy(r.phoneNumber)} disabled={buying !== null}>
+                    <Button
+                      size="sm"
+                      onClick={() => handleBuy(r.phoneNumber)}
+                      disabled={buying !== null}
+                    >
                       {buying === r.phoneNumber ? "Comprando…" : "Comprar"}
                     </Button>
                   </div>
@@ -1090,10 +1232,12 @@ function NumberBuyWizard({
 // ──────────────────────────────────────────────────────────────────
 // VoiceCallDetailSheet — recording player + transcript + metadata
 function VoiceCallDetailSheet({
+  accountId,
   call,
   onClose,
   onRetry,
 }: {
+  accountId: string | null;
   call: any | null;
   onClose: () => void;
   onRetry: () => void;
@@ -1105,14 +1249,16 @@ function VoiceCallDetailSheet({
   const status = call.transcription_status ?? "idle";
 
   const handleRetry = async () => {
+    if (!accountId) return;
     setRetrying(true);
     try {
       const { retryTranscription } = await import("@/lib/twilio");
-      await retryTranscription(call.id);
+      await retryTranscription(accountId, call.id);
       toast.success("Transcrição enfileirada");
       onRetry();
     } catch (e: any) {
-      toast.error(e?.message ?? "Falha ao retentar");
+      const apiError = e?.body?.error as string | undefined;
+      toast.error(apiError ?? e?.message ?? "Falha ao retentar");
     } finally {
       setRetrying(false);
     }
@@ -1123,7 +1269,9 @@ function VoiceCallDetailSheet({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            <span className="font-mono">{call.direction === "inbound" ? call.from_number : call.to_number}</span>
+            <span className="font-mono">
+              {call.direction === "inbound" ? call.from_number : call.to_number}
+            </span>
             <span className="ml-2 text-sm text-muted-foreground">
               {call.direction === "inbound" ? "→ entrante" : "→ saída"} · {call.duration_seconds}s
             </span>
@@ -1131,8 +1279,7 @@ function VoiceCallDetailSheet({
         </DialogHeader>
 
         <div className="space-y-4">
-          <CallRecordingPlayer call={call} />
-
+          <CallRecordingPlayer call={call} accountId={accountId} />
 
           <div className="space-y-1">
             <div className="flex items-center justify-between">
@@ -1147,7 +1294,9 @@ function VoiceCallDetailSheet({
             </div>
             {utterances.length === 0 ? (
               <p className="rounded-md border border-dashed border-white/[0.1] p-3 text-center text-xs text-muted-foreground">
-                {status === "failed" ? call.transcription_error ?? "falha" : "sem transcrição ainda"}
+                {status === "failed"
+                  ? (call.transcription_error ?? "falha")
+                  : "sem transcrição ainda"}
               </p>
             ) : (
               <div className="max-h-80 space-y-2 overflow-y-auto rounded-md border border-white/[0.06] bg-white/[0.01] p-3">
@@ -1262,8 +1411,8 @@ function ImportNumberDialog({
         <DialogHeader>
           <DialogTitle>Importar número Twilio existente</DialogTitle>
           <DialogDescription>
-            Use pra registrar o número que você já tem na conta Twilio (incluindo
-            o número grátis da trial). A gente aponta os webhooks sozinhos.
+            Use pra registrar o número que você já tem na conta Twilio (incluindo o número grátis da
+            trial). A gente aponta os webhooks sozinhos.
           </DialogDescription>
         </DialogHeader>
 
@@ -1397,7 +1546,7 @@ function ImportNumberDialog({
 // Plays a call recording from either the legacy Twilio recording_url
 // (public signed URL) or ElevenLabs's /v1/convai/conversations/{id}/audio
 // (proxied via elevenlabs-call-audio to keep the API key server-side).
-function CallRecordingPlayer({ call }: { call: any }) {
+function CallRecordingPlayer({ call, accountId }: { call: any; accountId: string | null }) {
   const [loading, setLoading] = useState(false);
   const [audioSrc, setAudioSrc] = useState<string | null>(call?.recording_url ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -1407,41 +1556,23 @@ function CallRecordingPlayer({ call }: { call: any }) {
   const hasElSource = !!call?.source_id && !hasTwilioUrl;
 
   const handleLoad = async () => {
-    if (!call?.id) return;
+    if (!call?.id || !accountId) return;
     setLoading(true);
     setError(null);
     try {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token;
-      if (!token) throw new Error("Você precisa estar logado");
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-call-audio`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ voice_call_id: call.id }),
-        },
+      const res = await apiClient.post<{ ok: boolean; audio_url?: string; error?: string; status?: string; detail?: string }>(
+        `/accounts/${accountId}/elevenlabs/call-audio`,
+        { voiceCallId: call.id },
       );
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`${res.status}: ${text.slice(0, 150)}`);
+      if (res.ok && res.audio_url) {
+        setAudioSrc(res.audio_url);
+        return;
       }
-      const ctype = res.headers.get("content-type") ?? "";
-      if (ctype.includes("application/json")) {
-        // Fallback signal from edge function (e.g. audio not yet available).
-        const payload = await res.json().catch(() => ({}));
-        if (payload?.audio_url) {
-          setAudioSrc(payload.audio_url);
-          return;
-        }
-        throw new Error(payload?.detail ?? payload?.error ?? "Gravação indisponível");
+      if (res.audio_url) {
+        setAudioSrc(res.audio_url);
+        return;
       }
-      const blob = await res.blob();
-      setAudioSrc(URL.createObjectURL(blob));
+      throw new Error(res.detail ?? res.error ?? "Gravação indisponível");
     } catch (e: any) {
       setError(e?.message ?? "Falha ao carregar gravação");
     } finally {
@@ -1481,7 +1612,13 @@ function CallRecordingPlayer({ call }: { call: any }) {
               Áudio gerenciado pelo ElevenLabs — clique pra carregar.
             </p>
           )}
-          <Button size="sm" variant="outline" onClick={handleLoad} disabled={loading} className="mt-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleLoad}
+            disabled={loading}
+            className="mt-2"
+          >
             {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
             {loading ? "Carregando…" : error ? "Tentar de novo" : "Carregar gravação"}
           </Button>

@@ -1,9 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Users, Trash2, Rocket, ShieldCheck, Pencil, Clock, Ban, UserPlus, Search } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Users,
+  Trash2,
+  Rocket,
+  ShieldCheck,
+  Pencil,
+  Clock,
+  Ban,
+  UserPlus,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
-import { supabase } from "@/integrations/supabase/client";
 import {
   fetchContactLists,
   fetchRetentionRules,
@@ -26,13 +37,36 @@ import {
   type DncEntry,
   type CompliancePolicy,
 } from "@/lib/compliance";
+import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+
+function parseCsv(csv: string): Array<{ name?: string | null; phoneNumber?: string | null; email?: string | null }> {
+  const lines = csv.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length === 0) return [];
+  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+  const nameIdx = headers.findIndex((h) => h === "name");
+  const phoneIdx = headers.findIndex((h) => h === "phone_number" || h === "phone");
+  const emailIdx = headers.findIndex((h) => h === "email");
+  const rows: Array<{ name?: string | null; phoneNumber?: string | null; email?: string | null }> = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    rows.push({
+      name: nameIdx >= 0 ? cols[nameIdx]?.trim() || null : null,
+      phoneNumber: phoneIdx >= 0 ? cols[phoneIdx]?.trim() || null : null,
+      email: emailIdx >= 0 ? cols[emailIdx]?.trim() || null : null,
+    });
+  }
+  return rows;
+}
 
 export const Route = createFileRoute("/_authenticated/listas")({
   head: () => ({
     meta: [
       { title: "Listas operacionais — Nina Talks" },
-      { name: "description", content: "Listas de contatos para campanhas SDR, Cobrança, Pós-venda e Retenção." },
+      {
+        name: "description",
+        content: "Listas de contatos para campanhas SDR, Cobrança, Pós-venda e Retenção.",
+      },
     ],
   }),
   component: ListsPage,
@@ -111,60 +145,46 @@ function ListsPage() {
 
       // EDIT MODE: update metadata + optionally append new contacts (CSV or filters)
       if (editingId) {
-        const { error: uerr } = await (supabase as any)
-          .from("contact_lists")
-          .update({
-            name: name.trim(),
-            description: description.trim() || null,
-            campaign_kind: kind,
-            filters,
-          })
-          .eq("id", editingId);
-        if (uerr) throw uerr;
+        await apiClient.patch(`/accounts/${accountId}/contact-lists/${editingId}`, {
+          name: name.trim(),
+          description: description.trim() || null,
+          campaignKind: kind,
+          filters,
+        });
 
         // 1. Optional CSV import (creates new contacts in the account)
         if (csvFile) {
           const csv = await csvFile.text();
-          const { data: importRes, error: importErr } = await (supabase as any).functions.invoke(
-            "contacts-import-csv",
-            { body: { csv } },
+          const importRes = await apiClient.post<{ imported: number }>(
+            `/accounts/${accountId}/contacts/import`,
+            { rows: parseCsv(csv) },
           );
-          if (importErr) throw new Error(importErr.message ?? "falha ao importar CSV");
-          const imported = importRes?.imported ?? 0;
-          if (imported > 0) toast.success(`${imported} contatos importados do CSV`);
+          if (importRes.imported > 0) toast.success(`${importRes.imported} contatos importados do CSV`);
         }
 
         // 2. Append matching contacts to the list (only the ones not already members)
-        let cq = (supabase as any)
-          .from("contacts")
-          .select("id")
-          .eq("account_id", accountId)
-          .not("phone_number", "is", null)
-          .eq("blocked", false)
-          .limit(5000);
-        if (stageValid) cq = cq.eq("stage_id", filterStage.trim());
-        const { data: cdata, error: cerr } = await cq;
-        if (cerr) throw cerr;
+        const contactsData = await apiClient.get<Array<{ id: string }>>(
+          `/accounts/${accountId}/contacts?blocked=false&limit=5000${stageValid ? `&stageId=${filterStage.trim()}` : ""}`,
+        );
+        const contacts = contactsData ?? [];
 
-        if (cdata && cdata.length > 0) {
-          const { data: existing } = await (supabase as any)
-            .from("contact_list_members")
-            .select("contact_id")
-            .eq("list_id", editingId);
-          const have = new Set((existing ?? []).map((r: any) => r.contact_id));
-          const toAdd = cdata
-            .filter((c: any) => !have.has(c.id))
-            .map((c: any) => ({ list_id: editingId, contact_id: c.id, account_id: accountId }));
+        if (contacts.length > 0) {
+          const existingData = await apiClient.get<Array<{ contact_id: string }>>(
+            `/accounts/${accountId}/contact-lists/${editingId}/members`,
+          );
+          const have = new Set((existingData ?? []).map((r) => r.contact_id));
+          const toAdd = contacts
+            .filter((c) => !have.has(c.id))
+            .map((c) => c.id);
           if (toAdd.length > 0) {
-            const { error: ierr } = await (supabase as any)
-              .from("contact_list_members")
-              .insert(toAdd);
-            if (ierr) throw ierr;
-            const newCount = have.size + toAdd.length;
-            await (supabase as any)
-              .from("contact_lists")
-              .update({ member_count: newCount })
-              .eq("id", editingId);
+            const addRes = await apiClient.post<{ inserted: number }>(
+              `/accounts/${accountId}/contact-lists/${editingId}/members`,
+              { contactIds: toAdd },
+            );
+            const newCount = have.size + (addRes.inserted ?? toAdd.length);
+            await apiClient.patch(`/accounts/${accountId}/contact-lists/${editingId}`, {
+              memberCount: newCount,
+            });
             toast.success(`Lista atualizada — ${toAdd.length} novo(s) contato(s) adicionado(s)`);
           } else {
             toast.success("Lista atualizada");
@@ -183,60 +203,37 @@ function ListsPage() {
       // 1. Import CSV first if provided
       if (csvFile) {
         const csv = await csvFile.text();
-        const { data: importRes, error: importErr } = await (supabase as any).functions.invoke(
-          "contacts-import-csv",
-          { body: { csv } },
+        const importRes = await apiClient.post<{ imported: number }>(
+          `/accounts/${accountId}/contacts/import`,
+          { rows: parseCsv(csv) },
         );
-        if (importErr) throw new Error(importErr.message ?? "falha ao importar CSV");
-        const imported = importRes?.imported ?? 0;
-        if (imported > 0) toast.success(`${imported} contatos importados do CSV`);
+        if (importRes.imported > 0) toast.success(`${importRes.imported} contatos importados do CSV`);
       }
 
       // Build initial members based on filters
-      let contactsQuery = (supabase as any)
-        .from("contacts")
-        .select("id")
-        .eq("account_id", accountId)
-        .not("phone_number", "is", null)
-        .eq("blocked", false)
-        .limit(5000);
-      if (stageValid) contactsQuery = contactsQuery.eq("stage_id", filterStage.trim());
+      const contactsData = await apiClient.get<Array<{ id: string }>>(
+        `/accounts/${accountId}/contacts?blocked=false&limit=5000${stageValid ? `&stageId=${filterStage.trim()}` : ""}`,
+      );
+      const contacts = contactsData ?? [];
 
-      const { data: cdata, error: cerr } = await contactsQuery;
-      if (cerr) throw cerr;
+      const list = await apiClient.post<{ id: string }>(`/accounts/${accountId}/contact-lists`, {
+        name: name.trim(),
+        contactIds: contacts.map((c) => c.id),
+      });
 
-      const { data: list, error } = await (supabase as any)
-        .from("contact_lists")
-        .insert({
-          account_id: accountId,
-          name: name.trim(),
-          description: description.trim() || null,
-          campaign_kind: kind,
-          filters,
-          is_dynamic: false,
-          member_count: cdata?.length ?? 0,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-
-      if (cdata && cdata.length > 0) {
-        const members = cdata.map((c: any) => ({
-          list_id: list.id,
-          contact_id: c.id,
-          account_id: accountId,
-        }));
-        await (supabase as any).from("contact_list_members").insert(members);
-        toast.success(`Lista criada com ${cdata.length} contatos`);
+      if (contacts.length > 0) {
+        toast.success(`Lista criada com ${contacts.length} contatos`);
       } else {
-        toast.warning("Lista criada, mas sem contatos. Importe um CSV ou adicione contatos em /contacts.");
+        toast.warning(
+          "Lista criada, mas sem contatos. Importe um CSV ou adicione contatos em /contacts.",
+        );
       }
 
       resetForm();
       setCreating(false);
       refresh();
     } catch (e: any) {
-      toast.error(e?.message ?? "falha ao salvar lista");
+      toast.error(e?.body?.message ?? e?.message ?? "falha ao salvar lista");
     } finally {
       setImporting(false);
     }
@@ -244,10 +241,13 @@ function ListsPage() {
 
   const onDelete = async (id: string) => {
     if (!confirm("Excluir esta lista?")) return;
-    const { error } = await (supabase as any).from("contact_lists").delete().eq("id", id);
-    if (error) return toast.error(error.message);
-    toast.success("Lista excluída");
-    refresh();
+    try {
+      await apiClient.delete(`/accounts/${accountId}/contact-lists/${id}`);
+      toast.success("Lista excluída");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.body?.message ?? "Falha ao excluir");
+    }
   };
 
   return (
@@ -270,16 +270,32 @@ function ListsPage() {
       </header>
 
       <div className="flex gap-1 border-b border-border">
-        <TabBtn active={tab === "lists"} onClick={() => setTab("lists")} icon={<Users className="h-3.5 w-3.5" />}>
+        <TabBtn
+          active={tab === "lists"}
+          onClick={() => setTab("lists")}
+          icon={<Users className="h-3.5 w-3.5" />}
+        >
           Listas de contatos
         </TabBtn>
-        <TabBtn active={tab === "retention"} onClick={() => setTab("retention")} icon={<ShieldCheck className="h-3.5 w-3.5" />}>
+        <TabBtn
+          active={tab === "retention"}
+          onClick={() => setTab("retention")}
+          icon={<ShieldCheck className="h-3.5 w-3.5" />}
+        >
           Regras de retenção
         </TabBtn>
-        <TabBtn active={tab === "compliance"} onClick={() => setTab("compliance")} icon={<Clock className="h-3.5 w-3.5" />}>
+        <TabBtn
+          active={tab === "compliance"}
+          onClick={() => setTab("compliance")}
+          icon={<Clock className="h-3.5 w-3.5" />}
+        >
           Janelas & LGPD
         </TabBtn>
-        <TabBtn active={tab === "dnc"} onClick={() => setTab("dnc")} icon={<Ban className="h-3.5 w-3.5" />}>
+        <TabBtn
+          active={tab === "dnc"}
+          onClick={() => setTab("dnc")}
+          icon={<Ban className="h-3.5 w-3.5" />}
+        >
           DNC / Blocklist
         </TabBtn>
       </div>
@@ -292,7 +308,9 @@ function ListsPage() {
         <>
           {creating && (
             <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <h2 className="text-sm font-semibold">{editingId ? "Editar lista" : "Criar lista"}</h2>
+              <h2 className="text-sm font-semibold">
+                {editingId ? "Editar lista" : "Criar lista"}
+              </h2>
               <div className="grid gap-3 md:grid-cols-2">
                 <Field label="Nome">
                   <input
@@ -334,7 +352,9 @@ function ListsPage() {
               </div>
               <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
                 <label className="block text-xs font-medium text-foreground">
-                  {editingId ? "Adicionar contatos via CSV (opcional)" : "Importar contatos via CSV (opcional)"}
+                  {editingId
+                    ? "Adicionar contatos via CSV (opcional)"
+                    : "Importar contatos via CSV (opcional)"}
                 </label>
                 <input
                   type="file"
@@ -343,7 +363,11 @@ function ListsPage() {
                   className="mt-2 block w-full text-xs"
                 />
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Colunas aceitas: <code className="font-mono">name</code> (obrigatório), <code className="font-mono">phone_number</code>, <code className="font-mono">email</code>, <code className="font-mono">company</code>, <code className="font-mono">location</code>.
+                  Colunas aceitas: <code className="font-mono">name</code> (obrigatório),{" "}
+                  <code className="font-mono">phone_number</code>,{" "}
+                  <code className="font-mono">email</code>,{" "}
+                  <code className="font-mono">company</code>,{" "}
+                  <code className="font-mono">location</code>.
                 </p>
                 {csvFile && (
                   <p className="mt-1 text-[11px] text-primary">Arquivo: {csvFile.name}</p>
@@ -400,7 +424,10 @@ function ListsPage() {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                    <tr
+                      key={r.id}
+                      className="border-b border-border last:border-0 hover:bg-muted/30"
+                    >
                       <td className="px-4 py-2">
                         <div className="font-medium">{r.name}</div>
                         {r.description && (
@@ -414,7 +441,10 @@ function ListsPage() {
                             kindClass(r.campaign_kind),
                           )}
                         >
-                          {r.campaign_kind ? CAMPAIGN_KIND_LABEL[r.campaign_kind as CampaignKind] ?? r.campaign_kind : "—"}
+                          {r.campaign_kind
+                            ? (CAMPAIGN_KIND_LABEL[r.campaign_kind as CampaignKind] ??
+                              r.campaign_kind)
+                            : "—"}
                         </span>
                       </td>
                       <td className="px-4 py-2 tabular-nums">{r.member_count}</td>
@@ -517,10 +547,7 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
   const refresh = useCallback(async () => {
     if (!accountId) return;
     try {
-      const [r, c] = await Promise.all([
-        fetchRetentionRules(accountId),
-        fetchCampaigns(accountId),
-      ]);
+      const [r, c] = await Promise.all([fetchRetentionRules(accountId), fetchCampaigns(accountId)]);
       setRules(r);
       setCampaigns(c.filter((x) => x.campaign_kind === "retencao"));
     } catch (e: any) {
@@ -550,9 +577,10 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
   };
 
   const onDelete = async (id: string) => {
+    if (!accountId) return;
     if (!confirm("Excluir esta regra?")) return;
     try {
-      await deleteRetentionRule(id);
+      await deleteRetentionRule(accountId, id);
       toast.success("Regra excluída");
       refresh();
     } catch (e: any) {
@@ -564,7 +592,8 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-4">
         <div className="text-sm text-muted-foreground">
-          Regras detectam clientes <strong>inativos</strong> por X dias e os enfileiram automaticamente em uma campanha de retenção. Executam diariamente (cron).
+          Regras detectam clientes <strong>inativos</strong> por X dias e os enfileiram
+          automaticamente em uma campanha de retenção. Executam diariamente (cron).
         </div>
         <button
           onClick={() =>
@@ -584,7 +613,9 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
 
       {editing && (
         <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-          <h2 className="text-sm font-semibold">{editing.id ? "Editar regra" : "Nova regra de retenção"}</h2>
+          <h2 className="text-sm font-semibold">
+            {editing.id ? "Editar regra" : "Nova regra de retenção"}
+          </h2>
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Nome">
               <input
@@ -712,7 +743,7 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
                         className={cn(
                           "rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
                           r.enabled
-                            ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                            ? "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30"
                             : "bg-muted text-muted-foreground ring-border",
                         )}
                       >
@@ -809,11 +840,14 @@ function CompliancePanel({ accountId }: { accountId: string | null }) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-        Define janelas de discagem por dia da semana, limite de tentativas por contato e disclaimer de gravação (LGPD/CDC). Aplicado em todas as campanhas que não sobrescreverem localmente.
+        Define janelas de discagem por dia da semana, limite de tentativas por contato e disclaimer
+        de gravação (LGPD/CDC). Aplicado em todas as campanhas que não sobrescreverem localmente.
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4">
-        <h3 className="mb-3 text-sm font-semibold">Janelas permitidas (horário local do contato)</h3>
+        <h3 className="mb-3 text-sm font-semibold">
+          Janelas permitidas (horário local do contato)
+        </h3>
         <div className="space-y-2">
           {WEEKDAYS.map((d) => {
             const range = policy.allowed_hours_local?.[d.key] ?? null;
@@ -958,9 +992,10 @@ function DncPanel({ accountId }: { accountId: string | null }) {
   };
 
   const onRemove = async (id: number) => {
+    if (!accountId) return;
     if (!confirm("Remover este número do DNC?")) return;
     try {
-      await removeFromDnc(id);
+      await removeFromDnc(accountId, id);
       toast.success("Removido");
       refresh();
     } catch (e: any) {
@@ -971,7 +1006,8 @@ function DncPanel({ accountId }: { accountId: string | null }) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-        Números em DNC nunca recebem ligações automáticas — bloqueio é aplicado no dispatcher antes de qualquer chamada.
+        Números em DNC nunca recebem ligações automáticas — bloqueio é aplicado no dispatcher antes
+        de qualquer chamada.
       </div>
 
       <div className="space-y-3 rounded-xl border border-border bg-card p-4">
@@ -1065,11 +1101,11 @@ function kindClass(kind: string | null): string {
     case "sdr":
       return "bg-primary/10 text-primary ring-primary/20";
     case "cobranca":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
+      return "bg-amber-500/15 text-amber-400 ring-amber-500/30";
     case "retencao":
-      return "bg-rose-50 text-rose-700 ring-rose-200";
+      return "bg-rose-500/15 text-rose-400 ring-rose-500/30";
     case "pos_venda":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+      return "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30";
     default:
       return "bg-muted text-muted-foreground ring-border";
   }
@@ -1107,21 +1143,16 @@ function ContactPickerDialog({
       setLoading(true);
       try {
         const [{ data: cdata, error: cerr }, { data: mdata }] = await Promise.all([
-          (supabase as any)
-            .from("contacts")
-            .select("id,name,phone_number,email")
-            .eq("account_id", accountId)
-            .eq("blocked", false)
-            .order("name", { ascending: true })
-            .limit(2000),
-          (supabase as any)
-            .from("contact_list_members")
-            .select("contact_id")
-            .eq("list_id", listId),
+          apiClient.get<Array<{ id: string; name: string | null; phone_number: string | null; email: string | null }>>(
+            `/accounts/${accountId}/contacts?blocked=false&limit=2000`,
+          ).then((data) => ({ data, error: null })),
+          apiClient.get<Array<{ contact_id: string }>>(
+            `/accounts/${accountId}/contact-lists/${listId}/members`,
+          ).then((data) => ({ data, error: null })),
         ]);
         if (cerr) throw cerr;
-        setContacts((cdata ?? []) as PickerContact[]);
-        setExisting(new Set((mdata ?? []).map((r: any) => r.contact_id)));
+        setContacts(cdata ?? []);
+        setExisting(new Set((mdata ?? []).map((r) => r.contact_id)));
       } catch (e: any) {
         toast.error(e?.message ?? "Falha ao carregar contatos");
       } finally {
@@ -1169,14 +1200,14 @@ function ContactPickerDialog({
         contact_id: cid,
         account_id: accountId,
       }));
-      const { error } = await (supabase as any)
-        .from("contact_list_members")
-        .upsert(rows, { onConflict: "list_id,contact_id", ignoreDuplicates: true });
-      if (error) throw error;
-      toast.success(`${picked.size} contato(s) adicionado(s) à lista`);
+      const res = await apiClient.post<{ inserted: number }>(
+        `/accounts/${accountId}/contact-lists/${listId}/members`,
+        { contactIds: Array.from(picked) },
+      );
+      toast.success(`${res.inserted ?? picked.size} contato(s) adicionado(s) à lista`);
       onDone();
     } catch (e: any) {
-      toast.error(e?.message ?? "Falha ao adicionar");
+      toast.error(e?.body?.message ?? "Falha ao adicionar");
     } finally {
       setSaving(false);
     }
@@ -1184,7 +1215,10 @@ function ContactPickerDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl" style={{ maxHeight: "85vh" }}>
+      <div
+        className="flex w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+        style={{ maxHeight: "85vh" }}
+      >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold">Adicionar contatos existentes à lista</h2>
@@ -1213,11 +1247,19 @@ function ContactPickerDialog({
           </div>
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <label className="inline-flex items-center gap-1.5">
-              <input type="checkbox" checked={onlyWithPhone} onChange={(e) => setOnlyWithPhone(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={onlyWithPhone}
+                onChange={(e) => setOnlyWithPhone(e.target.checked)}
+              />
               Somente com telefone
             </label>
             <label className="inline-flex items-center gap-1.5">
-              <input type="checkbox" checked={hideExisting} onChange={(e) => setHideExisting(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={hideExisting}
+                onChange={(e) => setHideExisting(e.target.checked)}
+              />
               Ocultar já presentes
             </label>
             <button
@@ -1270,10 +1312,15 @@ function ContactPickerDialog({
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium">{c.name ?? "(sem nome)"}</div>
                       <div className="truncate text-xs text-muted-foreground">
-                        {c.phone_number ?? "—"}{c.email ? ` · ${c.email}` : ""}
+                        {c.phone_number ?? "—"}
+                        {c.email ? ` · ${c.email}` : ""}
                       </div>
                     </div>
-                    {isExisting && <span className="text-[10px] uppercase text-muted-foreground">já na lista</span>}
+                    {isExisting && (
+                      <span className="text-[10px] uppercase text-muted-foreground">
+                        já na lista
+                      </span>
+                    )}
                   </li>
                 );
               })}

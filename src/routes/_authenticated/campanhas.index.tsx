@@ -249,11 +249,11 @@ function kindClass(kind: string | null): string {
     case "sdr":
       return "bg-primary/10 text-primary ring-primary/20";
     case "cobranca":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
+      return "bg-amber-500/15 text-amber-400 ring-amber-500/30";
     case "retencao":
-      return "bg-rose-50 text-rose-700 ring-rose-200";
+      return "bg-rose-500/15 text-rose-400 ring-rose-500/30";
     case "pos_venda":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+      return "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30";
     default:
       return "bg-muted text-muted-foreground ring-border";
   }
@@ -262,15 +262,15 @@ function kindClass(kind: string | null): string {
 function statusClass(status: string): string {
   switch (status) {
     case "running":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+      return "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30";
     case "scheduled":
-      return "bg-sky-50 text-sky-700 ring-sky-200";
+      return "bg-sky-500/15 text-sky-400 ring-sky-500/30";
     case "paused":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
+      return "bg-amber-500/15 text-amber-400 ring-amber-500/30";
     case "completed":
       return "bg-muted text-muted-foreground ring-border";
     case "canceled":
-      return "bg-rose-50 text-rose-700 ring-rose-200";
+      return "bg-rose-500/15 text-rose-400 ring-rose-500/30";
     default:
       return "bg-muted text-muted-foreground ring-border";
   }

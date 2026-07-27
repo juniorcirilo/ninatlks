@@ -12,6 +12,9 @@
 *.sw?
 .DS_Store
 .dev.vars
+.env
+.env.*
+!.env.example
 .firecrawl/
 .idea
 .nitro

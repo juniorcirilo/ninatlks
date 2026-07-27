@@ -1,7 +1,7 @@
 /**
  * Voice runtime — phone numbers + voice calls + outbound dialer
  */
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient, ApiError } from "@/lib/api-client";
 
 export type InboundBehavior = "ai_answer" | "suggest" | "forward_to_agent" | "voicemail";
 export type CallDirection = "inbound" | "outbound";
@@ -58,6 +58,10 @@ export interface VoiceCall {
   ended_at: string | null;
   created_at: string;
   updated_at: string;
+  recording_storage_path: string | null;
+  transcription_status: string | null;
+  transcription_error: string | null;
+  source_id: string | null;
 }
 
 export const INBOUND_LABELS: Record<InboundBehavior, string> = {
@@ -89,15 +93,104 @@ export const STATUS_TONE: Record<CallStatus, "neutral" | "active" | "good" | "ba
   canceled: "neutral",
 };
 
+interface PhoneNumberApiRow {
+  id: string;
+  accountId: string;
+  e164: string;
+  friendlyName: string | null;
+  provider: string;
+  providerConfig: Record<string, unknown>;
+  inboxId: string | null;
+  pinnedPersonaId: string | null;
+  inboundBehavior: string;
+  outboundEnabled: boolean;
+  enabled: boolean;
+  elevenlabsPhoneNumberId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapPhoneNumber(r: PhoneNumberApiRow): PhoneNumber {
+  return {
+    id: r.id,
+    account_id: r.accountId,
+    e164: r.e164,
+    friendly_name: r.friendlyName,
+    provider: r.provider,
+    provider_config: r.providerConfig ?? {},
+    inbox_id: r.inboxId,
+    pinned_persona_id: r.pinnedPersonaId,
+    inbound_behavior: r.inboundBehavior as InboundBehavior,
+    outbound_enabled: r.outboundEnabled,
+    enabled: r.enabled,
+    elevenlabs_phone_number_id: r.elevenlabsPhoneNumberId,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+  };
+}
+
+interface VoiceCallApiRow {
+  id: string;
+  accountId: string;
+  phoneNumberId: string | null;
+  conversationId: string | null;
+  personaId: string | null;
+  handledByUserId: string | null;
+  direction: string;
+  status: string;
+  provider: string;
+  providerCallSid: string | null;
+  fromNumber: string;
+  toNumber: string;
+  durationSeconds: number;
+  totalCostCents: number;
+  recordingUrl: string | null;
+  transcript: unknown;
+  metadata: Record<string, unknown>;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  recordingStoragePath: string | null;
+  transcriptionStatus: string | null;
+  transcriptionError: string | null;
+  sourceId: string | null;
+}
+
+function mapVoiceCall(r: VoiceCallApiRow): VoiceCall {
+  return {
+    id: r.id,
+    account_id: r.accountId,
+    phone_number_id: r.phoneNumberId,
+    conversation_id: r.conversationId,
+    persona_id: r.personaId,
+    handled_by_user_id: r.handledByUserId,
+    direction: r.direction as CallDirection,
+    status: r.status as CallStatus,
+    provider: r.provider,
+    provider_call_sid: r.providerCallSid,
+    from_number: r.fromNumber,
+    to_number: r.toNumber,
+    duration_seconds: r.durationSeconds ?? 0,
+    total_cost_cents: r.totalCostCents ?? 0,
+    recording_url: r.recordingUrl,
+    transcript: Array.isArray(r.transcript) ? (r.transcript as VoiceCall["transcript"]) : [],
+    metadata: r.metadata ?? {},
+    started_at: r.startedAt,
+    ended_at: r.endedAt,
+    created_at: r.createdAt,
+    updated_at: r.updatedAt,
+    recording_storage_path: r.recordingStoragePath,
+    transcription_status: r.transcriptionStatus,
+    transcription_error: r.transcriptionError,
+    source_id: r.sourceId,
+  };
+}
+
 // ── Phone numbers CRUD ──────────────────────────────────────────────
-export async function fetchPhoneNumbers(accountId: string) {
-  const { data, error } = await supabase
-    .from("phone_numbers")
-    .select("*")
-    .eq("account_id", accountId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as unknown as PhoneNumber[];
+export async function fetchPhoneNumbers(accountId: string): Promise<PhoneNumber[]> {
+  const rows = await apiClient.get<PhoneNumberApiRow[]>(`/accounts/${accountId}/phone-numbers`);
+  return rows.map(mapPhoneNumber);
 }
 
 export async function createPhoneNumber(input: {
@@ -107,59 +200,59 @@ export async function createPhoneNumber(input: {
   inboxId?: string | null;
   pinnedPersonaId?: string | null;
   inboundBehavior?: InboundBehavior;
-}) {
-  const { data, error } = await supabase
-    .from("phone_numbers")
-    .insert({
-      account_id: input.accountId,
+}): Promise<PhoneNumber> {
+  const row = await apiClient.post<PhoneNumberApiRow>(
+    `/accounts/${input.accountId}/phone-numbers`,
+    {
       e164: input.e164,
-      friendly_name: input.friendlyName ?? null,
-      inbox_id: input.inboxId ?? null,
-      pinned_persona_id: input.pinnedPersonaId ?? null,
-      inbound_behavior: input.inboundBehavior ?? "ai_answer",
-    } as never)
-    .select()
-    .single();
-  if (error) throw error;
-  return data as unknown as PhoneNumber;
+      friendlyName: input.friendlyName,
+      inboxId: input.inboxId ?? undefined,
+      pinnedPersonaId: input.pinnedPersonaId ?? undefined,
+      inboundBehavior: input.inboundBehavior,
+    },
+  );
+  return mapPhoneNumber(row);
 }
 
-export async function updatePhoneNumber(id: string, updates: Partial<PhoneNumber>) {
-  const { data, error } = await supabase
-    .from("phone_numbers")
-    .update(updates as never)
-    .eq("id", id)
-    .select()
-    .single();
-  if (error) throw error;
-  return data as unknown as PhoneNumber;
+export async function updatePhoneNumber(
+  accountId: string,
+  id: string,
+  updates: Partial<PhoneNumber>,
+): Promise<PhoneNumber> {
+  const row = await apiClient.patch<PhoneNumberApiRow>(
+    `/accounts/${accountId}/phone-numbers/${id}`,
+    {
+      friendlyName: updates.friendly_name,
+      inboxId: updates.inbox_id,
+      pinnedPersonaId: updates.pinned_persona_id,
+      inboundBehavior: updates.inbound_behavior,
+      outboundEnabled: updates.outbound_enabled,
+      enabled: updates.enabled,
+    },
+  );
+  return mapPhoneNumber(row);
 }
 
-export async function deletePhoneNumber(id: string) {
-  const { error } = await supabase.from("phone_numbers").delete().eq("id", id);
-  if (error) throw error;
+export async function deletePhoneNumber(accountId: string, id: string): Promise<void> {
+  await apiClient.delete(`/accounts/${accountId}/phone-numbers/${id}`);
 }
 
 // ── Voice calls ─────────────────────────────────────────────────────
-export async function fetchVoiceCalls(accountId: string, limit = 50) {
-  const { data, error } = await supabase
-    .from("voice_calls")
-    .select("*")
-    .eq("account_id", accountId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return (data ?? []) as unknown as VoiceCall[];
+export async function fetchVoiceCalls(accountId: string, limit = 50): Promise<VoiceCall[]> {
+  const rows = await apiClient.get<VoiceCallApiRow[]>(
+    `/accounts/${accountId}/voice/calls?limit=${limit}`,
+  );
+  return rows.map(mapVoiceCall);
 }
 
-export async function fetchVoiceCall(id: string) {
-  const { data, error } = await supabase
-    .from("voice_calls")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  return data as unknown as VoiceCall | null;
+export async function fetchVoiceCall(accountId: string, id: string): Promise<VoiceCall | null> {
+  try {
+    const row = await apiClient.get<VoiceCallApiRow>(`/accounts/${accountId}/voice/calls/${id}`);
+    return mapVoiceCall(row);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 // ── Outbound dialer ─────────────────────────────────────────────────
@@ -189,13 +282,9 @@ export interface PlaceCallResult {
 }
 
 /**
- * Cliente unificado de discagem. Decide a rota baseado em
- * `phone_numbers.elevenlabs_phone_number_id`:
- *   - se setado → elevenlabs-outbound-call (com fallback automático Twilio em 5xx)
- *   - senão     → voice-outbound (Twilio direto)
- *
- * Sempre retorna `PlaceCallResult` — bloqueios do guard chegam como
- * `ok: false` com `reason` preenchido pra UI montar toast específico.
+ * Discagem outbound via Twilio direto. O caminho nativo ElevenLabs
+ * (elevenlabs-outbound-call) ainda não foi portado — todo número hoje
+ * disca via Twilio.
  */
 export async function placeCall(input: {
   fromNumberId: string;
@@ -205,159 +294,36 @@ export async function placeCall(input: {
   notes?: string;
   meetingId?: string;
   callPurpose?: "discovery" | "reminder" | "noshow_reschedule" | "followup";
+  accountId: string;
 }): Promise<PlaceCallResult> {
-  // Lê info do número pra decidir rota
-  const { data: pn } = await supabase
-    .from("phone_numbers")
-    .select("id, elevenlabs_phone_number_id, pinned_persona_id")
-    .eq("id", input.fromNumberId)
-    .maybeSingle();
-
-  const useElevenLabs = !!(pn as any)?.elevenlabs_phone_number_id;
-
-  if (useElevenLabs) {
-    // Usa fetch direto (em vez de supabase.functions.invoke) pra evitar que
-    // 4xx vire FunctionsHttpError com console.error — o que dispara o overlay
-    // de runtime-error do Lovable mesmo quando a UI já trata o erro com toast.
-    // 422 (guard bloqueou: too_soon, outside_hours, dnc…) é resposta esperada.
-    const { data, error } = await invokeEdge("elevenlabs-outbound-call", {
-      from_phone_number_id: input.fromNumberId,
-      to_number: input.toNumber,
-      persona_id: input.personaId,
-      contact_id: input.contactId,
+  try {
+    const result = await apiClient.post<{
+      ok: boolean;
+      callId: string;
+      via: "twilio";
+      status?: string;
+      reason?: string;
+      message?: string;
+      twilioCallSid?: string;
+    }>(`/accounts/${input.accountId}/voice/calls`, {
+      fromNumberId: input.fromNumberId,
+      toNumber: input.toNumber,
+      personaId: input.personaId,
+      contactId: input.contactId,
       notes: input.notes,
-      meeting_id: input.meetingId,
-      call_purpose: input.callPurpose,
+      meetingId: input.meetingId,
+      callPurpose: input.callPurpose,
     });
-
-    if (error) {
-      return {
-        ok: false,
-        callId: "",
-        via: "elevenlabs",
-        reason: error.reason ?? "rpc_error",
-        message: error.message ?? "Falha ao discar",
-      };
-    }
-    const d = data as Record<string, any>;
-    if (d?.ok === false || d?.error) {
-      return {
-        ok: false,
-        callId: d?.call_id ?? "",
-        via: (d?.via ?? "elevenlabs") as PlaceCallResult["via"],
-        reason: d?.reason,
-        message: d?.error ?? d?.message,
-      };
-    }
-    return {
-      ok: true,
-      callId: d.call_id,
-      via: (d.via ?? "elevenlabs") as PlaceCallResult["via"],
-      twilioCallSid: d.twilio_call_sid,
-      conversationId: d.conversation_id,
-    };
-  }
-
-  // Caminho Twilio direto
-  const { data, error } = await invokeEdge("voice-outbound", {
-    fromNumberId: input.fromNumberId,
-    toNumber: input.toNumber,
-    personaId: input.personaId,
-    contactId: input.contactId,
-    notes: input.notes,
-    meetingId: input.meetingId,
-    callPurpose: input.callPurpose,
-  });
-  if (error) {
+    return result;
+  } catch (e) {
     return {
       ok: false,
       callId: "",
       via: "twilio",
-      reason: error.reason ?? "rpc_error",
-      message: error.message ?? "Falha ao discar",
-    };
-  }
-  const d = data as Record<string, any>;
-  if (d?.ok === false || d?.error || d?.status === "failed") {
-    return {
-      ok: false,
-      callId: d.callId ?? "",
-      via: "twilio",
-      reason: d.reason,
-      message: d.error ?? d.message,
-    };
-  }
-  return {
-    ok: true,
-    callId: d.callId,
-    via: "twilio",
-    twilioCallSid: d.callSid,
-    status: d.status,
-  };
-}
-
-/**
- * Wrapper sobre fetch pra invocar edge functions sem passar pelo
- * supabase.functions.invoke — esse último faz console.error em qualquer 4xx,
- * o que dispara o overlay de runtime-error do Lovable mesmo quando a UI já
- * trata o erro com toast. Aqui 4xx é resposta esperada (guard bloqueando).
- */
-async function invokeEdge(
-  name: string,
-  body: Record<string, unknown>,
-): Promise<{ data: unknown; error: { reason?: string; message?: string } | null }> {
-  try {
-    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${name}`;
-    const { data: { session } } = await supabase.auth.getSession();
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "",
-    };
-    if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-    const text = await res.text();
-    let parsed: any = null;
-    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
-
-    if (!res.ok) {
-      return {
-        data: null,
-        error: {
-          reason: parsed?.reason,
-          message: parsed?.error ?? parsed?.message ?? `HTTP ${res.status}`,
-        },
-      };
-    }
-    return { data: parsed, error: null };
-  } catch (e) {
-    return {
-      data: null,
-      error: { message: e instanceof Error ? e.message : "network error" },
+      message: e instanceof Error ? e.message : "Falha ao discar",
     };
   }
 }
-
-/** @deprecated use placeCall */
-export async function dialOutbound(input: {
-  fromNumberId: string;
-  toNumber: string;
-  personaId?: string;
-}) {
-  const r = await placeCall(input);
-  return {
-    callId: r.callId,
-    callSid: r.twilioCallSid,
-    status: r.ok ? (r.status ?? "queued") : "failed",
-    reason: r.reason,
-    message: r.message,
-  };
-}
-
 
 // ── ElevenLabs native Twilio integration ────────────────────────────
 
@@ -369,38 +335,18 @@ export async function dialOutbound(input: {
  * Pré-requisito: o número tem uma persona pinada e essa persona já foi
  * sincronizada com o ElevenLabs (elevenlabs_agent_id preenchido).
  */
-export async function registerPhoneWithElevenLabs(phoneNumberId: string) {
-  const { data, error } = await supabase.functions.invoke("elevenlabs-phone-register", {
-    body: { phone_number_id: phoneNumberId },
-  });
-  if (error) throw new Error(error.message || "Falha ao ativar a IA do ElevenLabs neste número");
-  const d = data as { ok?: boolean; error?: string; elevenlabs_phone_number_id?: string };
-  if (d.error || !d.ok) throw new Error(d.error ?? "Ativação falhou");
-  return d;
-}
-
-/** @deprecated use placeCall — esta função vai ser removida no próximo sprint. */
-export async function dialViaElevenLabs(input: {
-  fromPhoneNumberId: string;
-  toNumber: string;
-  personaId?: string;
-}) {
-  const r = await placeCall({
-    fromNumberId: input.fromPhoneNumberId,
-    toNumber: input.toNumber,
-    personaId: input.personaId,
-  });
-  if (!r.ok) throw new Error(r.message ?? "Discagem falhou");
-  return {
-    ok: true,
-    call_id: r.callId,
-    conversation_id: r.conversationId,
-    twilio_call_sid: r.twilioCallSid,
-  };
+export async function registerPhoneWithElevenLabs(accountId: string, phoneNumberId: string) {
+  return apiClient.post<{
+    ok: boolean;
+    phone_number_id: string;
+    elevenlabs_phone_number_id: string;
+    elevenlabs_agent_id: string;
+  }>(`/accounts/${accountId}/phone-numbers/${phoneNumberId}/activate-elevenlabs`);
 }
 
 // ── Voice clone ─────────────────────────────────────────────────────
 export async function cloneVoiceForPersona(input: {
+  accountId: string;
   personaId: string;
   file: File;
 }) {
@@ -414,23 +360,22 @@ export async function cloneVoiceForPersona(input: {
   }
   const audioBase64 = btoa(bin);
 
-  const { data, error } = await supabase.functions.invoke("voice-clone", {
-    body: {
+  return apiClient.post<{ voiceId: string; personaId: string; provider: string }>(
+    `/accounts/${input.accountId}/voice-clone`,
+    {
       personaId: input.personaId,
       audioBase64,
       filename: input.file.name,
       mimeType: input.file.type,
     },
-  });
-  if (error) throw error;
-  return data as { voiceId: string; personaId: string; provider: string };
+  );
 }
 
 // ── Webhook URLs (for display in UI) ────────────────────────────────
 export function getTwilioWebhookUrls(): { incoming: string; status: string } {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? "";
+  const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
   return {
-    incoming: `${supabaseUrl}/functions/v1/twilio-incoming`,
-    status: `${supabaseUrl}/functions/v1/twilio-status`,
+    incoming: `${apiUrl}/webhooks/twilio/incoming`,
+    status: `${apiUrl}/webhooks/twilio/status`,
   };
 }

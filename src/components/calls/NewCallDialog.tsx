@@ -1,13 +1,22 @@
 import { useEffect, useState } from "react";
 import { Loader2, Phone, AlertCircle } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { fetchPhoneNumbers, placeCall, type PhoneNumber } from "@/lib/voice";
 import { fetchPersonas, type Persona } from "@/lib/personas";
@@ -53,10 +62,11 @@ export function NewCallDialog({
   }, [open, accountId]);
 
   async function handleDial() {
-    if (!fromId || !to.trim()) return;
+    if (!fromId || !to.trim() || !accountId) return;
     setDialing(true);
     try {
       const r = await placeCall({
+        accountId,
         fromNumberId: fromId,
         toNumber: to.trim(),
         personaId: personaId === "auto" ? undefined : personaId,
@@ -97,8 +107,7 @@ export function NewCallDialog({
             Nova chamada
           </DialogTitle>
           <DialogDescription className="text-[11px]">
-            Disque manualmente. Se o número de origem tiver IA ativa, a Nina
-            conduz a conversa.
+            Disque manualmente. Se o número de origem tiver IA ativa, a Nina conduz a conversa.
           </DialogDescription>
         </DialogHeader>
 
@@ -114,7 +123,11 @@ export function NewCallDialog({
                 <p className="font-medium">Você ainda não tem nenhum número conectado.</p>
                 <p className="mt-1 opacity-80">
                   Conecte um número Twilio em{" "}
-                  <Link to="/phone-numbers" className="underline" onClick={() => onOpenChange(false)}>
+                  <Link
+                    to="/phone-numbers"
+                    className="underline"
+                    onClick={() => onOpenChange(false)}
+                  >
                     Números de telefone
                   </Link>{" "}
                   para começar a discar.
@@ -123,13 +136,24 @@ export function NewCallDialog({
             </div>
           </div>
         ) : (
-          <form onSubmit={(e) => { e.preventDefault(); handleDial(); }} className="space-y-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleDial();
+            }}
+            className="space-y-3"
+          >
             <div className="space-y-1.5">
-              <Label htmlFor="from-number" className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              <Label
+                htmlFor="from-number"
+                className="text-[11px] uppercase tracking-wider text-muted-foreground"
+              >
                 Número de origem
               </Label>
               <Select value={fromId} onValueChange={setFromId}>
-                <SelectTrigger id="from-number"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="from-number">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {numbers.map((n) => (
                     <SelectItem key={n.id} value={n.id}>
@@ -143,7 +167,10 @@ export function NewCallDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="to-number" className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              <Label
+                htmlFor="to-number"
+                className="text-[11px] uppercase tracking-wider text-muted-foreground"
+              >
                 Discar para (E.164)
               </Label>
               <Input
@@ -158,22 +185,34 @@ export function NewCallDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="persona" className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              <Label
+                htmlFor="persona"
+                className="text-[11px] uppercase tracking-wider text-muted-foreground"
+              >
                 Agente (opcional)
               </Label>
               <Select value={personaId} onValueChange={setPersonaId}>
-                <SelectTrigger id="persona"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="persona">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="auto">Automático (usa o agente fixo do número)</SelectItem>
-                  {personas.filter((p) => p.enabled).map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
+                  {personas
+                    .filter((p) => p.enabled)
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="notes" className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              <Label
+                htmlFor="notes"
+                className="text-[11px] uppercase tracking-wider text-muted-foreground"
+              >
                 Notas internas (opcional)
               </Label>
               <Input
@@ -186,11 +225,20 @@ export function NewCallDialog({
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={dialing}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                disabled={dialing}
+              >
                 Cancelar
               </Button>
               <Button type="submit" disabled={!canSubmit}>
-                {dialing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Phone className="mr-1.5 h-3.5 w-3.5" />}
+                {dialing ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Phone className="mr-1.5 h-3.5 w-3.5" />
+                )}
                 Discar
               </Button>
             </DialogFooter>

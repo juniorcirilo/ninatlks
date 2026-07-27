@@ -2,7 +2,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type FormEvent } from "react";
 import { z } from "zod";
 import { Loader2, KeyRound } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
+import { useAuth } from "@/lib/auth-context";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
@@ -21,6 +23,7 @@ const passwordSchema = z
 
 function ResetPasswordPage() {
   const navigate = useNavigate();
+  const { refresh } = useAuth();
   const [recoveryReady, setRecoveryReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -28,19 +31,11 @@ function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Detecta o evento PASSWORD_RECOVERY que o Supabase emite após o redirect do email
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") setRecoveryReady(true);
-    });
-
-    // Se o usuário chegou direto e há hash de recovery, considera pronto
-    if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (token) {
       setRecoveryReady(true);
     }
-
-    return () => subscription.unsubscribe();
   }, []);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -59,11 +54,17 @@ function ResetPasswordPage() {
 
     setSubmitting(true);
     try {
-      const { error: err } = await supabase.auth.updateUser({ password: result.data });
-      if (err) throw err;
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      if (!token) {
+        setError("Link de redefinição inválido.");
+        return;
+      }
+      await apiClient.post("/auth/reset-password", { token, password: result.data });
+      await refresh();
       navigate({ to: "/", replace: true });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível atualizar.");
+    } catch (err: any) {
+      setError(err?.body?.message ?? err?.message ?? "Não foi possível atualizar.");
     } finally {
       setSubmitting(false);
     }

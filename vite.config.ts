@@ -6,4 +6,9 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-export default defineConfig();
+export default defineConfig({
+  server: {
+    port: 8080,
+    allowedHosts: ["utalks.ubva.com.br", "192.168.3.103:30004", "localhost:30004"]
+  },
+}); 

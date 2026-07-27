@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/supabase
+supabase/**
+.git
+.env
+.env.*
+docs

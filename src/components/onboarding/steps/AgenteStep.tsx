@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { apiClient } from "@/lib/api-client";
 import { syncElevenLabsAgent } from "@/lib/personas";
 import type { OnboardingState } from "@/lib/onboarding";
 
@@ -70,16 +70,11 @@ export function AgenteStep({
 
     let cancelled = false;
     setLoadingVoices(true);
-    supabase.functions
-      .invoke("elevenlabs-voices", { method: "GET" } as any)
-      .then(({ data, error }) => {
+    apiClient
+      .get<{ voices: any[] }>(`/accounts/${accountId}/elevenlabs/voices?include=voices`)
+      .then(({ voices }) => {
         if (cancelled) return;
-        if (error) {
-          setVoicesError(error.message);
-          setLoadingVoices(false);
-          return;
-        }
-        const list = ((data as any)?.voices ?? []) as any[];
+        const list = voices ?? [];
         const ptVoices: VoiceOption[] = list
           .filter((v) => {
             const lang = (v?.fine_tuning?.language ?? v?.labels?.language ?? "").toString().toLowerCase();
@@ -94,6 +89,11 @@ export function AgenteStep({
         setVoices(ptVoices);
         if (!voiceId && ptVoices.length > 0) setVoiceId(ptVoices[0].voice_id);
         setLoadingVoices(false);
+      })
+      .catch((e: any) => {
+        if (cancelled) return;
+        setVoicesError(e?.body?.message ?? e?.message ?? "erro");
+        setLoadingVoices(false);
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,28 +104,22 @@ export function AgenteStep({
     setCreating(true);
     setSyncError(null);
     try {
-      const { data, error } = await supabase
-        .from("agent_personas")
-        .insert({
-          account_id: accountId,
-          source_user_id: user?.id ?? null,
-          name: name.trim(),
-          description: "Criado no onboarding",
-          system_prompt: prompt.trim(),
-          voice_provider: voiceId ? "elevenlabs" : null,
-          voice_clone_id: voiceId || null,
-          status: "active",
-        } as any)
-        .select("id")
-        .single();
-      if (error) throw error;
-      const personaId = (data as any).id as string;
+      const data = await apiClient.post<{ id: string }>(`/accounts/${accountId}/personas`, {
+        name: name.trim(),
+        description: "Criado no onboarding",
+        sourceUserId: user?.id ?? undefined,
+        systemPrompt: prompt.trim(),
+        voiceProvider: voiceId ? "elevenlabs" : null,
+        voiceCloneId: voiceId || null,
+        status: "active",
+      });
+      const personaId = data.id;
       setCreatedPersonaId(personaId);
 
       if (elStatus === "ok") {
         setSyncStatus("syncing");
         try {
-          await syncElevenLabsAgent(personaId);
+          await syncElevenLabsAgent(accountId, personaId);
           setSyncStatus("ok");
           onCreated({ personaId, synced: true });
         } catch (e) {
@@ -150,7 +144,7 @@ export function AgenteStep({
     setSyncStatus("syncing");
     setSyncError(null);
     try {
-      await syncElevenLabsAgent(createdPersonaId);
+        await syncElevenLabsAgent(accountId, createdPersonaId);
       setSyncStatus("ok");
       onCreated({ personaId: createdPersonaId, synced: true });
     } catch (e) {

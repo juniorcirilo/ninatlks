@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -46,19 +46,16 @@ export function EmpresaStep({
       return;
     }
     let cancelled = false;
-    supabase
-      .from("accounts")
-      .select("name, support_email, settings")
-      .eq("id", accountId)
-      .maybeSingle()
-      .then(({ data }) => {
+    apiClient
+      .get<{ name: string; supportEmail: string; settings: Record<string, any> }>(`/accounts/${accountId}`)
+      .then((data) => {
         if (cancelled || !data) {
           setLoading(false);
           return;
         }
         if (data.name) setName(data.name);
-        if (data.support_email) setSupportEmail(data.support_email);
-        const s = (data.settings as Record<string, any>) ?? {};
+        if (data.supportEmail) setSupportEmail(data.supportEmail);
+        const s = data.settings ?? {};
         if (s.industry) setIndustry(s.industry);
         if (s.timezone) setTimezone(s.timezone);
         setLoading(false);
@@ -159,20 +156,13 @@ export function EmpresaStep({
  * advanceOnboardingStep("empresa", payload).
  */
 export async function persistEmpresa(accountId: string, payload: EmpresaPayload) {
-  const { data: cur } = await supabase
-    .from("accounts")
-    .select("settings")
-    .eq("id", accountId)
-    .single();
-  const settings = { ...((cur?.settings as Record<string, any>) ?? {}) };
+  const data = await apiClient.get<{ settings: Record<string, any> }>(`/accounts/${accountId}`);
+  const settings = { ...(data.settings ?? {}) };
   settings.industry = payload.industry;
   settings.timezone = payload.timezone;
-  await supabase
-    .from("accounts")
-    .update({
-      name: payload.name,
-      support_email: payload.support_email || null,
-      settings: settings as any,
-    })
-    .eq("id", accountId);
+  await apiClient.patch(`/accounts/${accountId}`, {
+    name: payload.name,
+    supportEmail: payload.support_email || null,
+    settings,
+  });
 }

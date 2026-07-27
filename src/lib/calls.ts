@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient, ApiError } from "@/lib/api-client";
 
 export type CallStatus =
   | "queued"
@@ -72,138 +72,65 @@ export const CALL_PURPOSE_LABEL: Record<string, string> = {
 };
 
 export const OUTCOME_LABEL: Record<string, { label: string; cls: string }> = {
-  scheduled:      { label: "Agendou",          cls: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" },
-  qualified:      { label: "Qualificou",       cls: "bg-primary/10 text-primary ring-1 ring-primary/20" },
-  callback:       { label: "Pediu retorno",    cls: "bg-sky-50 text-sky-700 ring-1 ring-sky-200" },
-  escalated:      { label: "Pediu humano",     cls: "bg-amber-50 text-amber-700 ring-1 ring-amber-200" },
-  no_answer:      { label: "Sem resposta",     cls: "bg-muted text-muted-foreground ring-1 ring-border" },
-  voicemail:      { label: "Caixa postal",     cls: "bg-muted text-muted-foreground ring-1 ring-border" },
-  not_interested: { label: "Sem interesse",    cls: "bg-rose-50 text-rose-700 ring-1 ring-rose-200" },
-  wrong_number:   { label: "Número errado",    cls: "bg-rose-50 text-rose-700 ring-1 ring-rose-200" },
-  other:          { label: "Outro",            cls: "bg-muted text-muted-foreground ring-1 ring-border" },
+  scheduled: { label: "Agendou", cls: "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30" },
+  qualified: { label: "Qualificou", cls: "bg-primary/10 text-primary ring-1 ring-primary/20" },
+  callback: { label: "Pediu retorno", cls: "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30" },
+  escalated: { label: "Pediu humano", cls: "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30" },
+  no_answer: { label: "Sem resposta", cls: "bg-muted text-muted-foreground ring-1 ring-border" },
+  voicemail: { label: "Caixa postal", cls: "bg-muted text-muted-foreground ring-1 ring-border" },
+  not_interested: { label: "Sem interesse", cls: "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30" },
+  wrong_number: { label: "Número errado", cls: "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30" },
+  other: { label: "Outro", cls: "bg-muted text-muted-foreground ring-1 ring-border" },
 };
 
 export const STATUS_TONE: Record<CallStatus, string> = {
-  queued:      "text-muted-foreground",
-  ringing:     "text-amber-600",
+  queued: "text-muted-foreground",
+  ringing: "text-amber-600",
   in_progress: "text-amber-600",
-  completed:   "text-emerald-600",
-  failed:      "text-rose-600",
-  no_answer:   "text-muted-foreground",
-  busy:        "text-muted-foreground",
-  canceled:    "text-muted-foreground",
+  completed: "text-emerald-600",
+  failed: "text-rose-600",
+  no_answer: "text-muted-foreground",
+  busy: "text-muted-foreground",
+  canceled: "text-muted-foreground",
 };
 
-export async function fetchCalls(
-  accountId: string,
-  filter: { direction?: CallDirection | "all"; limit?: number } = {},
-): Promise<CallSummary[]> {
-  const { direction = "all", limit = 100 } = filter;
-
-  let query = (supabase as any)
-    .from("voice_calls")
-    .select(
-      "id, direction, status, from_number, to_number, started_at, ended_at, duration_seconds, outcome_category, outcome_summary, sentiment, metadata, recording_url, transcript",
-    )
-    .eq("account_id", accountId)
-    .order("started_at", { ascending: false, nullsFirst: false })
-    .limit(limit);
-
-  if (direction !== "all") {
-    query = query.eq("direction", direction);
-  }
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-
-  const rows = (data ?? []) as any[];
-
-  // Resolve contact names via phone match (cheap N+1 acceptable for limit=100).
-  const phones = Array.from(
-    new Set(
-      rows
-        .map((r) =>
-          r.direction === "outbound" ? r.to_number : r.from_number,
-        )
-        .filter(Boolean),
-    ),
-  );
-
-  const contactMap: Record<string, { name: string | null; phone: string }> = {};
-  if (phones.length > 0) {
-    const { data: contacts } = await (supabase as any)
-      .from("contacts")
-      .select("name, phone_number")
-      .eq("account_id", accountId)
-      .in("phone_number", phones);
-    for (const c of (contacts ?? []) as any[]) {
-      contactMap[c.phone_number] = { name: c.name, phone: c.phone_number };
-    }
-  }
-
-  return rows.map((r): CallSummary => {
-    const leadPhone = r.direction === "outbound" ? r.to_number : r.from_number;
-    const contact = leadPhone ? contactMap[leadPhone] : undefined;
-    const sentiment = (r.sentiment ?? null) as any;
-    const transcript = r.transcript;
-    return {
-      id: r.id,
-      direction: r.direction,
-      status: r.status,
-      from_number: r.from_number,
-      to_number: r.to_number,
-      started_at: r.started_at,
-      ended_at: r.ended_at,
-      duration_seconds: r.duration_seconds ?? 0,
-      outcome_category: r.outcome_category,
-      outcome_summary: r.outcome_summary,
-      sentiment_aggregate: sentiment?.aggregate ?? null,
-      sentiment_score: typeof sentiment?.score === "number" ? sentiment.score : null,
-      call_purpose: (r.metadata as any)?.call_purpose ?? "discovery",
-      contact_name: contact?.name ?? null,
-      contact_phone: leadPhone ?? null,
-      recording_url: r.recording_url ?? null,
-      has_transcript:
-        Array.isArray(transcript) && transcript.length > 0
-          ? true
-          : typeof transcript === "string" && transcript.length > 0
-            ? true
-            : false,
-    };
-  });
+interface CallApiRow {
+  id: string;
+  direction: string;
+  status: string;
+  from_number: string;
+  to_number: string;
+  started_at: string | null;
+  ended_at: string | null;
+  duration_seconds: number;
+  outcome_category: string | null;
+  outcome_summary: string | null;
+  sentiment: { aggregate?: string; score?: number } | null;
+  metadata: Record<string, unknown>;
+  recording_url: string | null;
+  transcript: unknown;
+  contact_name: string | null;
 }
 
-export async function fetchCallDetail(callId: string): Promise<CallDetail | null> {
-  const { data, error } = await (supabase as any)
-    .from("voice_calls")
-    .select(
-      "id, account_id, direction, status, from_number, to_number, started_at, ended_at, duration_seconds, outcome_category, outcome_summary, sentiment, metadata, recording_url, recording_storage_path, transcript, classification, ai_summary",
-    )
-    .eq("id", callId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) return null;
+interface CallDetailApiRow extends CallApiRow {
+  account_id: string;
+  recording_storage_path: string | null;
+  classification: CallDetail["classification"];
+  ai_summary: string | null;
+}
 
-  const r = data as any;
+function hasTranscript(transcript: unknown): boolean {
+  if (Array.isArray(transcript)) return transcript.length > 0;
+  if (typeof transcript === "string") return transcript.length > 0;
+  return false;
+}
+
+function mapSummary(r: CallApiRow): CallSummary {
   const leadPhone = r.direction === "outbound" ? r.to_number : r.from_number;
-  let contactName: string | null = null;
-  if (leadPhone) {
-    const { data: c } = await (supabase as any)
-      .from("contacts")
-      .select("name")
-      .eq("account_id", r.account_id)
-      .eq("phone_number", leadPhone)
-      .maybeSingle();
-    contactName = (c as any)?.name ?? null;
-  }
-
-  const sentiment = (r.sentiment ?? null) as any;
-  const turns = extractTurns(r.transcript, sentiment?.per_turn);
-
   return {
     id: r.id,
-    direction: r.direction,
-    status: r.status,
+    direction: r.direction as CallDirection,
+    status: r.status as CallStatus,
     from_number: r.from_number,
     to_number: r.to_number,
     started_at: r.started_at,
@@ -211,23 +138,68 @@ export async function fetchCallDetail(callId: string): Promise<CallDetail | null
     duration_seconds: r.duration_seconds ?? 0,
     outcome_category: r.outcome_category,
     outcome_summary: r.outcome_summary,
-    sentiment_aggregate: sentiment?.aggregate ?? null,
-    sentiment_score: typeof sentiment?.score === "number" ? sentiment.score : null,
-    call_purpose: (r.metadata as any)?.call_purpose ?? "discovery",
-    contact_name: contactName,
+    sentiment_aggregate: (r.sentiment?.aggregate as CallSummary["sentiment_aggregate"]) ?? null,
+    sentiment_score: typeof r.sentiment?.score === "number" ? r.sentiment.score : null,
+    call_purpose: (r.metadata?.call_purpose as string) ?? "discovery",
+    contact_name: r.contact_name,
     contact_phone: leadPhone ?? null,
-    recording_url: r.recording_url ?? null,
-    has_transcript: turns.length > 0,
-    transcript: turns,
-    classification: r.classification ?? null,
-    metadata: (r.metadata ?? {}) as Record<string, unknown>,
-    recording_storage_path: r.recording_storage_path ?? null,
-    ai_summary: r.ai_summary ?? null,
+    recording_url: r.recording_url,
+    has_transcript: hasTranscript(r.transcript),
   };
 }
 
+export async function fetchCalls(
+  accountId: string,
+  filter: { direction?: CallDirection | "all"; limit?: number } = {},
+): Promise<CallSummary[]> {
+  const { direction = "all", limit = 100 } = filter;
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (direction !== "all") params.set("direction", direction);
+  const rows = await apiClient.get<CallApiRow[]>(
+    `/accounts/${accountId}/calls?${params.toString()}`,
+  );
+  return rows.map(mapSummary);
+}
+
+export async function fetchCallDetail(
+  accountId: string,
+  callId: string,
+): Promise<CallDetail | null> {
+  let r: CallDetailApiRow;
+  try {
+    r = await apiClient.get<CallDetailApiRow>(`/accounts/${accountId}/calls/${callId}`);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return null;
+    throw e;
+  }
+
+  const sentiment = r.sentiment ?? null;
+  const turns = extractTurns(
+    r.transcript,
+    (r.sentiment as { per_turn?: Parameters<typeof extractTurns>[1] } | null)?.per_turn,
+  );
+
+  return {
+    ...mapSummary(r),
+    transcript: turns,
+    classification: r.classification ?? null,
+    metadata: r.metadata ?? {},
+    recording_storage_path: r.recording_storage_path ?? null,
+    ai_summary: r.ai_summary ?? null,
+    sentiment_aggregate: (sentiment?.aggregate as CallSummary["sentiment_aggregate"]) ?? null,
+  };
+}
+
+export async function generateCallSummary(
+  accountId: string,
+  callId: string,
+  force = false,
+): Promise<{ ok: boolean; ai_summary?: string; skipped?: boolean; error?: string }> {
+  return apiClient.post(`/accounts/${accountId}/voice/calls/${callId}/summary`, { force });
+}
+
 function extractTurns(
-  transcript: any,
+  transcript: unknown,
   perTurnSentiment?: Array<{
     index: number;
     role: string;
@@ -236,7 +208,7 @@ function extractTurns(
   }>,
 ): TranscriptTurn[] {
   if (!transcript) return [];
-  const sentMap = new Map<number, { sentiment: any; score: number }>();
+  const sentMap = new Map<number, { sentiment: string; score: number }>();
   for (const t of perTurnSentiment ?? []) {
     sentMap.set(t.index, { sentiment: t.sentiment, score: t.score });
   }
@@ -248,12 +220,18 @@ function extractTurns(
       .filter((t) => t.text.length > 0)
       .map((t) => {
         const s = sentMap.get(t.index);
-        return s ? { ...t, sentiment: s.sentiment, sentiment_score: s.score } : t;
+        return s
+          ? {
+              ...t,
+              sentiment: s.sentiment as TranscriptTurn["sentiment"],
+              sentiment_score: s.score,
+            }
+          : t;
       });
   }
   if (Array.isArray(transcript)) {
-    return transcript
-      .map((t: any, i: number) => ({
+    return (transcript as Array<Record<string, unknown>>)
+      .map((t, i) => ({
         index: i,
         role: String(t.role ?? t.speaker ?? "user").toLowerCase(),
         text: String(t.content ?? t.message ?? t.text ?? "").trim(),
@@ -261,7 +239,13 @@ function extractTurns(
       .filter((t) => t.text.length > 0)
       .map((t) => {
         const s = sentMap.get(t.index);
-        return s ? { ...t, sentiment: s.sentiment, sentiment_score: s.score } : t;
+        return s
+          ? {
+              ...t,
+              sentiment: s.sentiment as TranscriptTurn["sentiment"],
+              sentiment_score: s.score,
+            }
+          : t;
       });
   }
   return [];

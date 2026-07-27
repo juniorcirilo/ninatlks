@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAccount } from "@/lib/account-context";
@@ -42,11 +42,8 @@ export function PrimeiroNumeroStep({ accountId }: { accountId: string }) {
   const importedQuery = useQuery({
     queryKey: ["onboarding-phone-count", accountId],
     queryFn: async () => {
-      const { count } = await (supabase as any)
-        .from("phone_numbers")
-        .select("id", { count: "exact", head: true })
-        .eq("account_id", accountId);
-      return count ?? 0;
+      const list = await apiClient.get<Array<{ id: string }>>(`/accounts/${accountId}/phone-numbers`);
+      return list.length;
     },
     enabled: !!accountId,
   });

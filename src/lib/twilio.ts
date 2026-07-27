@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 export interface OwnedTwilioNumber {
   sid: string;
@@ -10,11 +10,7 @@ export interface OwnedTwilioNumber {
 
 /** Lists numbers already purchased on the connected Twilio account. */
 export async function fetchOwnedTwilioNumbers(accountId: string): Promise<OwnedTwilioNumber[]> {
-  const { data, error } = await supabase.functions.invoke("twilio-numbers-owned", {
-    body: { account_id: accountId },
-  });
-  if (error) throw error;
-  return ((data as any)?.numbers ?? []) as OwnedTwilioNumber[];
+  return apiClient.get<OwnedTwilioNumber[]>(`/accounts/${accountId}/twilio/numbers/owned`);
 }
 
 /**
@@ -29,17 +25,15 @@ export async function importTwilioNumber(args: {
   inboxId?: string | null;
   inboundBehavior?: "ai_answer" | "forward_to_agent" | "voicemail" | "suggest";
 }) {
-  const { data, error } = await supabase.functions.invoke("twilio-numbers-import", {
-    body: {
-      account_id: args.accountId,
-      phone_number: args.phoneNumber,
-      pinned_persona_id: args.pinnedPersonaId ?? null,
-      inbox_id: args.inboxId ?? null,
-      inbound_behavior: args.inboundBehavior ?? "ai_answer",
-    },
+  return apiClient.post<{
+    phone_number: { id: string; e164: string };
+    twilio: { sid: string; phone_number: string; friendly_name: string };
+  }>(`/accounts/${args.accountId}/twilio/numbers/import`, {
+    phoneNumber: args.phoneNumber,
+    pinnedPersonaId: args.pinnedPersonaId ?? null,
+    inboxId: args.inboxId ?? null,
+    inboundBehavior: args.inboundBehavior ?? "ai_answer",
   });
-  if (error) throw error;
-  return data as { phone_number: { id: string; e164: string }; twilio: { sid: string; phone_number: string; friendly_name: string } };
 }
 
 export interface AvailableNumber {
@@ -58,22 +52,19 @@ export async function searchAvailableNumbers(params: {
   voice?: boolean;
   sms?: boolean;
   mms?: boolean;
-  accountId?: string;
+  accountId: string;
 }): Promise<AvailableNumber[]> {
-  const { data, error } = await supabase.functions.invoke("twilio-numbers-search", {
-    body: {
-      country_code: params.countryCode,
-      type: params.type ?? "Local",
-      area_code: params.areaCode,
-      contains: params.contains,
-      voice: params.voice ?? true,
-      sms: params.sms ?? true,
-      mms: params.mms,
-      account_id: params.accountId,
-    },
-  });
-  if (error) throw error;
-  return ((data as any)?.results ?? []) as AvailableNumber[];
+  const query = new URLSearchParams();
+  query.set("countryCode", params.countryCode);
+  if (params.type) query.set("type", params.type);
+  if (params.areaCode) query.set("areaCode", params.areaCode);
+  if (params.contains) query.set("contains", params.contains);
+  if (params.voice !== undefined) query.set("voice", String(params.voice));
+  if (params.sms !== undefined) query.set("sms", String(params.sms));
+  if (params.mms !== undefined) query.set("mms", String(params.mms));
+  return apiClient.get<AvailableNumber[]>(
+    `/accounts/${params.accountId}/twilio/numbers/search?${query.toString()}`,
+  );
 }
 
 export async function buyNumber(params: {
@@ -86,26 +77,20 @@ export async function buyNumber(params: {
   bundleSid?: string;
   addressSid?: string;
 }): Promise<{ phone_number: any; twilio: any }> {
-  const { data, error } = await supabase.functions.invoke("twilio-numbers-buy", {
-    body: {
-      account_id: params.accountId,
-      phone_number: params.phoneNumber,
-      friendly_name: params.friendlyName,
-      inbox_id: params.inboxId,
-      pinned_persona_id: params.pinnedPersonaId,
-      inbound_behavior: params.inboundBehavior,
-      bundle_sid: params.bundleSid,
-      address_sid: params.addressSid,
-    },
+  return apiClient.post(`/accounts/${params.accountId}/twilio/numbers/buy`, {
+    phoneNumber: params.phoneNumber,
+    friendlyName: params.friendlyName,
+    inboxId: params.inboxId,
+    pinnedPersonaId: params.pinnedPersonaId,
+    inboundBehavior: params.inboundBehavior,
+    bundleSid: params.bundleSid,
+    addressSid: params.addressSid,
   });
-  if (error) throw error;
-  return data as { phone_number: any; twilio: any };
 }
 
-export async function retryTranscription(voiceCallId: string) {
-  const { data, error } = await supabase.functions.invoke("transcribe-voice", {
-    body: { voice_call_id: voiceCallId },
-  });
-  if (error) throw error;
-  return data;
+export async function retryTranscription(accountId: string, voiceCallId: string) {
+  return apiClient.post<{ ok: boolean; skipped?: boolean; utterances?: number; error?: string }>(
+    `/accounts/${accountId}/voice/calls/${voiceCallId}/transcribe`,
+    {},
+  );
 }

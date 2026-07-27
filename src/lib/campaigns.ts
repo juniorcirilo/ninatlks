@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 export type CampaignKind = "sdr" | "pos_venda" | "cobranca" | "retencao" | "custom";
 
@@ -53,16 +53,82 @@ export type CampaignRow = {
 };
 
 export async function fetchCampaigns(accountId: string): Promise<CampaignRow[]> {
-  const { data, error } = await (supabase as any)
-    .from("voice_campaigns")
-    .select(
-      "id,name,status,campaign_kind,total_contacts,placed_count,connected_count,escalated_count,voicemail_count,failed_count,created_at,scheduled_at,started_at,finished_at",
-    )
-    .eq("account_id", accountId)
-    .order("created_at", { ascending: false })
-    .limit(200);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as CampaignRow[];
+  return apiClient.get<CampaignRow[]>(`/accounts/${accountId}/campaigns`);
+}
+
+export type CampaignDetail = CampaignRow & { opening_script: string | null; from_number: string };
+
+export async function fetchCampaign(accountId: string, id: string): Promise<CampaignDetail> {
+  return apiClient.get<CampaignDetail>(`/accounts/${accountId}/campaigns/${id}`);
+}
+
+export type CampaignContactRow = {
+  id: string;
+  to_number: string;
+  status: string;
+  attempts: number;
+  last_attempt_at: string | null;
+  last_error: string | null;
+  voice_call_id: string | null;
+};
+
+export async function fetchCampaignContacts(
+  accountId: string,
+  id: string,
+): Promise<CampaignContactRow[]> {
+  return apiClient.get<CampaignContactRow[]>(`/accounts/${accountId}/campaigns/${id}/contacts`);
+}
+
+export async function updateCampaignStatus(
+  accountId: string,
+  id: string,
+  status: string,
+): Promise<void> {
+  await apiClient.patch(`/accounts/${accountId}/campaigns/${id}/status`, { status });
+}
+
+export type PersonaLite = {
+  id: string;
+  name: string;
+  voice_clone_id: string | null;
+  status: string;
+  enabled: boolean;
+};
+
+export async function fetchCampaignPersonas(accountId: string): Promise<PersonaLite[]> {
+  return apiClient.get<PersonaLite[]>(`/accounts/${accountId}/campaigns/personas`);
+}
+
+export type PhoneNumberLite = {
+  id: string;
+  e164: string;
+  friendly_name: string | null;
+  outbound_enabled: boolean;
+  enabled: boolean;
+};
+
+export async function fetchCampaignPhoneNumbers(accountId: string): Promise<PhoneNumberLite[]> {
+  return apiClient.get<PhoneNumberLite[]>(`/accounts/${accountId}/campaigns/phone-numbers`);
+}
+
+export async function createCampaign(
+  accountId: string,
+  input: {
+    name: string;
+    campaignKind: CampaignKind;
+    listId: string;
+    personaId: string;
+    phoneId: string;
+    openingScript?: string;
+    maxConcurrent?: number;
+    retryAttempts?: number;
+    recordCall?: boolean;
+  },
+): Promise<{ id: string; contactCount: number }> {
+  return apiClient.post<{ id: string; contactCount: number }>(
+    `/accounts/${accountId}/campaigns`,
+    input,
+  );
 }
 
 export type ContactListRow = {
@@ -77,13 +143,7 @@ export type ContactListRow = {
 };
 
 export async function fetchContactLists(accountId: string): Promise<ContactListRow[]> {
-  const { data, error } = await (supabase as any)
-    .from("contact_lists")
-    .select("id,name,description,campaign_kind,is_dynamic,member_count,filters,created_at")
-    .eq("account_id", accountId)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as ContactListRow[];
+  return apiClient.get<ContactListRow[]>(`/accounts/${accountId}/campaigns/contact-lists`);
 }
 
 // ============ Retention Rules ============
@@ -103,41 +163,31 @@ export type RetentionRuleRow = {
 };
 
 export async function fetchRetentionRules(accountId: string): Promise<RetentionRuleRow[]> {
-  const { data, error } = await (supabase as any)
-    .from("retention_rules")
-    .select(
-      "id,name,enabled,inactive_days,required_stage_id,required_tag_ids,target_campaign_id,max_enrolls_per_run,last_run_at,last_enrolled_count,created_at",
-    )
-    .eq("account_id", accountId)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as RetentionRuleRow[];
+  return apiClient.get<RetentionRuleRow[]>(`/accounts/${accountId}/retention-rules`);
 }
 
 export async function upsertRetentionRule(
   accountId: string,
   rule: Partial<RetentionRuleRow> & { name: string },
 ): Promise<void> {
-  const payload: Record<string, unknown> = {
-    account_id: accountId,
+  const payload = {
     name: rule.name,
     enabled: rule.enabled ?? true,
-    inactive_days: rule.inactive_days ?? 60,
-    required_stage_id: rule.required_stage_id ?? null,
-    required_tag_ids: rule.required_tag_ids ?? [],
-    target_campaign_id: rule.target_campaign_id ?? null,
-    max_enrolls_per_run: rule.max_enrolls_per_run ?? 50,
+    inactiveDays: rule.inactive_days ?? 60,
+    requiredStageId: rule.required_stage_id ?? null,
+    requiredTagIds: rule.required_tag_ids ?? [],
+    targetCampaignId: rule.target_campaign_id ?? null,
+    maxEnrollsPerRun: rule.max_enrolls_per_run ?? 50,
   };
-  const q = (supabase as any).from("retention_rules");
-  const { error } = rule.id
-    ? await q.update(payload).eq("id", rule.id)
-    : await q.insert(payload);
-  if (error) throw new Error(error.message);
+  if (rule.id) {
+    await apiClient.patch(`/accounts/${accountId}/retention-rules/${rule.id}`, payload);
+  } else {
+    await apiClient.post(`/accounts/${accountId}/retention-rules`, payload);
+  }
 }
 
-export async function deleteRetentionRule(id: string): Promise<void> {
-  const { error } = await (supabase as any).from("retention_rules").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+export async function deleteRetentionRule(accountId: string, id: string): Promise<void> {
+  await apiClient.delete(`/accounts/${accountId}/retention-rules/${id}`);
 }
 
 // ============ Aggregated KPIs ============

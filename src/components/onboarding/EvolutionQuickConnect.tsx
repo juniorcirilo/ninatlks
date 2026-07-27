@@ -31,7 +31,7 @@ import {
   testEvolution,
   type EvolutionStatus,
 } from "@/lib/evolution";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 type Phase = "form" | "provisioning" | "awaiting_scan" | "connected";
 
@@ -68,22 +68,23 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
     setApiKey("");
 
     (async () => {
-      const { data } = await supabase
-        .from("channels")
-        .select("id, config")
-        .eq("account_id", accountId)
-        .eq("channel_type", "whatsapp")
-        .maybeSingle();
-      const cfg = (data?.config ?? {}) as Record<string, string>;
-      if (cfg.evolution_url || cfg.evolution_api_key) {
-        setHasExisting(true);
-        if (cfg.evolution_url) setUrl(cfg.evolution_url);
-        // Não pré-preenche a key (segurança); usuário vê o badge "salvo".
-      } else {
+      try {
+        const data = await apiClient.get<Array<{ id: string; config: Record<string, string> }>>(
+          `/accounts/${accountId}/evolution`,
+        );
+        const channel = data[0];
+        const cfg = channel?.config ?? {};
+        if (cfg.evolution_url || cfg.evolution_api_key) {
+          setHasExisting(true);
+          if (cfg.evolution_url) setUrl(cfg.evolution_url);
+        } else {
+          setHasExisting(false);
+        }
+        if (channel?.id) setChannelId(channel.id);
+      } catch {
         setHasExisting(false);
       }
-      if (data?.id) setChannelId(data.id);
-    })().catch(() => undefined);
+    })();
   }, [open, accountId]);
 
   // Polling de status enquanto aguarda o usuário escanear.
@@ -92,7 +93,7 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
     let cancelled = false;
 
     const tick = async () => {
-      const r = await fetchEvolutionStatus(channelId);
+      const r = await fetchEvolutionStatus(accountId, channelId);
       if (cancelled) return;
       if (r.status && r.status !== "not_found") setStatus(r.status);
       if (r.status === "connected") {
@@ -101,7 +102,7 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
         onConnected?.();
       } else if (r.status === "qr_ready" || r.status === "connecting") {
         // Refresca o QR a cada ~30s (o Evolution gira o token).
-        const next = await fetchQrcode(channelId);
+        const next = await fetchQrcode(accountId, channelId);
         if (!cancelled && next.base64) {
           setQrBase64(next.base64);
           setPairingCode(next.pairingCode ?? null);
@@ -129,12 +130,10 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
       // Se a key não foi digitada mas já existe salva, usa a do canal.
       let effectiveKey = k;
       if (!effectiveKey && hasExisting && channelId) {
-        const { data } = await supabase
-          .from("channels")
-          .select("config")
-          .eq("id", channelId)
-          .maybeSingle();
-        effectiveKey = ((data?.config ?? {}) as any).evolution_api_key ?? "";
+        const data = await apiClient.get<{ config: Record<string, string> }>(
+          `/accounts/${accountId}/evolution/${channelId}`,
+        );
+        effectiveKey = data.config?.evolution_api_key ?? "";
       }
       if (!effectiveKey) {
         toast.error("API key é obrigatória");
@@ -172,7 +171,7 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
       // 3. Tenta usar o QR retornado; se não veio, busca via fetchQrcode.
       let qr = prov.qrcode_base64 ?? null;
       if (!qr) {
-        const r = await fetchQrcode(prov.channel_id);
+        const r = await fetchQrcode(accountId, prov.channel_id);
         qr = r.base64 ?? null;
         if (r.pairingCode) setPairingCode(r.pairingCode);
       }
@@ -194,7 +193,7 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
 
   async function handleRefreshQr() {
     if (!channelId) return;
-    const r = await fetchQrcode(channelId);
+    const r = await fetchQrcode(accountId, channelId);
     if (r.base64) setQrBase64(r.base64);
     if (r.pairingCode) setPairingCode(r.pairingCode);
     if (r.error) toast.error(r.error);
@@ -232,7 +231,7 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
               <Label className="mb-1 flex items-center gap-2 text-xs font-semibold">
                 API Key <span className="text-destructive">*</span>
                 {hasExisting && (
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-emerald-700">
+                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-emerald-400">
                     <ShieldCheck className="h-2.5 w-2.5" /> salva
                   </span>
                 )}
@@ -307,7 +306,7 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
 
         {phase === "connected" && (
           <div className="flex flex-col items-center gap-3 py-8 text-sm">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
               <QrCode className="h-6 w-6" />
             </div>
             <div className="text-center">

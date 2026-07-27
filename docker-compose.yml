@@ -1,0 +1,25 @@
+services:
+  # Web (TanStack Start) e API (NestJS) rodam juntos neste único container,
+  # via `concurrently` (ver package.json:start:all e Dockerfile).
+  # Postgres/Redis/MinIO NÃO são criados aqui: o app usa a stack compartilhada
+  # ubva (containers "postgresql", "redis", "minio" na rede srv_default), com
+  # usuário/database/bucket dedicados — ver .env.
+  ninatlks:
+    build:
+      context: .
+    container_name: ninatlks
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      PORT: ${API_PORT}
+    ports:
+      - "${WEB_HOST_PORT}:8080"
+      - "${API_HOST_PORT}:3001"
+    networks:
+      - srv_default
+    restart: unless-stopped
+
+networks:
+  srv_default:
+    external: true

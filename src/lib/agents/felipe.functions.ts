@@ -8,9 +8,9 @@
 //   - request_handoff: escala para logística humana
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { query, getOne, insert } from "@/lib/db";
 import { runAgentLoop, type ToolDef } from "./runner";
 
 const MODEL = "google/gemini-2.5-flash";
@@ -47,7 +47,7 @@ async function execScheduleDelivery(
   if (Number.isNaN(start.getTime())) return { error: "data inválida" };
   const ends = new Date(start.getTime() + 90 * 60_000);
   const title = args.kind === "instalacao" ? "Instalação no cliente" : "Entrega de vidro";
-  const { data, error } = await supabaseAdmin.from("scheduled_meetings").insert([{
+  const rows = await insert("scheduled_meetings", {
     account_id: accountId,
     contact_id: args.contact_id ?? null,
     title,
@@ -59,10 +59,9 @@ async function execScheduleDelivery(
     provider_event_id: `felipe-${crypto.randomUUID()}`,
     invitee_name: args.invitee_name ?? null,
     invitee_phone: args.invitee_phone ?? null,
-    briefing: { kind: args.kind, address: args.address ?? null, source: "felipe" } as never,
-  }]).select("id").single();
-  if (error) return { error: error.message };
-  return { ok: true, meeting_id: data.id, when: start.toISOString(), kind: args.kind };
+    briefing: { kind: args.kind, address: args.address ?? null, source: "felipe" },
+  });
+  return { ok: true, meeting_id: rows[0]?.id, when: start.toISOString(), kind: args.kind };
 }
 
 async function execHandoff(
@@ -72,12 +71,11 @@ async function execHandoff(
   args: { reason: string },
 ) {
   if (!conversationId) return { ok: true, note: "handoff lógico" };
-  const { data, error } = await supabaseAdmin.from("agent_handoffs").insert([{
+  const rows = await insert("agent_handoffs", {
     account_id: accountId, conversation_id: conversationId, from_persona_id: fromPersonaId,
     reason: args.reason, context: { requested_by: "felipe", target: "human" },
-  }]).select("id").single();
-  if (error) return { error: error.message };
-  return { ok: true, handoff_id: data.id };
+  });
+  return { ok: true, handoff_id: rows[0]?.id };
 }
 
 const TOOLS: ToolDef[] = [
@@ -128,7 +126,7 @@ REGRAS:
 - Sempre confirme: data, período, endereço, nome de quem vai receber.`;
 
 export const askFelipe = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
       accountId: z.string().uuid(),
@@ -160,11 +158,12 @@ export const askFelipe = createServerFn({ method: "POST" })
   });
 
 async function ensureFelipePersona(accountId: string): Promise<string> {
-  const { data: existing } = await supabaseAdmin
-    .from("agent_personas").select("id")
-    .eq("account_id", accountId).eq("name", "Felipe").maybeSingle();
+  const existing = await getOne(
+    `SELECT id FROM agent_personas WHERE account_id = $1 AND name = $2`,
+    [accountId, "Felipe"],
+  );
   if (existing) return existing.id;
-  const { data: persona, error } = await supabaseAdmin.from("agent_personas").insert([{
+  const personaRows = await insert("agent_personas", {
     account_id: accountId,
     name: "Felipe",
     description: "Logística / Entrega / Instalação — UBVA",
@@ -172,9 +171,9 @@ async function ensureFelipePersona(accountId: string): Promise<string> {
     status: "active", enabled: true,
     llm_model: MODEL, llm_temperature: 0.3, llm_max_tokens: 500,
     first_message: "Olá! Sou o Felipe, da logística. Vamos combinar a entrega ou instalação? Me confirma o endereço, por favor.",
-  }]).select("id").single();
-  if (error) throw new Error(`seed Felipe: ${error.message}`);
-  await supabaseAdmin.from("agent_roles").insert([{
+  });
+  const persona = personaRows[0];
+  await insert("agent_roles", {
     account_id: accountId, persona_id: persona.id,
     kind: "concierge",
     display_name: "Felipe — Logística",
@@ -186,6 +185,6 @@ async function ensureFelipePersona(accountId: string): Promise<string> {
       { when: "carga >3m²", action: "handoff_human" },
     ],
     daily_message_budget: 1000,
-  }]);
+  });
   return persona.id;
 }

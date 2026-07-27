@@ -153,10 +153,7 @@ function MembersCard({
             const isSelf = m.user_id === currentUserId;
             const busy = busyId === m.user_id;
             return (
-              <li
-                key={m.user_id}
-                className="flex items-center justify-between gap-3 py-3"
-              >
+              <li key={m.user_id} className="flex items-center justify-between gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <span className="truncate">{m.name}</span>
@@ -173,9 +170,7 @@ function MembersCard({
                   <select
                     value={m.role}
                     disabled={busy || isSelf}
-                    onChange={(e) =>
-                      handleRoleChange(m, e.target.value as MemberRole)
-                    }
+                    onChange={(e) => handleRoleChange(m, e.target.value as MemberRole)}
                     className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground disabled:opacity-50"
                   >
                     <option value="admin">admin</option>
@@ -236,7 +231,7 @@ function InvitesCard({ accountId }: { accountId: string }) {
   }, [accountId]);
 
   const pending = invites.filter(
-    (i) => !i.accepted_at && !i.revoked_at && new Date(i.expires_at) > new Date(),
+    (i) => !i.acceptedAt && !i.revokedAt && new Date(i.expiresAt) > new Date(),
   );
 
   const handleCreate = async () => {
@@ -274,7 +269,7 @@ function InvitesCard({ accountId }: { accountId: string }) {
   const handleRevoke = async (inv: Invite) => {
     if (!confirm(`Revogar o convite de ${inv.email}?`)) return;
     try {
-      await revokeInvite(inv.id);
+      await revokeInvite(accountId, inv.id);
       toast.success("Convite revogado.");
       await load();
     } catch (err) {
@@ -337,7 +332,11 @@ function InvitesCard({ accountId }: { accountId: string }) {
               onClick={() => handleCopy(newInvite.token)}
               className="flex h-9 items-center gap-1 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-white/[0.04]"
             >
-              {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-emerald-400" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
               {copied ? "Copiado" : "Copiar"}
             </button>
           </div>
@@ -364,15 +363,11 @@ function InvitesCard({ accountId }: { accountId: string }) {
         ) : (
           <ul className="divide-y divide-border rounded-md border border-border">
             {pending.map((inv) => (
-              <li
-                key={inv.id}
-                className="flex items-center justify-between gap-3 px-3 py-2"
-              >
+              <li key={inv.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm text-foreground">{inv.email}</div>
                   <div className="text-[11px] text-muted-foreground">
-                    {inv.role} · expira em{" "}
-                    {new Date(inv.expires_at).toLocaleDateString("pt-BR")}
+                    {inv.role} · expira em {new Date(inv.expiresAt).toLocaleDateString("pt-BR")}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -402,8 +397,8 @@ function InvitesCard({ accountId }: { accountId: string }) {
       <div className="mt-4 flex items-start gap-2 rounded-md border border-border bg-background/50 p-3 text-[11px] text-muted-foreground">
         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <p>
-          O convidado precisa criar uma conta usando o link gerado. O e-mail
-          informado é só uma referência — o que valida o convite é o token na URL.
+          O convidado precisa criar uma conta usando o link gerado. O e-mail informado é só uma
+          referência — o que valida o convite é o token na URL.
         </p>
       </div>
     </section>

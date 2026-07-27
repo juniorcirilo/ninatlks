@@ -2,12 +2,20 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Phone, PhoneIncoming, PhoneOutgoing, Loader2, Radio, RefreshCw,
-  Mic, User as UserIcon, History, Bot,
+  Phone,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Loader2,
+  Radio,
+  RefreshCw,
+  Mic,
+  User as UserIcon,
+  History,
+  Bot,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
 import { useAccount } from "@/lib/account-context";
+import { subscribeTable } from "@/lib/realtime-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,7 +29,10 @@ export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
     meta: [
       { title: "Ao vivo — Nina Talks" },
-      { name: "description", content: "Acompanhe ligações da Nina em tempo real com transcrição ao vivo." },
+      {
+        name: "description",
+        content: "Acompanhe ligações da Nina em tempo real com transcrição ao vivo.",
+      },
     ],
   }),
   component: LiveCallsPage,
@@ -72,31 +83,14 @@ function LiveCallsPage() {
   });
   const loading = isLoading && calls.length === 0;
 
-  // Realtime: subscribe to voice_calls changes and patch the cache in place.
+  // Realtime: invalida o cache quando voice_calls muda (a query já tem
+  // staleTime curto, então o refetch é praticamente instantâneo).
   useEffect(() => {
     if (!accountId) return;
-    const channel = supabase
-      .channel(`live-calls-${accountId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "voice_calls", filter: `account_id=eq.${accountId}` },
-        (payload) => {
-          queryClient.setQueryData<VoiceCall[]>(queryKey, (prev) => {
-            const list = prev ?? [];
-            if (payload.eventType === "DELETE") {
-              return list.filter((c) => c.id !== (payload.old as any).id);
-            }
-            const next = payload.new as VoiceCall;
-            const idx = list.findIndex((c) => c.id === next.id);
-            if (idx === -1) return [next, ...list].slice(0, 50);
-            const out = [...list];
-            out[idx] = next;
-            return out;
-          });
-        },
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return subscribeTable("voice_calls", (e) => {
+      if (e.accountId !== accountId) return;
+      queryClient.invalidateQueries({ queryKey });
+    });
   }, [accountId, queryClient, queryKey]);
 
   const activeCalls = useMemo(() => calls.filter(isActive), [calls]);
@@ -128,24 +122,26 @@ function LiveCallsPage() {
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                   </span>
-                  {activeCalls.length} {activeCalls.length === 1 ? "chamada ativa" : "chamadas ativas"}
+                  {activeCalls.length}{" "}
+                  {activeCalls.length === 1 ? "chamada ativa" : "chamadas ativas"}
                 </>
               ) : (
                 <>Nenhuma chamada em curso</>
               )}
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey })} title="Atualizar">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => queryClient.invalidateQueries({ queryKey })}
+            title="Atualizar"
+          >
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
 
         <div className="border-b border-border px-3 py-2">
-          <Button
-            size="sm"
-            className="w-full gap-1.5"
-            onClick={() => setNewCallOpen(true)}
-          >
+          <Button size="sm" className="w-full gap-1.5" onClick={() => setNewCallOpen(true)}>
             <Phone className="h-3.5 w-3.5" />
             Nova chamada
           </Button>
@@ -238,7 +234,10 @@ function LiveCallsPage() {
 }
 
 function CallListItem({
-  call, active, live, onClick,
+  call,
+  active,
+  live,
+  onClick,
 }: {
   call: VoiceCall;
   active: boolean;
@@ -299,8 +298,12 @@ function CallListItem({
 }
 
 function EmptyTranscriptPanel({
-  onNewCall, hasActive,
-}: { onNewCall: () => void; hasActive: boolean }) {
+  onNewCall,
+  hasActive,
+}: {
+  onNewCall: () => void;
+  hasActive: boolean;
+}) {
   return (
     <div className="flex h-full flex-col items-center justify-center px-8 text-center">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
@@ -374,7 +377,9 @@ function CallTranscriptPanel({ call }: { call: VoiceCall }) {
           <div
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-lg",
-              live ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground",
+              live
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : "bg-muted text-muted-foreground",
             )}
           >
             <Icon className="h-4 w-4" />
@@ -398,7 +403,9 @@ function CallTranscriptPanel({ call }: { call: VoiceCall }) {
               {call.persona_id && (
                 <>
                   <span>·</span>
-                  <span className="flex items-center gap-1"><Bot className="h-3 w-3" /> Nina</span>
+                  <span className="flex items-center gap-1">
+                    <Bot className="h-3 w-3" /> Nina
+                  </span>
                 </>
               )}
             </div>
@@ -418,7 +425,9 @@ function CallTranscriptPanel({ call }: { call: VoiceCall }) {
               </p>
             </div>
           ) : (
-            turns.map((t) => <TranscriptBubble key={t.index} role={t.role} text={t.text} at={t.at} />)
+            turns.map((t) => (
+              <TranscriptBubble key={t.index} role={t.role} text={t.text} at={t.at} />
+            ))
           )}
           <div ref={endRef} />
         </div>
@@ -426,10 +435,7 @@ function CallTranscriptPanel({ call }: { call: VoiceCall }) {
 
       {!live && (
         <footer className="border-t border-border bg-background px-5 py-2.5">
-          <Link
-            to="/calls"
-            className="text-[11px] text-muted-foreground hover:text-foreground"
-          >
+          <Link to="/calls" className="text-[11px] text-muted-foreground hover:text-foreground">
             Ver detalhes completos da chamada (briefing, sentimento, gravação) →
           </Link>
         </footer>
@@ -438,17 +444,13 @@ function CallTranscriptPanel({ call }: { call: VoiceCall }) {
   );
 }
 
-function TranscriptBubble({
-  role, text, at,
-}: { role: string; text: string; at: string | null }) {
+function TranscriptBubble({ role, text, at }: { role: string; text: string; at: string | null }) {
   const isAgent = role === "agent" || role === "assistant" || role === "ai";
   return (
     <div
       className={cn(
         "rounded-lg border px-3 py-2.5 text-sm",
-        isAgent
-          ? "border-violet-500/15 bg-violet-500/[0.03]"
-          : "border-border bg-background",
+        isAgent ? "border-violet-500/15 bg-violet-500/[0.03]" : "border-border bg-background",
       )}
     >
       <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -465,7 +467,11 @@ function TranscriptBubble({
         )}
         {at && (
           <span className="ml-auto opacity-60">
-            {new Date(at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            {new Date(at).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })}
           </span>
         )}
       </div>

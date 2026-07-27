@@ -157,15 +157,15 @@ export function IntegrationsTab() {
         className={cn(
           "rounded-xl border p-5",
           readinessOk
-            ? "border-emerald-300 bg-emerald-100"
-            : "border-amber-300 bg-amber-50",
+            ? "border-emerald-500/40 bg-emerald-500/15"
+            : "border-amber-500/40 bg-amber-500/15",
         )}
       >
         <div className="flex items-start gap-3">
           {readinessOk ? (
-            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
           ) : (
-            <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-800" />
+            <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
           )}
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold">
@@ -287,10 +287,10 @@ function ProviderCard({
           <div
             className={cn(
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
-              status === "ok" && "bg-emerald-100 text-emerald-700",
-              status === "fail" && "bg-rose-50 text-rose-700",
+              status === "ok" && "bg-emerald-500/15 text-emerald-400",
+              status === "fail" && "bg-rose-500/15 text-rose-400",
               status === "missing" && "bg-muted text-muted-foreground",
-              status === "unknown" && "bg-amber-50 text-amber-800",
+              status === "unknown" && "bg-amber-500/15 text-amber-400",
             )}
           >
             <Icon className="h-4 w-4" />
@@ -305,8 +305,8 @@ function ProviderCard({
             </p>
           </div>
         </div>
-        {status === "ok" && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" />}
-        {status === "fail" && <CircleAlert className="h-4 w-4 shrink-0 text-rose-700" />}
+        {status === "ok" && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />}
+        {status === "fail" && <CircleAlert className="h-4 w-4 shrink-0 text-rose-400" />}
         {status === "missing" && <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />}
       </div>
 
@@ -403,7 +403,7 @@ function StatCard({
       to={href}
       className={cn(
         "glass flex flex-col gap-2 rounded-lg p-4 transition-colors hover:bg-muted",
-        ok ? "border-emerald-300" : "border-amber-300",
+        ok ? "border-emerald-500/40" : "border-amber-500/40",
       )}
     >
       <div className="flex items-center gap-2">
@@ -412,9 +412,9 @@ function StatCard({
           {label}
         </span>
         {ok ? (
-          <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-emerald-700" />
+          <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-emerald-400" />
         ) : (
-          <CircleAlert className="ml-auto h-3.5 w-3.5 text-amber-800" />
+          <CircleAlert className="ml-auto h-3.5 w-3.5 text-amber-400" />
         )}
       </div>
       <div className="font-mono text-lg font-bold tabular-nums">{value}</div>

@@ -86,7 +86,7 @@ function PlaygroundPage() {
         description="Teste os Funcionários IA em tempo real. Veja o que cada agente faz nos bastidores."
       />
 
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+      <div className="grid gap-4 px-6 pb-6 lg:grid-cols-[280px_1fr]">
         {/* Sidebar de agentes */}
         <div className="space-y-2">
           {(agents ?? []).map((a) => (

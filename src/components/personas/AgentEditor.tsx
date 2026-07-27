@@ -1,20 +1,37 @@
 import { useEffect, useState } from "react";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
-  Bot, MessageSquare, Mic, Cpu, Settings2, BookOpen, Cloud,
-  Loader2, Save, Check, AlertCircle, X, Plus, Sparkles, Trash2,
-  Copy, ExternalLink, FileText, Link2,
+  Bot,
+  MessageSquare,
+  Mic,
+  Cpu,
+  Settings2,
+  BookOpen,
+  Cloud,
+  Loader2,
+  Save,
+  Check,
+  AlertCircle,
+  X,
+  Plus,
+  Sparkles,
+  Trash2,
+  Copy,
+  ExternalLink,
+  FileText,
+  Link2,
 } from "lucide-react";
 import {
-  updatePersona, deletePersona, syncElevenLabsAgent,
-  addKnowledgeBaseText, addKnowledgeBaseUrl,
+  updatePersona,
+  deletePersona,
+  syncElevenLabsAgent,
+  addKnowledgeBaseText,
+  addKnowledgeBaseUrl,
   type Persona,
 } from "@/lib/personas";
 import { VoicePicker } from "@/components/personas/VoicePicker";
@@ -24,21 +41,26 @@ import { toast } from "sonner";
 
 type Tab = "conversa" | "voz" | "modelo" | "comportamento" | "conhecimento" | "sync";
 
-const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: string }>; desc: string }[] = [
-  { id: "conversa",      label: "Conversa",      icon: MessageSquare, desc: "Prompt e fala de abertura" },
-  { id: "voz",           label: "Voz",           icon: Mic,           desc: "Voz, estabilidade, velocidade" },
-  { id: "modelo",        label: "Modelo",        icon: Cpu,           desc: "LLM, temperatura, tokens" },
-  { id: "comportamento", label: "Comportamento", icon: Settings2,     desc: "Pausas, timeout, ASR" },
-  { id: "conhecimento",  label: "Conhecimento",  icon: BookOpen,      desc: "RAG: docs e URLs" },
-  { id: "sync",          label: "Sincronização", icon: Cloud,         desc: "ElevenLabs + status" },
+const TABS: {
+  id: Tab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  desc: string;
+}[] = [
+  { id: "conversa", label: "Conversa", icon: MessageSquare, desc: "Prompt e fala de abertura" },
+  { id: "voz", label: "Voz", icon: Mic, desc: "Voz, estabilidade, velocidade" },
+  { id: "modelo", label: "Modelo", icon: Cpu, desc: "LLM, temperatura, tokens" },
+  { id: "comportamento", label: "Comportamento", icon: Settings2, desc: "Pausas, timeout, ASR" },
+  { id: "conhecimento", label: "Conhecimento", icon: BookOpen, desc: "RAG: docs e URLs" },
+  { id: "sync", label: "Sincronização", icon: Cloud, desc: "ElevenLabs + status" },
 ];
 
 const LLM_MODELS = [
-  { value: "gpt-4o-mini",         label: "GPT-4o mini",         hint: "rápido, custo baixo (recomendado)" },
-  { value: "gpt-4o",              label: "GPT-4o",              hint: "balanço qualidade × custo" },
-  { value: "claude-3-5-sonnet",   label: "Claude 3.5 Sonnet",   hint: "alta qualidade conversacional" },
-  { value: "claude-3-5-haiku",    label: "Claude 3.5 Haiku",    hint: "velocidade alta" },
-  { value: "gemini-2.0-flash",    label: "Gemini 2.0 Flash",    hint: "muito rápido, multimodal" },
+  { value: "gpt-4o-mini", label: "GPT-4o mini", hint: "rápido, custo baixo (recomendado)" },
+  { value: "gpt-4o", label: "GPT-4o", hint: "balanço qualidade × custo" },
+  { value: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", hint: "alta qualidade conversacional" },
+  { value: "claude-3-5-haiku", label: "Claude 3.5 Haiku", hint: "velocidade alta" },
+  { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", hint: "muito rápido, multimodal" },
 ];
 
 export function AgentEditor({
@@ -67,7 +89,7 @@ export function AgentEditor({
 
   const update = <K extends keyof Persona>(key: K, value: Persona[K]) => {
     if (!draft) return;
-    setDraft((current) => current ? { ...current, [key]: value } : current);
+    setDraft((current) => (current ? { ...current, [key]: value } : current));
     setDirty(true);
   };
 
@@ -75,7 +97,7 @@ export function AgentEditor({
     if (!draft || saving) return;
     setSaving(true);
     try {
-      await updatePersona(draft.id, {
+      await updatePersona(accountId, draft.id, {
         name: draft.name,
         description: draft.description,
         system_prompt: draft.system_prompt,
@@ -95,7 +117,7 @@ export function AgentEditor({
       // Auto-sync com ElevenLabs após salvar — evita que o agente continue
       // rodando com prompt/voz/modelo antigos no EL.
       try {
-        await syncElevenLabsAgent(draft.id);
+        await syncElevenLabsAgent(accountId, draft.id);
         toast.success("Salvo e sincronizado com a voz");
       } catch (syncErr) {
         const sm = syncErr instanceof Error ? syncErr.message : "erro desconhecido";
@@ -156,25 +178,35 @@ export function AgentEditor({
                   <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", active && "text-primary")} />
                   <div className="min-w-0">
                     <div className="text-[12px] font-medium">{t.label}</div>
-                    <div className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">{t.desc}</div>
+                    <div className="mt-0.5 text-[10px] text-muted-foreground line-clamp-1">
+                      {t.desc}
+                    </div>
                   </div>
                 </button>
               );
             })}
 
             <div className="mt-auto pt-2">
-              <DangerZone persona={draft} onDeleted={() => { onSaved(); onClose(); }} />
+              <DangerZone
+                persona={draft}
+                onDeleted={() => {
+                  onSaved();
+                  onClose();
+                }}
+              />
             </div>
           </nav>
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
-            {tab === "conversa"      && <ConversaTab draft={draft} update={update} />}
-            {tab === "voz"           && <VozTab draft={draft} update={update} />}
-            {tab === "modelo"        && <ModeloTab draft={draft} update={update} />}
+            {tab === "conversa" && <ConversaTab draft={draft} update={update} />}
+            {tab === "voz" && <VozTab draft={draft} update={update} accountId={accountId} />}
+            {tab === "modelo" && <ModeloTab draft={draft} update={update} />}
             {tab === "comportamento" && <ComportamentoTab draft={draft} update={update} />}
-            {tab === "conhecimento"  && <ConhecimentoTab draft={draft} accountId={accountId} onChanged={onSaved} />}
-            {tab === "sync"          && <SyncTab draft={draft} onSynced={onSaved} />}
+            {tab === "conhecimento" && (
+              <ConhecimentoTab draft={draft} accountId={accountId} onChanged={onSaved} />
+            )}
+            {tab === "sync" && <SyncTab draft={draft} onSynced={onSaved} accountId={accountId} />}
           </div>
         </div>
       </DialogContent>
@@ -190,19 +222,27 @@ function SaveBar({
   dirty,
   saving,
   onSave,
-}: { dirty: boolean; saving: boolean; onSave: () => void }) {
+}: {
+  dirty: boolean;
+  saving: boolean;
+  onSave: () => void;
+}) {
   return (
     <div className="flex items-center gap-2">
       <span
         className={cn(
           "rounded-md px-2 py-0.5 text-[10px] font-medium",
-          dirty ? "bg-amber-50 text-amber-800" : "bg-emerald-100 text-emerald-700",
+          dirty ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400",
         )}
       >
         {dirty ? "Não salvo" : "Salvo"}
       </span>
       <Button size="sm" onClick={onSave} disabled={!dirty || saving} className="gap-1.5">
-        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+        {saving ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Save className="h-3.5 w-3.5" />
+        )}
         Salvar
       </Button>
     </div>
@@ -216,7 +256,10 @@ function SaveBar({
 function ConversaTab({
   draft,
   update,
-}: { draft: Persona; update: <K extends keyof Persona>(k: K, v: Persona[K]) => void }) {
+}: {
+  draft: Persona;
+  update: <K extends keyof Persona>(k: K, v: Persona[K]) => void;
+}) {
   const loadTemplate = () => {
     update("system_prompt", DEFAULT_SDR_PROMPT);
     update("first_message", FIRST_MESSAGE_TEMPLATE);
@@ -257,16 +300,19 @@ function ConversaTab({
           placeholder="Você é um SDR por voz que..."
         />
         <div className="mt-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-[11px] text-muted-foreground">
-          <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-amber-800" />
+          <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" />
           <span>
-            O template de SDR já cobre o fluxo completo: descoberta, qualificação
-            BANT, agendamento via tool, briefing pro humano e tratamento de
-            objeções. Edite com cuidado se for ajustar.
+            O template de SDR já cobre o fluxo completo: descoberta, qualificação BANT, agendamento
+            via tool, briefing pro humano e tratamento de objeções. Edite com cuidado se for
+            ajustar.
           </span>
         </div>
       </Section>
 
-      <Section title="Primeira mensagem" desc="Frase de abertura. Pode usar {{lead_name}}, {{company_name}}, {{agent_name}}.">
+      <Section
+        title="Primeira mensagem"
+        desc="Frase de abertura. Pode usar {{lead_name}}, {{company_name}}, {{agent_name}}."
+      >
         <Textarea
           value={draft.first_message ?? ""}
           onChange={(e) => update("first_message", e.target.value)}
@@ -277,10 +323,7 @@ function ConversaTab({
 
       <Section title="Status" desc="Apenas agentes ativos rodam em campanhas.">
         <div className="flex items-center gap-3">
-          <Switch
-            checked={draft.enabled}
-            onCheckedChange={(v) => update("enabled", v)}
-          />
+          <Switch checked={draft.enabled} onCheckedChange={(v) => update("enabled", v)} />
           <span className="text-[12px] text-muted-foreground">
             {draft.enabled ? "Ativo" : "Desativado"}
           </span>
@@ -297,14 +340,27 @@ function ConversaTab({
 function VozTab({
   draft,
   update,
-}: { draft: Persona; update: <K extends keyof Persona>(k: K, v: Persona[K]) => void }) {
-  const tts = (draft.tts_config ?? {}) as { stability?: number; speed?: number; similarity_boost?: number };
+  accountId,
+}: {
+  draft: Persona;
+  update: <K extends keyof Persona>(k: K, v: Persona[K]) => void;
+  accountId: string;
+}) {
+  const tts = (draft.tts_config ?? {}) as {
+    stability?: number;
+    speed?: number;
+    similarity_boost?: number;
+  };
 
   return (
     <div className="space-y-6">
-      <Section title="Voz ElevenLabs" desc="Escolha uma voz da biblioteca, faça preview ou clone uma voz própria a partir de áudio.">
+      <Section
+        title="Voz ElevenLabs"
+        desc="Escolha uma voz da biblioteca, faça preview ou clone uma voz própria a partir de áudio."
+      >
         <VoicePicker
           personaId={draft.id}
+          accountId={accountId}
           currentVoiceId={draft.voice_clone_id}
           onSaved={(voiceId) => {
             // VoicePicker já persistiu no banco; sincroniza o draft local
@@ -322,7 +378,9 @@ function VozTab({
         <SliderField
           label="Estabilidade"
           desc="Mais alto = entonação mais consistente. Mais baixo = mais expressivo."
-          min={0} max={1} step={0.05}
+          min={0}
+          max={1}
+          step={0.05}
           value={tts.stability ?? 0.5}
           onChange={(v) => update("tts_config", { ...tts, stability: v })}
           format={(v) => v.toFixed(2)}
@@ -330,7 +388,9 @@ function VozTab({
         <SliderField
           label="Boost de similaridade"
           desc="Quanto a voz fica próxima da original (especialmente em clones)."
-          min={0} max={1} step={0.05}
+          min={0}
+          max={1}
+          step={0.05}
           value={tts.similarity_boost ?? 0.75}
           onChange={(v) => update("tts_config", { ...tts, similarity_boost: v })}
           format={(v) => v.toFixed(2)}
@@ -338,7 +398,9 @@ function VozTab({
         <SliderField
           label="Velocidade"
           desc="0.7× (lento, mais natural) a 1.2× (rápido, mais comercial)."
-          min={0.7} max={1.2} step={0.05}
+          min={0.7}
+          max={1.2}
+          step={0.05}
           value={tts.speed ?? 1.0}
           onChange={(v) => update("tts_config", { ...tts, speed: v })}
           format={(v) => `${v.toFixed(2)}×`}
@@ -355,10 +417,16 @@ function VozTab({
 function ModeloTab({
   draft,
   update,
-}: { draft: Persona; update: <K extends keyof Persona>(k: K, v: Persona[K]) => void }) {
+}: {
+  draft: Persona;
+  update: <K extends keyof Persona>(k: K, v: Persona[K]) => void;
+}) {
   return (
     <div className="space-y-6">
-      <Section title="Modelo de linguagem" desc="O LLM que vai compor as respostas do agente em tempo real.">
+      <Section
+        title="Modelo de linguagem"
+        desc="O LLM que vai compor as respostas do agente em tempo real."
+      >
         <div className="grid grid-cols-1 gap-2">
           {LLM_MODELS.map((m) => {
             const active = draft.llm_model === m.value;
@@ -374,10 +442,12 @@ function ModeloTab({
                     : "border-border bg-muted/40 hover:border-border",
                 )}
               >
-                <div className={cn(
-                  "mt-0.5 h-4 w-4 shrink-0 rounded-full border-2",
-                  active ? "border-primary bg-primary" : "border-white/20",
-                )}>
+                <div
+                  className={cn(
+                    "mt-0.5 h-4 w-4 shrink-0 rounded-full border-2",
+                    active ? "border-primary bg-primary" : "border-white/20",
+                  )}
+                >
                   {active && <Check className="h-3 w-3 text-primary-foreground" />}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -399,7 +469,9 @@ function ModeloTab({
       >
         <SliderField
           label="Temperatura"
-          min={0} max={1} step={0.05}
+          min={0}
+          max={1}
+          step={0.05}
           value={Number(draft.llm_temperature ?? 0.5)}
           onChange={(v) => update("llm_temperature", v)}
           format={(v) => v.toFixed(2)}
@@ -412,7 +484,9 @@ function ModeloTab({
       >
         <SliderField
           label="Máx. tokens"
-          min={50} max={1000} step={50}
+          min={50}
+          max={1000}
+          step={50}
           value={Number(draft.llm_max_tokens ?? 300)}
           onChange={(v) => update("llm_max_tokens", v)}
           format={(v) => `${v}`}
@@ -426,16 +500,28 @@ function ModeloTab({
 // Tab: Comportamento
 // ──────────────────────────────────────────────────────────────────
 
-const EAGERNESS_OPTIONS: { value: "cautious" | "normal" | "eager"; label: string; hint: string }[] = [
-  { value: "cautious", label: "Cauteloso",   hint: "espera mais o devedor terminar — bom pra evitar atropelos" },
-  { value: "normal",   label: "Normal",      hint: "balanço entre interromper e esperar" },
-  { value: "eager",    label: "Ágil",        hint: "responde rápido — pode soar mais natural mas atropela mais" },
-];
+const EAGERNESS_OPTIONS: { value: "cautious" | "normal" | "eager"; label: string; hint: string }[] =
+  [
+    {
+      value: "cautious",
+      label: "Cauteloso",
+      hint: "espera mais o devedor terminar — bom pra evitar atropelos",
+    },
+    { value: "normal", label: "Normal", hint: "balanço entre interromper e esperar" },
+    {
+      value: "eager",
+      label: "Ágil",
+      hint: "responde rápido — pode soar mais natural mas atropela mais",
+    },
+  ];
 
 function ComportamentoTab({
   draft,
   update,
-}: { draft: Persona; update: <K extends keyof Persona>(k: K, v: Persona[K]) => void }) {
+}: {
+  draft: Persona;
+  update: <K extends keyof Persona>(k: K, v: Persona[K]) => void;
+}) {
   const turn = (draft.turn_config ?? {}) as {
     turn_timeout?: number;
     turn_eagerness?: "cautious" | "normal" | "eager";
@@ -456,12 +542,18 @@ function ComportamentoTab({
   };
 
   const removeKeyword = (k: string) => {
-    update("asr_keywords", keywords.filter((x) => x !== k));
+    update(
+      "asr_keywords",
+      keywords.filter((x) => x !== k),
+    );
   };
 
   return (
     <div className="space-y-6">
-      <Section title="Tomada de turno" desc="Como o agente decide quando começar a falar depois do devedor.">
+      <Section
+        title="Tomada de turno"
+        desc="Como o agente decide quando começar a falar depois do devedor."
+      >
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
           {EAGERNESS_OPTIONS.map((o) => {
             const active = (turn.turn_eagerness ?? "normal") === o.value;
@@ -485,11 +577,16 @@ function ComportamentoTab({
         </div>
       </Section>
 
-      <Section title="Tempos" desc="Tempos em segundos. Defaults do ElevenLabs costumam ser bons — ajuste só se notar problemas.">
+      <Section
+        title="Tempos"
+        desc="Tempos em segundos. Defaults do ElevenLabs costumam ser bons — ajuste só se notar problemas."
+      >
         <SliderField
           label="Turn timeout"
           desc="Quanto o agente espera o devedor terminar antes de assumir que pode falar."
-          min={1} max={20} step={1}
+          min={1}
+          max={20}
+          step={1}
           value={Number(turn.turn_timeout ?? 7)}
           onChange={(v) => update("turn_config", { ...turn, turn_timeout: v })}
           format={(v) => `${v}s`}
@@ -497,7 +594,9 @@ function ComportamentoTab({
         <SliderField
           label="Silêncio que encerra a chamada"
           desc="Se o devedor ficar mudo por X segundos, encerra a ligação."
-          min={5} max={120} step={5}
+          min={5}
+          max={120}
+          step={5}
           value={Number(turn.silence_end_call_timeout ?? 30)}
           onChange={(v) => update("turn_config", { ...turn, silence_end_call_timeout: v })}
           format={(v) => `${v}s`}
@@ -523,7 +622,7 @@ function ComportamentoTab({
               <button
                 type="button"
                 onClick={() => removeKeyword(k)}
-                className="hover:text-rose-700"
+                className="hover:text-rose-400"
                 aria-label={`Remover ${k}`}
               >
                 <X className="h-3 w-3" />
@@ -535,11 +634,21 @@ function ComportamentoTab({
           <Input
             value={keywordInput}
             onChange={(e) => setKeywordInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addKeyword(); } }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addKeyword();
+              }
+            }}
             placeholder='Ex: "Asaas", "PIX", "Serasa"'
             className="flex-1"
           />
-          <Button type="button" variant="outline" onClick={addKeyword} disabled={!keywordInput.trim()}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addKeyword}
+            disabled={!keywordInput.trim()}
+          >
             <Plus className="h-3.5 w-3.5" />
             Adicionar
           </Button>
@@ -580,7 +689,10 @@ function ConhecimentoTab({
     setAdding(true);
     try {
       if (mode === "text") {
-        if (!text.trim()) { toast.error("Texto vazio"); return; }
+        if (!text.trim()) {
+          toast.error("Texto vazio");
+          return;
+        }
         await addKnowledgeBaseText({
           accountId,
           personaId: draft.id,
@@ -588,7 +700,10 @@ function ConhecimentoTab({
           text: text.trim(),
         });
       } else {
-        if (!url.trim()) { toast.error("URL vazia"); return; }
+        if (!url.trim()) {
+          toast.error("URL vazia");
+          return;
+        }
         await addKnowledgeBaseUrl({
           accountId,
           personaId: draft.id,
@@ -597,7 +712,9 @@ function ConhecimentoTab({
         });
       }
       toast.success("Documento adicionado à base");
-      setName(""); setText(""); setUrl("");
+      setName("");
+      setText("");
+      setUrl("");
       onChanged();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro";
@@ -614,11 +731,11 @@ function ConhecimentoTab({
         desc="Documentos que o agente consulta durante a chamada. Útil pra políticas internas, scripts especiais, FAQ."
       >
         {!synced && (
-          <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-[11px] text-amber-800">
+          <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/15 p-3 text-[11px] text-amber-400">
             <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div>
-              Você precisa sincronizar o agente com ElevenLabs antes de adicionar
-              documentos. Vá em <strong>Sincronização</strong>.
+              Você precisa sincronizar o agente com ElevenLabs antes de adicionar documentos. Vá em{" "}
+              <strong>Sincronização</strong>.
             </div>
           </div>
         )}
@@ -679,10 +796,16 @@ function ConhecimentoTab({
 
             <Button
               onClick={submit}
-              disabled={!synced || adding || !name.trim() || (mode === "text" ? !text.trim() : !url.trim())}
+              disabled={
+                !synced || adding || !name.trim() || (mode === "text" ? !text.trim() : !url.trim())
+              }
               className="gap-1.5"
             >
-              {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+              {adding ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
               Adicionar à base
             </Button>
           </div>
@@ -719,10 +842,7 @@ function ConhecimentoTab({
 // Tab: Sincronização
 // ──────────────────────────────────────────────────────────────────
 
-function SyncTab({
-  draft,
-  onSynced,
-}: { draft: Persona; onSynced: () => void }) {
+function SyncTab({ draft, onSynced, accountId }: { draft: Persona; onSynced: () => void; accountId: string }) {
   const [syncing, setSyncing] = useState(false);
   const synced = Boolean(draft.elevenlabs_agent_id);
 
@@ -730,7 +850,7 @@ function SyncTab({
     if (syncing) return;
     setSyncing(true);
     try {
-      const r = await syncElevenLabsAgent(draft.id);
+      const r = await syncElevenLabsAgent(accountId, draft.id);
       toast.success(`Agente sincronizado: ${r.elevenlabs_agent_id.slice(0, 12)}…`);
       onSynced();
     } catch (e) {
@@ -747,17 +867,17 @@ function SyncTab({
         title="Sincronização com ElevenLabs"
         desc="Cria (ou atualiza) um agente conversacional na sua conta ElevenLabs com a configuração atual: prompt, voz, modelo, comportamento."
       >
-        <div className={cn(
-          "rounded-lg border p-4",
-          synced
-            ? "border-emerald-300 bg-emerald-100"
-            : "border-amber-300 bg-amber-50",
-        )}>
+        <div
+          className={cn(
+            "rounded-lg border p-4",
+            synced ? "border-emerald-500/40 bg-emerald-500/15" : "border-amber-500/40 bg-amber-500/15",
+          )}
+        >
           <div className="flex items-start gap-3">
             {synced ? (
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
             ) : (
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" />
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
             )}
             <div className="flex-1">
               <div className="text-[13px] font-medium">
@@ -780,7 +900,7 @@ function SyncTab({
                   </button>
                 </div>
               ) : (
-                <p className="mt-1 text-[11px] text-amber-800/80">
+                <p className="mt-1 text-[11px] text-amber-400/80">
                   Antes de rodar campanhas com este agente, sincronize com a ElevenLabs.
                 </p>
               )}
@@ -789,7 +909,11 @@ function SyncTab({
 
           <div className="mt-4 flex items-center gap-2">
             <Button onClick={handleSync} disabled={syncing} className="gap-1.5">
-              {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Cloud className="h-3.5 w-3.5" />}
+              {syncing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Cloud className="h-3.5 w-3.5" />
+              )}
               {synced ? "Re-sincronizar" : "Sincronizar agora"}
             </Button>
             {synced && (
@@ -827,9 +951,9 @@ function SyncItem({ ok, label }: { ok: boolean; label: string }) {
   return (
     <li className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px]">
       {ok ? (
-        <Check className="h-3 w-3 text-emerald-700" />
+        <Check className="h-3 w-3 text-emerald-400" />
       ) : (
-        <AlertCircle className="h-3 w-3 text-amber-800" />
+        <AlertCircle className="h-3 w-3 text-amber-400" />
       )}
       <span>{label}</span>
     </li>
@@ -847,7 +971,7 @@ function DangerZone({ persona, onDeleted }: { persona: Persona; onDeleted: () =>
     if (!confirm(`Excluir o agente "${persona.name}"? Essa ação é irreversível.`)) return;
     setDeleting(true);
     try {
-      await deletePersona(persona.id);
+      await deletePersona(persona.account_id, persona.id);
       toast.success("Agente excluído");
       onDeleted();
     } catch (e) {
@@ -863,9 +987,13 @@ function DangerZone({ persona, onDeleted }: { persona: Persona; onDeleted: () =>
       type="button"
       onClick={handleDelete}
       disabled={deleting}
-      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[11px] text-rose-700/70 transition-colors hover:bg-rose-50 hover:text-rose-700"
+      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[11px] text-rose-400/70 transition-colors hover:bg-rose-500/15 hover:text-rose-400"
     >
-      {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+      {deleting ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Trash2 className="h-3.5 w-3.5" />
+      )}
       Excluir agente
     </button>
   );
@@ -951,4 +1079,3 @@ function SliderField({
     </div>
   );
 }
-

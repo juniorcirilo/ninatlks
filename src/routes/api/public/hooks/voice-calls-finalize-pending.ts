@@ -3,8 +3,7 @@
 // pra cada uma. Isso garante que mesmo se o webhook EL não chegar, o
 // transcript + áudio + classificação acontecem.
 
-import { createFileRoute } from "@tanstack/react-router";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin } from "@/lib/db";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,35 +23,32 @@ export const Route = createFileRoute("/api/public/hooks/voice-calls-finalize-pen
         // Pega:
         // 1. Chamadas travadas em queued/ringing/in_progress > 90s
         // 2. Chamadas 'completed' órfãs (sem ended_at OU sem transcript)
-        const { data: pending, error } = await supabaseAdmin
-          .from("voice_calls")
-          .select("id, account_id")
-          .not("source_id", "is", null)
-          .or(
-            `and(status.in.(queued,ringing,in_progress),started_at.lt.${cutoff}),and(status.eq.completed,ended_at.is.null),and(status.eq.completed,transcript.is.null)`,
-          )
-          .order("started_at", { ascending: true })
-          .limit(50);
+        const pendingResult = await supabaseAdmin.query(
+          `SELECT id, account_id FROM voice_calls
+           WHERE source_id IS NOT NULL
+           AND (
+             (status IN ('queued','ringing','in_progress') AND started_at < $1)
+             OR (status = 'completed' AND ended_at IS NULL)
+             OR (status = 'completed' AND transcript IS NULL)
+           )
+           ORDER BY started_at ASC
+           LIMIT 50`,
+          [cutoff]
+        );
 
-        if (error) {
-          console.error("[finalize-pending] query failed", error);
-          return new Response(
-            JSON.stringify({ error: error.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-          );
-        }
+        const pending = pendingResult.data;
 
         const results: Array<{ id: string; ok: boolean; reason?: string }> = [];
 
         // Roda em sequência (curto número, evita martelar EL)
-        for (const c of pending ?? []) {
+        for (const c of pending) {
           try {
             const { data, error: invErr } = await supabaseAdmin.functions.invoke(
               "voice-call-finalize",
               { body: { voice_call_id: c.id } },
             );
             if (invErr) {
-              results.push({ id: c.id, ok: false, reason: invErr.message });
+              results.push({ id: c.id, ok: false, reason: invErr });
             } else {
               results.push({ id: c.id, ok: true, reason: (data as any)?.skipped ? "skipped" : "finalized" });
             }
@@ -67,30 +63,29 @@ export const Route = createFileRoute("/api/public/hooks/voice-calls-finalize-pen
         // metadata.name_reclassified_at.
         const reclassResults: Array<{ id: string; ok: boolean; reason?: string }> = [];
         try {
-          const { data: candidates } = await supabaseAdmin
-            .from("voice_calls")
-            .select("id, conversation_id, metadata, transcript, conversations:conversation_id(contact:contact_id(id, name))")
-            .eq("status", "completed")
-            .not("transcript", "is", null)
-            .not("outcome_classified_at", "is", null)
-            .limit(50);
+          const candidates = await supabaseAdmin.query(
+            `SELECT vc.id, vc.conversation_id, vc.metadata, vc.transcript, c.id as contact_id, c.name as contact_name
+             FROM voice_calls vc
+             LEFT JOIN conversations conv ON conv.id = vc.conversation_id
+             LEFT JOIN contacts c ON c.id = conv.contact_id
+             WHERE vc.status = 'completed'
+             AND vc.transcript IS NOT NULL
+             AND vc.outcome_classified_at IS NOT NULL
+             LIMIT 50`
+          );
 
-          for (const c of (candidates ?? []) as any[]) {
-            const contact = c.conversations?.contact;
-            if (!contact?.id) continue;
-            if (typeof contact.name === "string" && contact.name.trim()) continue;
+          for (const c of candidates.data) {
+            if (!c.contact_id) continue;
+            if (typeof c.contact_name === "string" && c.contact_name.trim()) continue;
             if (c.metadata?.name_reclassified_at) continue;
 
             try {
               await supabaseAdmin.functions.invoke("lead-classify-from-call", {
                 body: { voice_call_id: c.id },
               });
-              await supabaseAdmin
-                .from("voice_calls")
-                .update({
-                  metadata: { ...(c.metadata ?? {}), name_reclassified_at: new Date().toISOString() },
-                })
-                .eq("id", c.id);
+              await supabaseAdmin.from("voice_calls").update({
+                metadata: { ...(c.metadata ?? {}), name_reclassified_at: new Date().toISOString() },
+              }).eq("id", c.id);
               reclassResults.push({ id: c.id, ok: true });
             } catch (err) {
               reclassResults.push({ id: c.id, ok: false, reason: String(err) });

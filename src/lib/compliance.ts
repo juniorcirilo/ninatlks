@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 export interface DncEntry {
   id: number;
@@ -22,13 +22,7 @@ export interface CompliancePolicy {
 // ─────────────────────────────────────────────────────────────
 
 export async function fetchDncList(accountId: string): Promise<DncEntry[]> {
-  const { data, error } = await (supabase as any)
-    .from("dnc_list")
-    .select("*")
-    .eq("account_id", accountId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as DncEntry[];
+  return apiClient.get<DncEntry[]>(`/accounts/${accountId}/dnc`);
 }
 
 export async function addToDnc(input: {
@@ -37,20 +31,15 @@ export async function addToDnc(input: {
   reason?: string;
   notes?: string;
 }) {
-  const { error } = await (supabase as any)
-    .from("dnc_list")
-    .insert({
-      account_id: input.accountId,
-      phone_number: input.phoneNumber,
-      reason: input.reason ?? "manual",
-      notes: input.notes,
-    });
-  if (error) throw error;
+  await apiClient.post(`/accounts/${input.accountId}/dnc`, {
+    phoneNumber: input.phoneNumber,
+    reason: input.reason,
+    notes: input.notes,
+  });
 }
 
-export async function removeFromDnc(id: number) {
-  const { error } = await (supabase as any).from("dnc_list").delete().eq("id", id);
-  if (error) throw error;
+export async function removeFromDnc(accountId: string, id: number) {
+  await apiClient.delete(`/accounts/${accountId}/dnc/${id}`);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -58,27 +47,11 @@ export async function removeFromDnc(id: number) {
 // ─────────────────────────────────────────────────────────────
 
 export async function fetchCompliancePolicy(accountId: string): Promise<CompliancePolicy> {
-  const { data } = await supabase
-    .from("accounts")
-    .select("internal_attributes")
-    .eq("id", accountId)
-    .maybeSingle();
-  return ((data?.internal_attributes as any)?.compliance ?? {}) as CompliancePolicy;
+  return apiClient.get<CompliancePolicy>(`/accounts/${accountId}/compliance-policy`);
 }
 
 export async function saveCompliancePolicy(accountId: string, policy: CompliancePolicy) {
-  const { data: existing } = await supabase
-    .from("accounts")
-    .select("internal_attributes")
-    .eq("id", accountId)
-    .maybeSingle();
-  const attrs = (existing?.internal_attributes ?? {}) as Record<string, any>;
-  attrs.compliance = policy;
-  const { error } = await supabase
-    .from("accounts")
-    .update({ internal_attributes: attrs })
-    .eq("id", accountId);
-  if (error) throw error;
+  await apiClient.put(`/accounts/${accountId}/compliance-policy`, { policy });
 }
 
 export const DEFAULT_COMPLIANCE_POLICY: CompliancePolicy = {

@@ -1,4 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
+import { listTeamMembers } from "@/lib/team";
 
 export type LifecycleStage = "lead" | "prospect" | "customer" | "inactive" | "delinquent";
 export type OperationalStatus =
@@ -97,17 +98,7 @@ export const QUICK_FILTERS: { id: QuickFilter; label: string }[] = [
 ];
 
 export async function fetchCentralContacts(accountId: string): Promise<CentralContact[]> {
-  const { data, error } = await (supabase as any)
-    .from("contacts")
-    .select(
-      "id,name,email,phone_number,identifier,score,lifecycle_stage,operational_status,last_sentiment,last_activity_at,last_call_at,last_whatsapp_at,owner_user_id,briefing",
-    )
-    .eq("account_id", accountId)
-    .eq("blocked", false)
-    .order("last_activity_at", { ascending: false, nullsFirst: false })
-    .limit(1000);
-  if (error) throw error;
-  return (data ?? []) as CentralContact[];
+  return apiClient.get<CentralContact[]>(`/accounts/${accountId}/contacts`);
 }
 
 export function applyQuickFilter(rows: CentralContact[], q: QuickFilter): CentralContact[] {
@@ -134,43 +125,34 @@ export function applyQuickFilter(rows: CentralContact[], q: QuickFilter): Centra
 }
 
 export async function updateContactOps(
+  accountId: string,
   id: string,
   patch: Partial<Pick<CentralContact, "lifecycle_stage" | "operational_status" | "owner_user_id">>,
 ) {
-  const { error } = await (supabase as any).from("contacts").update(patch).eq("id", id);
-  if (error) throw error;
+  await apiClient.patch(`/accounts/${accountId}/contacts/${id}`, {
+    ...(patch.lifecycle_stage !== undefined ? { lifecycleStage: patch.lifecycle_stage } : {}),
+    ...(patch.operational_status !== undefined
+      ? { operationalStatus: patch.operational_status }
+      : {}),
+    ...(patch.owner_user_id !== undefined ? { ownerUserId: patch.owner_user_id } : {}),
+  });
 }
 
 export type ListLite = { id: string; name: string; member_count: number };
 
 export async function fetchLists(accountId: string): Promise<ListLite[]> {
-  const { data, error } = await (supabase as any)
-    .from("contact_lists")
-    .select("id,name,member_count")
-    .eq("account_id", accountId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as ListLite[];
+  const lists = await apiClient.get<{ id: string; name: string; memberCount: number }[]>(
+    `/accounts/${accountId}/contact-lists`,
+  );
+  return lists.map((l) => ({ id: l.id, name: l.name, member_count: l.memberCount }));
 }
 
-export async function addContactsToList(
-  listId: string,
-  accountId: string,
-  contactIds: string[],
-) {
+export async function addContactsToList(listId: string, accountId: string, contactIds: string[]) {
   if (!contactIds.length) return { inserted: 0 };
-  const rows = contactIds.map((cid) => ({
-    list_id: listId,
-    contact_id: cid,
-    account_id: accountId,
-  }));
-  const { error } = await (supabase as any)
-    .from("contact_list_members")
-    .upsert(rows, { onConflict: "list_id,contact_id", ignoreDuplicates: true });
-  if (error) throw error;
-  // bump member_count (best-effort)
-  await (supabase as any).rpc("noop").catch(() => {});
-  return { inserted: rows.length };
+  return apiClient.post<{ inserted: number }>(
+    `/accounts/${accountId}/contact-lists/${listId}/members`,
+    { contactIds },
+  );
 }
 
 export async function createListFromContacts(
@@ -178,19 +160,15 @@ export async function createListFromContacts(
   name: string,
   contactIds: string[],
 ): Promise<string> {
-  const { data, error } = await (supabase as any)
-    .from("contact_lists")
-    .insert({ account_id: accountId, name, filters: {}, member_count: contactIds.length })
-    .select("id")
-    .single();
-  if (error) throw error;
-  await addContactsToList(data.id, accountId, contactIds);
-  return data.id;
+  return apiClient.post<string>(`/accounts/${accountId}/contact-lists`, { name, contactIds });
 }
 
 // Simple CSV parser (handles quotes, commas, semicolons)
 export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
-  const lines = text.replace(/\r\n?/g, "\n").split("\n").filter((l) => l.trim().length > 0);
+  const lines = text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .filter((l) => l.trim().length > 0);
   if (!lines.length) return { headers: [], rows: [] };
   const delim = lines[0].includes(";") && !lines[0].includes(",") ? ";" : ",";
   const parse = (line: string) => {
@@ -200,13 +178,17 @@ export function parseCsv(text: string): { headers: string[]; rows: string[][] } 
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
       if (inQ) {
-        if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-        else if (ch === '"') inQ = false;
+        if (ch === '"' && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else if (ch === '"') inQ = false;
         else cur += ch;
       } else {
         if (ch === '"') inQ = true;
-        else if (ch === delim) { out.push(cur); cur = ""; }
-        else cur += ch;
+        else if (ch === delim) {
+          out.push(cur);
+          cur = "";
+        } else cur += ch;
       }
     }
     out.push(cur);
@@ -233,102 +215,74 @@ export async function importContactsCsv(
   const iName = idx(["nome", "name", "contato"]);
   const iPhone = idx(["telefone", "phone", "phone_number", "celular", "whatsapp"]);
   const iEmail = idx(["email", "e-mail", "mail"]);
-  const normalize = (p: string) => p.replace(/\D/g, "");
-  const payload = rows
-    .map((r) => ({
-      account_id: accountId,
-      name: iName >= 0 ? r[iName] || null : null,
-      phone_number: iPhone >= 0 ? normalize(r[iPhone] ?? "") || null : null,
-      email: iEmail >= 0 ? (r[iEmail] || null) : null,
-    }))
-    .filter((c) => c.phone_number || c.email);
-  if (!payload.length) return { created: 0, skipped: rows.length };
-  const { data, error } = await (supabase as any)
-    .from("contacts")
-    .upsert(payload, { onConflict: "account_id,phone_number", ignoreDuplicates: false })
-    .select("id");
-  if (error) throw error;
-  return { created: (data ?? []).length, skipped: rows.length - payload.length };
+  const payload = rows.map((r) => ({
+    name: iName >= 0 ? r[iName] || null : null,
+    phoneNumber: iPhone >= 0 ? r[iPhone] || null : null,
+    email: iEmail >= 0 ? r[iEmail] || null : null,
+  }));
+  if (!payload.length) return { created: 0, skipped: 0 };
+  return apiClient.post<{ created: number; skipped: number }>(
+    `/accounts/${accountId}/contacts/import`,
+    { rows: payload },
+  );
 }
 
 // ============ Team / Owner ============
 export type TeamLite = { user_id: string; name: string | null; email: string | null };
 export async function fetchTeam(accountId: string): Promise<TeamLite[]> {
-  const { data, error } = await (supabase as any).rpc("team_list_members", {
-    p_account_id: accountId,
+  const members = await listTeamMembers(accountId);
+  return members.map((m) => ({ user_id: m.user_id, name: m.name ?? null, email: m.email ?? null }));
+}
+
+export async function bulkAssignOwner(
+  accountId: string,
+  contactIds: string[],
+  ownerUserId: string | null,
+) {
+  if (!contactIds.length) return;
+  await apiClient.post(`/accounts/${accountId}/contacts/bulk/owner`, { contactIds, ownerUserId });
+}
+
+export async function bulkSetLifecycle(
+  accountId: string,
+  contactIds: string[],
+  stage: LifecycleStage,
+) {
+  if (!contactIds.length) return;
+  await apiClient.post(`/accounts/${accountId}/contacts/bulk/lifecycle`, { contactIds, stage });
+}
+
+export async function bulkSetOperationalStatus(
+  accountId: string,
+  contactIds: string[],
+  status: OperationalStatus,
+) {
+  if (!contactIds.length) return;
+  await apiClient.post(`/accounts/${accountId}/contacts/bulk/operational-status`, {
+    contactIds,
+    status,
   });
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((m) => ({
-    user_id: m.user_id,
-    name: m.name ?? null,
-    email: m.email ?? null,
-  }));
-}
-
-export async function bulkAssignOwner(contactIds: string[], ownerUserId: string | null) {
-  if (!contactIds.length) return;
-  const { error } = await (supabase as any)
-    .from("contacts")
-    .update({ owner_user_id: ownerUserId })
-    .in("id", contactIds);
-  if (error) throw error;
-}
-
-export async function bulkSetLifecycle(contactIds: string[], stage: LifecycleStage) {
-  if (!contactIds.length) return;
-  const { error } = await (supabase as any)
-    .from("contacts")
-    .update({ lifecycle_stage: stage })
-    .in("id", contactIds);
-  if (error) throw error;
-}
-
-export async function bulkSetOperationalStatus(contactIds: string[], status: OperationalStatus) {
-  if (!contactIds.length) return;
-  const { error } = await (supabase as any)
-    .from("contacts")
-    .update({ operational_status: status })
-    .in("id", contactIds);
-  if (error) throw error;
 }
 
 // ============ Tags ============
 export async function fetchTagSuggestions(accountId: string): Promise<string[]> {
-  const { data, error } = await (supabase as any)
-    .from("contact_tags")
-    .select("tag")
-    .eq("account_id", accountId)
-    .limit(500);
-  if (error) throw error;
-  const set = new Set<string>();
-  (data ?? []).forEach((r: any) => r.tag && set.add(r.tag));
-  return Array.from(set).sort();
+  return apiClient.get<string[]>(`/accounts/${accountId}/contacts/tags/suggestions`);
 }
 
 export async function bulkAddTag(accountId: string, contactIds: string[], tag: string) {
   if (!contactIds.length || !tag.trim()) return;
-  const rows = contactIds.map((cid) => ({
-    account_id: accountId,
-    contact_id: cid,
-    tag: tag.trim(),
-  }));
-  const { error } = await (supabase as any)
-    .from("contact_tags")
-    .upsert(rows, { onConflict: "contact_id,tag", ignoreDuplicates: true });
-  if (error) throw error;
+  await apiClient.post(`/accounts/${accountId}/contacts/bulk/tag`, { contactIds, tag: tag.trim() });
 }
 
 // ============ Campaigns ============
-export type CampaignLite = { id: string; name: string; status: string; campaign_kind: string | null };
+export type CampaignLite = {
+  id: string;
+  name: string;
+  status: string;
+  campaign_kind: string | null;
+};
 export async function fetchEditableCampaigns(accountId: string): Promise<CampaignLite[]> {
-  const { data, error } = await (supabase as any)
-    .from("voice_campaigns")
-    .select("id,name,status,campaign_kind")
-    .eq("account_id", accountId)
-    .in("status", ["draft", "scheduled", "paused"])
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as CampaignLite[];
+  return apiClient.get<CampaignLite[]>(`/accounts/${accountId}/contacts/editable-campaigns`);
 }
 
 export async function bulkAddToCampaign(
@@ -336,33 +290,13 @@ export async function bulkAddToCampaign(
   campaignId: string,
   contacts: { id: string; phone_number: string | null }[],
 ): Promise<{ added: number; skipped: number }> {
-  const valid = contacts.filter((c) => c.phone_number && c.phone_number.replace(/\D/g, "").length >= 8);
-  if (!valid.length) return { added: 0, skipped: contacts.length };
-  const rows = valid.map((c) => ({
-    account_id: accountId,
-    campaign_id: campaignId,
-    contact_id: c.id,
-    to_number: c.phone_number!,
-    phone_number: c.phone_number!,
-    status: "queued",
-  }));
-  const { data, error } = await (supabase as any)
-    .from("voice_campaign_contacts")
-    .insert(rows)
-    .select("id");
-  if (error) throw error;
-  const added = (data ?? []).length;
-  // bump total_contacts (best-effort)
-  await (supabase as any).rpc("noop").catch(() => {});
-  await (supabase as any)
-    .from("voice_campaigns")
-    .update({ total_contacts: (await (supabase as any)
-      .from("voice_campaign_contacts")
-      .select("id", { count: "exact", head: true })
-      .eq("campaign_id", campaignId)).count ?? 0 })
-    .eq("id", campaignId)
-    .then(() => {}, () => {});
-  return { added, skipped: contacts.length - added };
+  return apiClient.post<{ added: number; skipped: number }>(
+    `/accounts/${accountId}/contacts/bulk/campaign`,
+    {
+      campaignId,
+      contacts: contacts.map((c) => ({ id: c.id, phoneNumber: c.phone_number })),
+    },
+  );
 }
 
 // ============ Productivity ============
@@ -378,77 +312,13 @@ export type OwnerProductivity = {
 };
 
 export async function fetchProductivity(accountId: string): Promise<OwnerProductivity[]> {
-  const [team, contacts] = await Promise.all([
-    fetchTeam(accountId),
-    (supabase as any)
-      .from("contacts")
-      .select("owner_user_id,score,lifecycle_stage,last_call_at,last_whatsapp_at")
-      .eq("account_id", accountId)
-      .eq("blocked", false)
-      .limit(2000),
-  ]);
-  const rows: any[] = contacts.data ?? [];
-  const sevenAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const map = new Map<string, OwnerProductivity>();
-  const ensure = (uid: string | null, name: string) => {
-    const key = uid ?? "__unassigned";
-    if (!map.has(key))
-      map.set(key, {
-        user_id: uid,
-        name,
-        contacts: 0,
-        hot: 0,
-        customers: 0,
-        delinquent: 0,
-        last7d_calls: 0,
-        last7d_whatsapp: 0,
-      });
-    return map.get(key)!;
-  };
-  ensure(null, "Sem responsável");
-  team.forEach((t) => ensure(t.user_id, t.name ?? t.email ?? "Operador"));
-  rows.forEach((r) => {
-    const owner = r.owner_user_id ?? null;
-    const t = team.find((x) => x.user_id === owner);
-    const rec = ensure(owner, t?.name ?? t?.email ?? (owner ? "Operador" : "Sem responsável"));
-    rec.contacts += 1;
-    if ((r.score ?? 0) >= 75) rec.hot += 1;
-    if (r.lifecycle_stage === "customer") rec.customers += 1;
-    if (r.lifecycle_stage === "delinquent") rec.delinquent += 1;
-    if (r.last_call_at && new Date(r.last_call_at).getTime() >= sevenAgo) rec.last7d_calls += 1;
-    if (r.last_whatsapp_at && new Date(r.last_whatsapp_at).getTime() >= sevenAgo)
-      rec.last7d_whatsapp += 1;
-  });
-  return Array.from(map.values()).sort((a, b) => b.contacts - a.contacts);
+  return apiClient.get<OwnerProductivity[]>(`/accounts/${accountId}/contacts/productivity`);
 }
 
 export async function fetchContactTimeline(contactId: string, accountId: string) {
-  const [calls, convs, lists] = await Promise.all([
-    (supabase as any)
-      .from("voice_calls")
-      .select("id,status,started_at,ended_at,duration_seconds,summary,sentiment,classification")
-      .eq("account_id", accountId)
-      .eq("contact_id", contactId)
-      .order("started_at", { ascending: false })
-      .limit(20),
-    (supabase as any)
-      .from("conversations")
-      .select("id,display_id,status,last_activity_at,cached_label_list")
-      .eq("account_id", accountId)
-      .eq("contact_id", contactId)
-      .order("last_activity_at", { ascending: false })
-      .limit(20),
-    (supabase as any)
-      .from("contact_list_members")
-      .select("list_id,added_at,contact_lists(name,campaign_kind)")
-      .eq("contact_id", contactId)
-      .limit(20),
-  ]);
-  return {
-    calls: (calls.data ?? []) as any[],
-    conversations: (convs.data ?? []) as any[],
-    lists: (lists.data ?? []) as any[],
-  };
+  return apiClient.get<{ calls: any[]; conversations: any[]; lists: any[] }>(
+    `/accounts/${accountId}/contacts/${contactId}/timeline`,
+  );
 }
 
 export function timeAgoShort(iso?: string | null): string {
@@ -467,24 +337,15 @@ export function timeAgoShort(iso?: string | null): string {
 
 // ============ Round-robin owner assignment ============
 export async function bulkAssignRoundRobin(
+  accountId: string,
   contactIds: string[],
   ownerIds: string[],
 ): Promise<{ assigned: number }> {
   if (!contactIds.length || !ownerIds.length) return { assigned: 0 };
-  // Group contactIds by owner index → minimize round-trips
-  const groups: Record<string, string[]> = {};
-  contactIds.forEach((cid, i) => {
-    const owner = ownerIds[i % ownerIds.length];
-    (groups[owner] ??= []).push(cid);
+  return apiClient.post<{ assigned: number }>(`/accounts/${accountId}/contacts/bulk/round-robin`, {
+    contactIds,
+    ownerIds,
   });
-  for (const [owner, ids] of Object.entries(groups)) {
-    const { error } = await (supabase as any)
-      .from("contacts")
-      .update({ owner_user_id: owner })
-      .in("id", ids);
-    if (error) throw error;
-  }
-  return { assigned: contactIds.length };
 }
 
 // ============ Dedupe / Merge suggestions ============
@@ -573,7 +434,9 @@ export function contactsToCsv(rows: CentralContact[]): string {
         r.last_call_at,
         r.last_whatsapp_at,
         r.last_sentiment,
-      ].map(esc).join(","),
+      ]
+        .map(esc)
+        .join(","),
     );
   });
   return lines.join("\n");
@@ -582,26 +445,13 @@ export function contactsToCsv(rows: CentralContact[]): string {
 export async function createManualContact(
   accountId: string,
   input: { name: string; phone_number?: string; email?: string },
-) {
-  const normalizedPhone = input.phone_number ? input.phone_number.replace(/\D/g, "") : null;
-  const identifier = input.email
-    ? `email:${input.email}`
-    : normalizedPhone
-      ? `phone:${normalizedPhone}`
-      : `anon:${crypto.randomUUID()}`;
-  const { data, error } = await (supabase as any)
-    .from("contacts")
-    .insert({
-      account_id: accountId,
-      name: input.name || null,
-      phone_number: normalizedPhone ? `+${normalizedPhone}` : null,
-      email: input.email || null,
-      identifier,
-    })
-    .select("id")
-    .single();
-  if (error) throw error;
-  return data.id as string;
+): Promise<string> {
+  const contact = await apiClient.post<{ id: string }>(`/accounts/${accountId}/contacts`, {
+    name: input.name || undefined,
+    phoneNumber: input.phone_number || undefined,
+    email: input.email || undefined,
+  });
+  return contact.id;
 }
 
 export function downloadCsv(filename: string, csv: string) {

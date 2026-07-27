@@ -27,12 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -111,8 +106,9 @@ function FollowUpsPage() {
     if (!confirm(`Remover cadência "${cadence.name}"? Execuções pendentes serão canceladas.`)) {
       return;
     }
+    if (!accountId) return;
     try {
-      await deleteCadence(cadence.id);
+      await deleteCadence(accountId, cadence.id);
       toast.success("Cadência removida");
       refresh();
     } catch (e: any) {
@@ -134,8 +130,8 @@ function FollowUpsPage() {
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Follow-ups</h1>
           <p className="text-xs text-muted-foreground">
-            Cadências automáticas pra reengajar leads. A Nina executa cada step
-            no canal configurado.
+            Cadências automáticas pra reengajar leads. A Nina executa cada step no canal
+            configurado.
           </p>
         </div>
         <Button onClick={() => setEditing("new")} size="sm" className="gap-1.5">
@@ -149,8 +145,7 @@ function FollowUpsPage() {
           <Sparkles className="mb-2 h-5 w-5 text-violet-400" />
           <p className="text-sm text-slate-200">Nenhuma cadência configurada</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Crie uma cadência pra Nina ligar ou mandar WhatsApp em momentos
-            estratégicos do funil.
+            Crie uma cadência pra Nina ligar ou mandar WhatsApp em momentos estratégicos do funil.
           </p>
           <Button
             onClick={() => setEditing("new")}
@@ -215,9 +210,7 @@ function CadenceRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium text-slate-200">
-            {cadence.name}
-          </span>
+          <span className="truncate text-sm font-medium text-slate-200">{cadence.name}</span>
           <span className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-300 ring-1 ring-violet-500/20">
             {TRIGGER_LABEL[cadence.trigger_event]}
           </span>
@@ -228,9 +221,7 @@ function CadenceRow({
           )}
         </div>
         {cadence.description && (
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-            {cadence.description}
-          </p>
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{cadence.description}</p>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {cadence.steps.map((s, i) => (
@@ -282,11 +273,7 @@ function StepChip({ step }: { step: CadenceStep }) {
   const Icon = CHANNEL_ICONS[step.channel];
   const offset = step.offset_hours;
   const offsetLabel =
-    offset === 0
-      ? "imediato"
-      : offset < 24
-        ? `+${offset}h`
-        : `+${Math.round(offset / 24)}d`;
+    offset === 0 ? "imediato" : offset < 24 ? `+${offset}h` : `+${Math.round(offset / 24)}d`;
   return (
     <span className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 text-[10px] text-slate-300">
       <Icon className="h-3 w-3 text-violet-400" />
@@ -368,9 +355,7 @@ function CadenceForm({
   return (
     <>
       <SheetHeader>
-        <SheetTitle>
-          {initial ? "Editar cadência" : "Nova cadência"}
-        </SheetTitle>
+        <SheetTitle>{initial ? "Editar cadência" : "Nova cadência"}</SheetTitle>
       </SheetHeader>
 
       <div className="mt-4 space-y-4">
@@ -416,8 +401,7 @@ function CadenceForm({
             <Switch checked={enabled} onCheckedChange={setEnabled} />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Quando pausada, novos leads não são inscritos e execuções pendentes
-            ficam congeladas.
+            Quando pausada, novos leads não são inscritos e execuções pendentes ficam congeladas.
           </p>
         </div>
 
@@ -448,8 +432,8 @@ function CadenceForm({
             )}
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Sprint 4: apenas o canal <strong>Ligação</strong> dispara de fato.
-            WhatsApp e e-mail são marcados como concluídos sem ação (Sprint 5+).
+            Sprint 4: apenas o canal <strong>Ligação</strong> dispara de fato. WhatsApp e e-mail são
+            marcados como concluídos sem ação (Sprint 5+).
           </p>
         </div>
 
@@ -458,9 +442,7 @@ function CadenceForm({
             Cancelar
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? (
-              <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-            ) : null}
+            {saving ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
             Salvar
           </Button>
         </div>
@@ -495,9 +477,7 @@ function StepEditor({
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] text-muted-foreground">
-            Canal
-          </label>
+          <label className="block text-[10px] text-muted-foreground">Canal</label>
           <Select
             value={step.channel}
             onValueChange={(v) => onChange({ channel: v as CadenceChannel })}
@@ -513,9 +493,7 @@ function StepEditor({
           </Select>
         </div>
         <div>
-          <label className="block text-[10px] text-muted-foreground">
-            Quando (horas)
-          </label>
+          <label className="block text-[10px] text-muted-foreground">Quando (horas)</label>
           <Input
             type="number"
             min={0}
@@ -536,13 +514,7 @@ function StepEditor({
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block space-y-1">
       <span className="block text-[10px] font-medium uppercase tracking-wider text-muted-foreground">

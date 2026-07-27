@@ -10,9 +10,9 @@
 // Saída: texto final do agente + estrutura de ações executadas (tool calls + handoff).
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { query, getOne, insert } from "@/lib/db";
 import { generateQuotePdfBuffer, uploadQuotePdf, validateNbr, type GlassUsage } from "./bruno-pdf.server";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -40,30 +40,27 @@ type FittingRow = {
 };
 
 async function execSearchGlass(accountId: string, args: { category?: string; thickness_mm?: number }) {
-  let q = supabaseAdmin
-    .from("glass_types")
-    .select("sku, name, category, thickness_mm, price_per_m2, nbr_reference")
-    .eq("account_id", accountId)
-    .eq("active", true)
-    .order("category")
-    .order("thickness_mm");
-  if (args.category) q = q.eq("category", args.category);
-  if (args.thickness_mm) q = q.eq("thickness_mm", args.thickness_mm);
-  const { data, error } = await q.limit(20);
-  if (error) return { error: error.message };
-  return { results: data ?? [] };
+  const where: string[] = ["account_id = $1", "active = true"];
+  const params: unknown[] = [accountId];
+  if (args.category) { params.push(args.category); where.push(`category = $${params.length}`); }
+  if (args.thickness_mm) { params.push(args.thickness_mm); where.push(`thickness_mm = $${params.length}`); }
+  const data = await query<GlassRow>(
+    `SELECT sku, name, category, thickness_mm, price_per_m2, nbr_reference
+     FROM glass_types WHERE ${where.join(" AND ")} ORDER BY category, thickness_mm LIMIT 20`,
+    params,
+  );
+  return { results: data };
 }
 
 async function execListFittings(accountId: string, args: { thickness_mm?: number; category?: string }) {
-  let q = supabaseAdmin
-    .from("glass_fittings")
-    .select("sku, name, category, unit, price, compatible_thickness_mm, finish")
-    .eq("account_id", accountId)
-    .eq("active", true);
-  if (args.category) q = q.eq("category", args.category);
-  const { data, error } = await q.limit(50);
-  if (error) return { error: error.message };
-  let rows = (data ?? []) as FittingRow[];
+  const where: string[] = ["account_id = $1", "active = true"];
+  const params: unknown[] = [accountId];
+  if (args.category) { params.push(args.category); where.push(`category = $${params.length}`); }
+  let rows = (await query<FittingRow>(
+    `SELECT sku, name, category, unit, price, compatible_thickness_mm, finish
+     FROM glass_fittings WHERE ${where.join(" AND ")} LIMIT 50`,
+    params,
+  )) as FittingRow[];
   if (args.thickness_mm) {
     rows = rows.filter((r) => r.compatible_thickness_mm.map(Number).includes(args.thickness_mm!));
   }
@@ -88,23 +85,23 @@ async function execCalculateQuote(
   const skus = [...args.glasses.map((g) => g.sku), ...args.fittings.map((f) => f.sku)];
   if (skus.length === 0) return { error: "lista vazia" };
 
-  const [{ data: gs }, { data: fs }] = await Promise.all([
-    supabaseAdmin
-      .from("glass_types")
-      .select("sku, name, category, thickness_mm, price_per_m2, min_m2_per_piece")
-      .eq("account_id", accountId)
-      .in("sku", args.glasses.map((g) => g.sku)),
-    supabaseAdmin
-      .from("glass_fittings")
-      .select("sku, name, price, unit")
-      .eq("account_id", accountId)
-      .in("sku", args.fittings.map((f) => f.sku)),
+  const [gs, fs] = await Promise.all([
+    query(
+      `SELECT sku, name, category, thickness_mm, price_per_m2, min_m2_per_piece
+       FROM glass_types WHERE account_id = $1 AND sku = ANY($2)`,
+      [accountId, args.glasses.map((g) => g.sku)],
+    ),
+    query(
+      `SELECT sku, name, price, unit
+       FROM glass_fittings WHERE account_id = $1 AND sku = ANY($2)`,
+      [accountId, args.fittings.map((f) => f.sku)],
+    ),
   ]);
 
   // NBR 7199 / 14207 enforcement
   const usage = args.usage_type ?? "outro";
   const glassMeta = args.glasses.map((g) => {
-    const ref = (gs ?? []).find((x) => x.sku === g.sku);
+    const ref = gs.find((x) => x.sku === g.sku);
     return { sku: g.sku, category: ref?.category, thickness_mm: ref?.thickness_mm };
   });
   const nbr = validateNbr({ usage, glasses: glassMeta });
@@ -121,7 +118,7 @@ async function execCalculateQuote(
   let subtotal = 0;
 
   for (const g of args.glasses) {
-    const ref = (gs ?? []).find((x) => x.sku === g.sku);
+    const ref = gs.find((x) => x.sku === g.sku);
     if (!ref) { items.push({ sku: g.sku, name: "(não encontrado)", qty: g.qty, unit_price: 0, subtotal: 0, kind: "glass" }); continue; }
     const qty = Math.max(g.qty, Number(ref.min_m2_per_piece ?? 0.5));
     const sub = qty * Number(ref.price_per_m2);
@@ -129,7 +126,7 @@ async function execCalculateQuote(
     items.push({ sku: g.sku, name: ref.name, qty, unit_price: Number(ref.price_per_m2), subtotal: sub, kind: "glass_m2" });
   }
   for (const f of args.fittings) {
-    const ref = (fs ?? []).find((x) => x.sku === f.sku);
+    const ref = fs.find((x) => x.sku === f.sku);
     if (!ref) { items.push({ sku: f.sku, name: "(não encontrado)", qty: f.qty, unit_price: 0, subtotal: 0, kind: "fitting" }); continue; }
     const sub = f.qty * Number(ref.price);
     subtotal += sub;
@@ -189,9 +186,8 @@ async function execRequestHandoff(
   args: { reason: string; target: "human" | "persona"; target_persona_id?: string },
 ) {
   if (!conversationId) return { ok: false, error: "sem conversa ativa" };
-  const { data, error } = await supabaseAdmin
-    .from("agent_handoffs")
-    .insert([{
+  try {
+    const [row] = await insert<{ id: string }>("agent_handoffs", {
       account_id: accountId,
       conversation_id: conversationId,
       from_persona_id: fromPersonaId,
@@ -199,11 +195,11 @@ async function execRequestHandoff(
       to_human_user_id: null, // designado pela fila de assignment
       reason: args.reason,
       context: { requested_by: "bruno", target: args.target },
-    }])
-    .select("id")
-    .single();
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, handoff_id: data.id };
+    });
+    return { ok: true, handoff_id: row.id };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 // ===================== TOOL SCHEMAS (OpenAI-compatible) =====================
@@ -339,7 +335,7 @@ interface AgentMessage {
 }
 
 export const askBruno = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
       accountId: z.string().uuid(),
@@ -454,48 +450,39 @@ export const askBruno = createServerFn({ method: "POST" })
 
 async function ensureBrunoPersona(accountId: string, _createdByUserId: string): Promise<string> {
   // Já existe?
-  const { data: existing } = await supabaseAdmin
-    .from("agent_personas")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("name", "Bruno")
-    .maybeSingle();
+  const existing = await getOne<{ id: string }>(
+    `SELECT id FROM agent_personas WHERE account_id = $1 AND name = $2`,
+    [accountId, "Bruno"],
+  );
   if (existing) return existing.id;
 
-  const { data: persona, error } = await supabaseAdmin
-    .from("agent_personas")
-    .insert([{
-      account_id: accountId,
-      name: "Bruno",
-      description: "Orçamentista de vidros — UBVA",
-      system_prompt: BRUNO_SYSTEM,
-      status: "active",
-      enabled: true,
-      llm_model: MODEL,
-      llm_temperature: 0.4,
-      llm_max_tokens: 800,
-      first_message: "Oi! Sou o Bruno, orçamentista aqui da UBVA. Me conta o que você precisa que eu já tiro o preço.",
-    }])
-    .select("id")
-    .single();
-  if (error) throw new Error(`seed persona: ${error.message}`);
+  const [persona] = await insert<{ id: string }>("agent_personas", {
+    account_id: accountId,
+    name: "Bruno",
+    description: "Orçamentista de vidros — UBVA",
+    system_prompt: BRUNO_SYSTEM,
+    status: "active",
+    enabled: true,
+    llm_model: MODEL,
+    llm_temperature: 0.4,
+    llm_max_tokens: 800,
+    first_message: "Oi! Sou o Bruno, orçamentista aqui da UBVA. Me conta o que você precisa que eu já tiro o preço.",
+  });
 
-  await supabaseAdmin
-    .from("agent_roles")
-    .insert([{
-      account_id: accountId,
-      persona_id: persona.id,
-      kind: "orcamentista",
-      display_name: "Bruno — Orçamentista",
-      description: "Calcula orçamentos de vidros e ferragens; pede handoff humano em casos complexos.",
-      allowed_tools: ["search_glass", "list_fittings", "calculate_quote", "generate_quote_pdf", "request_handoff"],
-      handoff_targets: [],
-      handoff_rules: [
-        { when: "cliente pede humano", action: "handoff_human" },
-        { when: "orçamento > R$10.000", action: "handoff_human" },
-      ],
-      daily_message_budget: 1000,
-    }]);
+  await insert("agent_roles", {
+    account_id: accountId,
+    persona_id: persona.id,
+    kind: "orcamentista",
+    display_name: "Bruno — Orçamentista",
+    description: "Calcula orçamentos de vidros e ferragens; pede handoff humano em casos complexos.",
+    allowed_tools: ["search_glass", "list_fittings", "calculate_quote", "generate_quote_pdf", "request_handoff"],
+    handoff_targets: [],
+    handoff_rules: [
+      { when: "cliente pede humano", action: "handoff_human" },
+      { when: "orçamento > R$10.000", action: "handoff_human" },
+    ],
+    daily_message_budget: 1000,
+  });
 
   return persona.id;
 }

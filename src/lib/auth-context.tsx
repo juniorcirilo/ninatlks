@@ -1,91 +1,71 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient, ApiError } from "@/lib/api-client";
+
+export type Profile = {
+  id: string;
+  email: string;
+  name: string | null;
+  displayName: string | null;
+  availability: string;
+  isSuperAdmin: boolean;
+  createdAt: string;
+};
+
+export type Membership = { accountId: string; role: "admin" | "agent" } | null;
 
 type AuthContextValue = {
-  session: Session | null;
-  user: User | null;
+  // `session`/`user` point at the same profile — kept as two fields only to
+  // avoid touching every call site that checks `session` truthiness vs.
+  // reads `user.id`/`user.email` (carried over from the Supabase-backed
+  // shape this replaces).
+  session: Profile | null;
+  user: Profile | null;
+  membership: Membership;
   loading: boolean;
+  refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [membership, setMembership] = useState<Membership>(null);
   const [loading, setLoading] = useState(true);
 
+  const refresh = async () => {
+    try {
+      const data = await apiClient.get<{ profile: Profile; membership: Membership }>("/auth/me");
+      setProfile(data.profile);
+      setMembership(data.membership);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 401)) {
+        console.warn("[auth] failed to load session", error);
+      }
+      setProfile(null);
+      setMembership(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let active = true;
-
-    const clearInvalidSession = async () => {
-      try {
-        await supabase.auth.signOut({ scope: "local" });
-      } catch {
-        // noop — local cleanup is best effort only
-      }
-
-      if (!active) return;
-      setSession(null);
-      setLoading(false);
-    };
-
-    // CRITICAL: register listener BEFORE getSession to avoid race
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, newSession) => {
-      if (!active) return;
-
-      if ((event === "SIGNED_IN" || event === "TOKEN_REFRESHED") && !newSession?.user?.id) {
-        void clearInvalidSession();
-        return;
-      }
-
-      setSession(newSession);
-      setLoading(false);
-    });
-
-    void supabase.auth
-      .getSession()
-      .then(async ({ data: { session: existing }, error }) => {
-        if (error) throw error;
-
-        if (!existing?.access_token) {
-          if (!active) return;
-          setSession(null);
-          setLoading(false);
-          return;
-        }
-
-        const { data: userData, error: userError } = await supabase.auth.getUser(existing.access_token);
-
-        if (userError || !userData.user?.id) {
-          console.warn("[auth] invalid cached session cleared", userError?.message ?? "missing user id");
-          await clearInvalidSession();
-          return;
-        }
-
-        if (!active) return;
-        setSession(existing);
-        setLoading(false);
-      })
-      .catch(async (error) => {
-        console.warn("[auth] failed to restore session", error);
-        await clearInvalidSession();
-      });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
+    void refresh();
   }, []);
 
   const value: AuthContextValue = {
-    session,
-    user: session?.user ?? null,
+    session: profile,
+    user: profile,
+    membership,
     loading,
+    refresh,
     signOut: async () => {
-      await supabase.auth.signOut();
+      try {
+        await apiClient.post("/auth/logout");
+      } finally {
+        setProfile(null);
+        setMembership(null);
+      }
     },
   };
 

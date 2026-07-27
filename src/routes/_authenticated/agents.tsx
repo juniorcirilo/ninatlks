@@ -15,7 +15,7 @@ import {
 import { useAccount } from "@/lib/account-context";
 import { fetchPersonas, createPersona, type Persona } from "@/lib/personas";
 import { AgentEditor } from "@/components/personas/AgentEditor";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -89,19 +89,12 @@ function AgentsPage() {
     if (synced.length === 0) return;
 
     (async () => {
-      const sess = await supabase.auth.getSession();
-      const token = sess.data.session?.access_token;
-      if (!token) return;
-      const base = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/elevenlabs-agent-info`;
-      const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
       const results = await Promise.all(
         synced.map(async (p) => {
           try {
-            const res = await fetch(`${base}?agent_id=${encodeURIComponent(p.elevenlabs_agent_id!)}`, {
-              headers: { Authorization: `Bearer ${token}`, apikey },
-            });
-            if (!res.ok) return [p.id, { found: false }] as const;
-            const data = (await res.json()) as AgentInfo;
+            const data = await apiClient.get<AgentInfo>(
+              `/accounts/${accountId}/elevenlabs/agent-info/${p.elevenlabs_agent_id}`,
+            );
             return [p.id, data] as const;
           } catch {
             return [p.id, { found: false }] as const;
@@ -113,7 +106,7 @@ function AgentsPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [personas]);
+  }, [personas, accountId]);
 
 
 

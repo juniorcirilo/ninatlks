@@ -8,23 +8,22 @@
 //   - request_handoff: escala para técnico humano
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { query, insert } from "@/lib/db";
 import { runAgentLoop, type ToolDef } from "./runner";
 
 const MODEL = "google/gemini-2.5-flash";
 
 async function execLookupHistory(accountId: string, args: { contact_id: string }) {
-  const { data, error } = await supabaseAdmin
-    .from("conversations")
-    .select("id, created_at, status, last_activity_at")
-    .eq("account_id", accountId)
-    .eq("contact_id", args.contact_id)
-    .order("last_activity_at", { ascending: false })
-    .limit(5);
-  if (error) return { error: error.message };
-  return { conversations: data ?? [] };
+  const data = await query(
+    `SELECT id, created_at, status, last_activity_at
+     FROM conversations
+     WHERE account_id = $1 AND contact_id = $2
+     ORDER BY last_activity_at DESC LIMIT 5`,
+    [accountId, args.contact_id],
+  );
+  return { conversations: data };
 }
 
 async function execLogIssue(
@@ -33,14 +32,17 @@ async function execLogIssue(
   args: { issue_type: string; severity: "baixa" | "media" | "alta" | "critica"; notes?: string },
 ) {
   if (!conversationId) return { ok: true, note: "log lógico — sem conversation_id" };
-  const { error } = await supabaseAdmin.from("conversation_outcomes").insert([{
-    account_id: accountId,
-    conversation_id: conversationId,
-    outcome_type: `suporte:${args.issue_type}`.slice(0, 40),
-    source: "clara",
-    metadata: { severity: args.severity, notes: args.notes ?? null } as never,
-  }]);
-  if (error) return { error: error.message };
+  try {
+    await insert("conversation_outcomes", {
+      account_id: accountId,
+      conversation_id: conversationId,
+      outcome_type: `suporte:${args.issue_type}`.slice(0, 40),
+      source: "clara",
+      metadata: { severity: args.severity, notes: args.notes ?? null },
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
   return { ok: true, escalate_human: args.severity === "alta" || args.severity === "critica" };
 }
 
@@ -51,15 +53,18 @@ async function execHandoff(
   args: { reason: string },
 ) {
   if (!conversationId) return { ok: true, note: "handoff lógico" };
-  const { data, error } = await supabaseAdmin.from("agent_handoffs").insert([{
-    account_id: accountId,
-    conversation_id: conversationId,
-    from_persona_id: fromPersonaId,
-    reason: args.reason,
-    context: { requested_by: "clara", target: "human" },
-  }]).select("id").single();
-  if (error) return { error: error.message };
-  return { ok: true, handoff_id: data.id };
+  try {
+    const [row] = await insert<{ id: string }>("agent_handoffs", {
+      account_id: accountId,
+      conversation_id: conversationId,
+      from_persona_id: fromPersonaId,
+      reason: args.reason,
+      context: { requested_by: "clara", target: "human" },
+    });
+    return { ok: true, handoff_id: row.id };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 const TOOLS: ToolDef[] = [
@@ -112,7 +117,7 @@ REGRAS:
 - Em risco de segurança (vidro caindo, trinca crescendo), oriente o cliente a se afastar e isolar a área ANTES de qualquer outra coisa.`;
 
 export const askClara = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
       accountId: z.string().uuid(),
@@ -144,11 +149,12 @@ export const askClara = createServerFn({ method: "POST" })
   });
 
 async function ensureClaraPersona(accountId: string): Promise<string> {
-  const { data: existing } = await supabaseAdmin
-    .from("agent_personas").select("id")
-    .eq("account_id", accountId).eq("name", "Clara").maybeSingle();
-  if (existing) return existing.id;
-  const { data: persona, error } = await supabaseAdmin.from("agent_personas").insert([{
+  const found = await query<{ id: string }>(
+    `SELECT id FROM agent_personas WHERE account_id = $1 AND name = $2`,
+    [accountId, "Clara"],
+  );
+  if (found.length > 0) return found[0].id;
+  const [persona] = await insert<{ id: string }>("agent_personas", {
     account_id: accountId,
     name: "Clara",
     description: "Suporte técnico de vidros — UBVA",
@@ -156,9 +162,8 @@ async function ensureClaraPersona(accountId: string): Promise<string> {
     status: "active", enabled: true,
     llm_model: MODEL, llm_temperature: 0.3, llm_max_tokens: 500,
     first_message: "Oi, aqui é a Clara do suporte técnico. Me conta o que está acontecendo com o vidro?",
-  }]).select("id").single();
-  if (error) throw new Error(`seed Clara: ${error.message}`);
-  await supabaseAdmin.from("agent_roles").insert([{
+  });
+  await insert("agent_roles", {
     account_id: accountId, persona_id: persona.id,
     kind: "suporte",
     display_name: "Clara — Suporte Técnico",
@@ -170,6 +175,6 @@ async function ensureClaraPersona(accountId: string): Promise<string> {
       { when: "garantia", action: "handoff_human" },
     ],
     daily_message_budget: 800,
-  }]);
+  });
   return persona.id;
 }

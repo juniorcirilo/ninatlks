@@ -6,8 +6,8 @@
 // Saída: { route: "bruno" | "ana" | "carla" | "human", confidence, reason }
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash-lite";
@@ -32,7 +32,7 @@ REGRAS:
 - Não converse. Não saude. Não pergunte. Não use markdown.`;
 
 export const routeMessage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
       userMessage: z.string().min(1).max(2000),

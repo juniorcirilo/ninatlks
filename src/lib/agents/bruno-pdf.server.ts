@@ -2,7 +2,7 @@
 // Roda apenas em server functions (nome *.server.ts bloqueia bundle client).
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { insert } from "@/lib/db";
 
 export interface QuoteItemForPdf {
   sku: string;
@@ -109,15 +109,15 @@ export async function generateQuotePdfBuffer(q: QuoteForPdf): Promise<Uint8Array
 export async function uploadQuotePdf(accountId: string, buf: Uint8Array): Promise<{ path: string; signedUrl: string }> {
   const quoteId = crypto.randomUUID();
   const path = `${accountId}/${quoteId}.pdf`;
-  const { error } = await supabaseAdmin.storage
-    .from("quote-pdfs")
-    .upload(path, buf, { contentType: "application/pdf", upsert: false });
-  if (error) throw new Error(`upload pdf: ${error.message}`);
-  const { data, error: sErr } = await supabaseAdmin.storage
-    .from("quote-pdfs")
-    .createSignedUrl(path, 60 * 60 * 24 * 7); // 7 dias
-  if (sErr || !data) throw new Error(`signed url: ${sErr?.message ?? "no url"}`);
-  return { path, signedUrl: data.signedUrl };
+  const rows = await insert("quote_pdfs", {
+    account_id: accountId,
+    path,
+    bytes: Buffer.from(buf),
+  });
+  if (!rows[0]) throw new Error("upload pdf failed");
+  const API_URL = process.env.VITE_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  const signedUrl = `${API_URL}/files/quote-pdfs/${path}`;
+  return { path, signedUrl };
 }
 
 // ============== NBR 7199 / 14207 enforcement helpers ==============

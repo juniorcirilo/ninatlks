@@ -90,7 +90,7 @@ function ContactDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 px-6 pt-6">
         <Button asChild variant="ghost" size="sm">
           <Link to="/contacts">
             <ArrowLeft className="mr-1 h-4 w-4" /> Contatos
@@ -103,7 +103,7 @@ function ContactDetailPage() {
         description={[c.email, c.phone].filter(Boolean).join(" · ") || "—"}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 px-6 pb-6 lg:grid-cols-[1fr_320px]">
         <Card className="p-4">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <FilterBtn current={filter} value="all" onClick={setFilter} label="Tudo" />

@@ -2,10 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Play, Pause, Square, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useAccount } from "@/lib/account-context";
+import { subscribeTable } from "@/lib/realtime-client";
 import {
+  fetchCampaign,
+  fetchCampaignContacts,
+  updateCampaignStatus,
   CAMPAIGN_KIND_LABEL,
   CAMPAIGN_STATUS_LABEL,
+  type CampaignDetail,
+  type CampaignContactRow,
   type CampaignKind,
 } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
@@ -15,31 +21,8 @@ export const Route = createFileRoute("/_authenticated/campanhas/$campaignId")({
   component: CampaignDetailPage,
 });
 
-type Campaign = {
-  id: string;
-  name: string;
-  status: string;
-  campaign_kind: string | null;
-  total_contacts: number;
-  placed_count: number;
-  connected_count: number;
-  escalated_count: number;
-  voicemail_count: number;
-  failed_count: number;
-  opening_script: string | null;
-  from_number: string;
-  created_at: string;
-};
-
-type ContactRow = {
-  id: number;
-  to_number: string;
-  status: string;
-  attempts: number;
-  last_attempt_at: string | null;
-  last_error: string | null;
-  voice_call_id: string | null;
-};
+type Campaign = CampaignDetail;
+type ContactRow = CampaignContactRow;
 
 const STATUS_BUCKET: Record<string, string> = {
   queued: "Em fila",
@@ -67,84 +50,57 @@ const STATUS_ORDER = [
 
 function CampaignDetailPage() {
   const { campaignId } = Route.useParams();
+  const { accountId } = useAccount();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
+    if (!accountId) return;
     try {
       const [c, cc] = await Promise.all([
-        (supabase as any)
-          .from("voice_campaigns")
-          .select(
-            "id,name,status,campaign_kind,total_contacts,placed_count,connected_count,escalated_count,voicemail_count,failed_count,opening_script,from_number,created_at",
-          )
-          .eq("id", campaignId)
-          .maybeSingle(),
-        (supabase as any)
-          .from("voice_campaign_contacts")
-          .select("id,to_number,status,attempts,last_attempt_at,last_error,voice_call_id")
-          .eq("campaign_id", campaignId)
-          .order("id", { ascending: false })
-          .limit(500),
+        fetchCampaign(accountId, campaignId),
+        fetchCampaignContacts(accountId, campaignId),
       ]);
-      if (c.error) throw c.error;
-      setCampaign(c.data as Campaign);
-      setContacts((cc.data ?? []) as ContactRow[]);
+      setCampaign(c);
+      setContacts(cc);
     } catch (e: any) {
       toast.error(e?.message ?? "falha ao carregar campanha");
     } finally {
       setLoading(false);
     }
-  }, [campaignId]);
+  }, [accountId, campaignId]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  // Realtime
+  // Realtime: qualquer mudança em voice_campaigns/voice_campaign_contacts
+  // desta conta reconsulta os dados desta campanha (payload não carrega
+  // campaign_id — o refetch é barato e a página só olha uma campanha).
   useEffect(() => {
-    const channel = supabase
-      .channel(`campaign-${campaignId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "voice_campaign_contacts",
-          filter: `campaign_id=eq.${campaignId}`,
-        },
-        () => refresh(),
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "voice_campaigns",
-          filter: `id=eq.${campaignId}`,
-        },
-        () => refresh(),
-      )
-      .subscribe();
+    if (!accountId) return;
+    const unsub1 = subscribeTable("voice_campaigns", (e) => {
+      if (e.accountId === accountId) refresh();
+    });
+    const unsub2 = subscribeTable("voice_campaign_contacts", (e) => {
+      if (e.accountId === accountId) refresh();
+    });
     return () => {
-      supabase.removeChannel(channel);
+      unsub1();
+      unsub2();
     };
-  }, [campaignId, refresh]);
+  }, [accountId, refresh]);
 
   const setStatus = async (next: string) => {
-    const patch: any = { status: next };
-    if (next === "running" && !campaign?.id) return;
-    if (next === "running") patch.started_at = new Date().toISOString();
-    if (next === "completed" || next === "canceled") patch.finished_at = new Date().toISOString();
-
-    const { error } = await (supabase as any)
-      .from("voice_campaigns")
-      .update(patch)
-      .eq("id", campaignId);
-    if (error) return toast.error(error.message);
-    toast.success("Status atualizado");
-    refresh();
+    if (!accountId) return;
+    try {
+      await updateCampaignStatus(accountId, campaignId, next);
+      toast.success("Status atualizado");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao atualizar status");
+    }
   };
 
   if (loading) {
@@ -156,9 +112,7 @@ function CampaignDetailPage() {
   }
 
   if (!campaign) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">Campanha não encontrada.</div>
-    );
+    return <div className="p-6 text-sm text-muted-foreground">Campanha não encontrada.</div>;
   }
 
   const buckets = STATUS_ORDER.reduce<Record<string, number>>((acc, s) => {
@@ -185,7 +139,8 @@ function CampaignDetailPage() {
           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
             <span>
               {campaign.campaign_kind
-                ? CAMPAIGN_KIND_LABEL[campaign.campaign_kind as CampaignKind] ?? campaign.campaign_kind
+                ? (CAMPAIGN_KIND_LABEL[campaign.campaign_kind as CampaignKind] ??
+                  campaign.campaign_kind)
                 : "—"}
             </span>
             <span>·</span>
@@ -202,7 +157,9 @@ function CampaignDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          {(campaign.status === "draft" || campaign.status === "paused" || campaign.status === "scheduled") && (
+          {(campaign.status === "draft" ||
+            campaign.status === "paused" ||
+            campaign.status === "scheduled") && (
             <button
               onClick={() => setStatus("running")}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
@@ -253,10 +210,7 @@ function CampaignDetailPage() {
               <div key={s} className="flex items-center gap-3 text-xs">
                 <span className="w-28 text-muted-foreground">{STATUS_BUCKET[s] ?? s}</span>
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn("h-full", bucketBar(s))}
-                    style={{ width: `${pct}%` }}
-                  />
+                  <div className={cn("h-full", bucketBar(s))} style={{ width: `${pct}%` }} />
                 </div>
                 <span className="w-12 text-right tabular-nums">{count}</span>
               </div>
@@ -296,13 +250,9 @@ function CampaignDetailPage() {
                   </td>
                   <td className="px-4 py-2 tabular-nums">{c.attempts}</td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">
-                    {c.last_attempt_at
-                      ? new Date(c.last_attempt_at).toLocaleString("pt-BR")
-                      : "—"}
+                    {c.last_attempt_at ? new Date(c.last_attempt_at).toLocaleString("pt-BR") : "—"}
                   </td>
-                  <td className="px-4 py-2 text-xs text-destructive/80">
-                    {c.last_error ?? ""}
-                  </td>
+                  <td className="px-4 py-2 text-xs text-destructive/80">{c.last_error ?? ""}</td>
                 </tr>
               ))}
               {contacts.length === 0 && (
@@ -373,15 +323,15 @@ function bucketBar(status: string): string {
 function statusClass(status: string): string {
   switch (status) {
     case "running":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+      return "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30";
     case "scheduled":
-      return "bg-sky-50 text-sky-700 ring-sky-200";
+      return "bg-sky-500/15 text-sky-400 ring-sky-500/30";
     case "paused":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
+      return "bg-amber-500/15 text-amber-400 ring-amber-500/30";
     case "completed":
       return "bg-muted text-muted-foreground ring-border";
     case "canceled":
-      return "bg-rose-50 text-rose-700 ring-rose-200";
+      return "bg-rose-500/15 text-rose-400 ring-rose-500/30";
     default:
       return "bg-muted text-muted-foreground ring-border";
   }
@@ -391,15 +341,15 @@ function contactStatusClass(status: string): string {
   switch (status) {
     case "connected":
     case "completed":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+      return "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30";
     case "escalated":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
+      return "bg-amber-500/15 text-amber-400 ring-amber-500/30";
     case "voicemail":
-      return "bg-sky-50 text-sky-700 ring-sky-200";
+      return "bg-sky-500/15 text-sky-400 ring-sky-500/30";
     case "failed":
     case "no_answer":
     case "cancelled":
-      return "bg-rose-50 text-rose-700 ring-rose-200";
+      return "bg-rose-500/15 text-rose-400 ring-rose-500/30";
     case "placed":
       return "bg-primary/10 text-primary ring-primary/20";
     default:

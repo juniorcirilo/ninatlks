@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 export type StageColor =
   | "slate"
@@ -74,20 +74,15 @@ export function stageToneLegacy(color: string) {
 }
 
 export async function fetchPipeline(accountId: string): Promise<Pipeline> {
-  const { data, error } = await (supabase as any).rpc("pipeline_get", {
-    p_account_id: accountId,
-  });
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("empty pipeline payload");
-  return data as Pipeline;
+  return apiClient.get<Pipeline>(`/accounts/${accountId}/pipeline`);
 }
 
-export async function moveLeadToStage(contactId: string, stageId: string): Promise<void> {
-  const { error } = await (supabase as any).rpc("lead_move_to_stage", {
-    p_contact_id: contactId,
-    p_stage_id: stageId,
-  });
-  if (error) throw new Error(error.message);
+export async function moveLeadToStage(
+  accountId: string,
+  contactId: string,
+  stageId: string,
+): Promise<void> {
+  await apiClient.post(`/accounts/${accountId}/pipeline/leads/${contactId}/move`, { stageId });
 }
 
 export function scoreTone(score: number): { label: string; cls: string } {

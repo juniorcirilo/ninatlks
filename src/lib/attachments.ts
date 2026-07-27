@@ -1,6 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
-
-const BUCKET = "attachments";
+import { apiClient } from "@/lib/api-client";
 
 export interface UploadedAttachment {
   storagePath: string;
@@ -11,9 +9,11 @@ export interface UploadedAttachment {
 }
 
 /**
- * Upload a file to the private `attachments` bucket using the convention
- * `<accountId>/outgoing/<conversationId>/<timestamp>-<name>`. Returns the
- * internal storage path + a short-lived signed URL for immediate preview.
+ * Upload a file to the private `attachments` bucket (MinIO) using the
+ * convention `<accountId>/outgoing/<conversationId>/<timestamp>-<name>`.
+ * The backend issues a presigned PUT URL (and a presigned GET URL for
+ * immediate preview) — the browser uploads the file bytes directly to
+ * MinIO, never through the Node process.
  */
 export async function uploadOutgoingAttachment(params: {
   accountId: string;
@@ -21,29 +21,32 @@ export async function uploadOutgoingAttachment(params: {
   file: File;
 }): Promise<UploadedAttachment> {
   const { accountId, conversationId, file } = params;
-  const safeName = file.name.replace(/[^a-z0-9._-]/gi, "_");
-  const key = `${accountId}/outgoing/${conversationId}/${Date.now()}-${safeName}`;
+  const contentType = file.type || "application/octet-stream";
 
-  const { error: upErr } = await supabase.storage
-    .from(BUCKET)
-    .upload(key, file, {
-      contentType: file.type || "application/octet-stream",
-      upsert: false,
-      cacheControl: "3600",
-    });
-  if (upErr) throw upErr;
+  const { storagePath, uploadUrl, signedUrl, mimeType } = await apiClient.post<{
+    storagePath: string;
+    uploadUrl: string;
+    signedUrl: string;
+    mimeType: string;
+  }>(`/accounts/${accountId}/attachments/presign`, {
+    conversationId,
+    filename: file.name,
+    contentType,
+  });
 
-  const { data: signed, error: signErr } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(key, 60 * 10);
-  if (signErr || !signed) throw signErr ?? new Error("signed url failed");
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`falha ao enviar arquivo (HTTP ${res.status})`);
 
   return {
-    storagePath: `${BUCKET}/${key}`,
-    mimeType: file.type || "application/octet-stream",
+    storagePath,
+    mimeType,
     filename: file.name,
     fileSize: file.size,
-    signedUrl: signed.signedUrl,
+    signedUrl,
   };
 }
 

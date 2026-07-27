@@ -27,7 +27,7 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useAccount } from "@/lib/account-context";
-import { supabase } from "@/integrations/supabase/client";
+import { subscribeTable } from "@/lib/realtime-client";
 import {
   fetchPipeline,
   moveLeadToStage,
@@ -43,12 +43,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({
@@ -76,7 +71,12 @@ function PipelinePage() {
   );
 
   const queryKey = useMemo(() => ["pipeline", accountId] as const, [accountId]);
-  const { data, isLoading, error: queryError, refetch } = useQuery({
+  const {
+    data,
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useQuery({
     queryKey,
     queryFn: () => fetchPipeline(accountId!),
     enabled: !!accountId,
@@ -85,32 +85,25 @@ function PipelinePage() {
 
   const loading = isLoading && !data;
   const error = queryError ? (queryError as Error).message : null;
-  const refresh = useCallback(async () => { await refetch(); }, [refetch]);
+  const refresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   // Realtime: invalida cache quando a IA muda contatos
   useEffect(() => {
     if (!accountId) return;
-    const channel = supabase
-      .channel(`pipeline-${accountId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "contacts",
-          filter: `account_id=eq.${accountId}`,
-        },
-        () => queryClient.invalidateQueries({ queryKey }),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return subscribeTable("contacts", (e) => {
+      if (e.accountId !== accountId) return;
+      queryClient.invalidateQueries({ queryKey });
+    });
   }, [accountId, queryClient, queryKey]);
 
   const totals = useMemo(() => {
     if (!data) return { leads: 0, won: 0, lost: 0, qualified: 0 };
-    let leads = 0, won = 0, lost = 0, qualified = 0;
+    let leads = 0,
+      won = 0,
+      lost = 0,
+      qualified = 0;
     for (const s of data.stages) {
       leads += s.leads.length;
       if (s.is_won) won += s.leads.length;
@@ -137,7 +130,7 @@ function PipelinePage() {
     setActiveId(null);
     const leadId = String(e.active.id);
     const targetStageId = e.over ? String(e.over.id) : null;
-    if (!targetStageId || !data) return;
+    if (!targetStageId || !data || !accountId) return;
 
     // localizar stage atual
     let sourceStageId: string | null = null;
@@ -158,14 +151,15 @@ function PipelinePage() {
       ...data,
       stages: data.stages.map((s) => {
         if (s.id === sourceStageId) return { ...s, leads: s.leads.filter((x) => x.id !== leadId) };
-        if (s.id === targetStageId) return { ...s, leads: [{ ...lead!, auto_moved_at: null }, ...s.leads] };
+        if (s.id === targetStageId)
+          return { ...s, leads: [{ ...lead!, auto_moved_at: null }, ...s.leads] };
         return s;
       }),
     };
     queryClient.setQueryData(queryKey, next);
 
     try {
-      await moveLeadToStage(leadId, targetStageId);
+      await moveLeadToStage(accountId, leadId, targetStageId);
       toast.success("Lead movido");
       queryClient.invalidateQueries({ queryKey });
     } catch (err: any) {
@@ -241,7 +235,9 @@ function PipelinePage() {
           </div>
         </div>
 
-        <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}>
+        <DragOverlay
+          dropAnimation={{ duration: 180, easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)" }}
+        >
           {activeLead ? (
             <div className="rotate-2 scale-105 opacity-95">
               <LeadCardInner lead={activeLead.lead} dragging />
@@ -275,13 +271,7 @@ function Dot() {
 
 /* ─────────────── Column (drop target) ─────────────── */
 
-function Column({
-  stage,
-  onLeadClick,
-}: {
-  stage: Stage;
-  onLeadClick: (lead: LeadCard) => void;
-}) {
+function Column({ stage, onLeadClick }: { stage: Stage; onLeadClick: (lead: LeadCard) => void }) {
   const tone = stageTone(stage.color);
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -314,11 +304,7 @@ function Column({
           </div>
         ) : (
           stage.leads.map((lead) => (
-            <DraggableLead
-              key={lead.id}
-              lead={lead}
-              onClick={() => onLeadClick(lead)}
-            />
+            <DraggableLead key={lead.id} lead={lead} onClick={() => onLeadClick(lead)} />
           ))
         )}
       </div>
@@ -387,9 +373,7 @@ function LeadCardInner({ lead, dragging = false }: { lead: LeadCard; dragging?: 
             )}
           </div>
           {lead.phone_number && lead.name && (
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-              {lead.phone_number}
-            </p>
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{lead.phone_number}</p>
           )}
         </div>
         <span
@@ -451,14 +435,15 @@ function LeadDetail({
   allStages: Stage[];
   onMoved: () => void;
 }) {
+  const { accountId } = useAccount();
   const score = scoreTone(lead.score);
   const tone = stageTone(stage.color);
   const sent = sentimentTone(lead.last_sentiment);
 
   async function handleMove(stageId: string) {
-    if (stageId === stage.id) return;
+    if (stageId === stage.id || !accountId) return;
     try {
-      await moveLeadToStage(lead.id, stageId);
+      await moveLeadToStage(accountId, lead.id, stageId);
       toast.success("Lead movido");
       onMoved();
     } catch (e: any) {
@@ -487,21 +472,11 @@ function LeadDetail({
             <span className={cn("h-1.5 w-1.5 rounded-full", tone.dot)} />
             {stage.name}
           </span>
-          <span
-            className={cn(
-              "rounded-md px-2 py-0.5 text-[11px] font-medium ring-1",
-              score.cls,
-            )}
-          >
+          <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium ring-1", score.cls)}>
             Score {lead.score} · {score.label}
           </span>
           {sent && (
-            <span
-              className={cn(
-                "rounded-md px-2 py-0.5 text-[11px] font-medium ring-1",
-                sent.cls,
-              )}
-            >
+            <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium ring-1", sent.cls)}>
               {sent.emoji} {sent.label}
             </span>
           )}
@@ -527,32 +502,31 @@ function LeadDetail({
           )}
         </div>
 
-        {lead.briefing &&
-          (lead.briefing.dor || lead.briefing.fit || lead.briefing.next_action) && (
-            <div className="space-y-3 rounded-xl border border-accent/20 bg-accent/5 p-3">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent">
-                <Sparkles className="h-3 w-3" />
-                Briefing IA
-              </div>
-              {lead.briefing.dor && <BriefingRow label="Dor" value={lead.briefing.dor} />}
-              {lead.briefing.fit && <BriefingRow label="Fit" value={lead.briefing.fit} />}
-              {lead.briefing.objections && lead.briefing.objections.length > 0 && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    Objeções
-                  </div>
-                  <ul className="mt-1 space-y-0.5 text-xs text-foreground/80">
-                    {lead.briefing.objections.map((o, i) => (
-                      <li key={i}>· {o}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {lead.briefing.next_action && (
-                <BriefingRow label="Próxima ação" value={lead.briefing.next_action} />
-              )}
+        {lead.briefing && (lead.briefing.dor || lead.briefing.fit || lead.briefing.next_action) && (
+          <div className="space-y-3 rounded-xl border border-accent/20 bg-accent/5 p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent">
+              <Sparkles className="h-3 w-3" />
+              Briefing IA
             </div>
-          )}
+            {lead.briefing.dor && <BriefingRow label="Dor" value={lead.briefing.dor} />}
+            {lead.briefing.fit && <BriefingRow label="Fit" value={lead.briefing.fit} />}
+            {lead.briefing.objections && lead.briefing.objections.length > 0 && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Objeções
+                </div>
+                <ul className="mt-1 space-y-0.5 text-xs text-foreground/80">
+                  {lead.briefing.objections.map((o, i) => (
+                    <li key={i}>· {o}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {lead.briefing.next_action && (
+              <BriefingRow label="Próxima ação" value={lead.briefing.next_action} />
+            )}
+          </div>
+        )}
 
         <div>
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">

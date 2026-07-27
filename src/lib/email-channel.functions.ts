@@ -1,3 +1,4 @@
+import { query, insert } from "@/lib/db";
 // Canal Email via Resend (Fase 2C — Omnichannel+).
 //
 // `sendOutboundEmail`: enviar mensagem outbound numa conversation de canal=email.
@@ -5,37 +6,53 @@
 // header `In-Reply-To` para manter threading do lado do cliente de email.
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const RESEND_URL = "https://api.resend.com/emails";
 
 export const sendOutboundEmail = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
-    z.object({
-      conversationId: z.string().uuid(),
-      subject: z.string().min(1).max(200),
-      html: z.string().min(1).max(50_000),
-      replyToMessageId: z.string().optional(),
-    }).parse(d),
+    z
+      .object({
+        conversationId: z.string().uuid(),
+        subject: z.string().min(1).max(200),
+        html: z.string().min(1).max(50_000),
+        replyToMessageId: z.string().optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
+    const userId = context.userId;
 
-    const { data: conv, error } = await supabase
-      .from("conversations")
-      .select("id, account_id, contact_id, inbox_id, contacts(email, name), inboxes(channel_type, name)")
-      .eq("id", data.conversationId)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
+    const convRows = await query<{
+      id: string;
+      account_id: string;
+      contact_id: string;
+      inbox_id: string;
+      contact_email: string | null;
+      contact_name: string | null;
+      inbox_channel_type: string | null;
+      inbox_name: string | null;
+    }>(
+      `SELECT c.id, c.account_id, c.contact_id, c.inbox_id,
+              ct.email AS contact_email, ct.name AS contact_name,
+              i.channel_type AS inbox_channel_type, i.name AS inbox_name
+       FROM conversations c
+       LEFT JOIN contacts ct ON ct.id = c.contact_id
+       LEFT JOIN inboxes i ON i.id = c.inbox_id
+       WHERE c.id = $1
+       LIMIT 1`,
+      [data.conversationId],
+    );
+    const conv = convRows[0] ?? null;
     if (!conv) throw new Error("Conversa não encontrada");
 
-    const inbox = (conv as { inboxes?: { channel_type?: string; name?: string } }).inboxes ?? {};
-    if (inbox.channel_type !== "email") {
-      throw new Error(`Conversa não é de canal email (é ${inbox.channel_type ?? "?"})`);
+    if (conv.inbox_channel_type !== "email") {
+      throw new Error(`Conversa não é de canal email (é ${conv.inbox_channel_type ?? "?"})`);
     }
-    const to = (conv as { contacts?: { email?: string } }).contacts?.email;
+    const to = conv.contact_email;
     if (!to) throw new Error("Contato sem email cadastrado");
 
     const apiKey = process.env.RESEND_API_KEY;
@@ -65,28 +82,22 @@ export const sendOutboundEmail = createServerFn({ method: "POST" })
       throw new Error(`Resend ${res.status}: ${body.message ?? "erro desconhecido"}`);
     }
 
-    const { data: inserted, error: insErr } = await supabase
-      .from("messages")
-      .insert([
-        {
-          account_id: (conv as { account_id: string }).account_id,
-          conversation_id: data.conversationId,
-          inbox_id: (conv as { inbox_id: string }).inbox_id,
-          content: data.html,
-          content_type: 4,
-          message_type: 1,
-          sender_type: "User",
-          sender_id: userId,
-          content_attributes: {
-            kind: "email",
-            subject: data.subject,
-            provider_message_id: body.id ?? null,
-          },
-        },
-      ])
-      .select("id")
-      .single();
-    if (insErr) throw new Error(insErr.message);
+    const insertedRows = await insert<Record<string, unknown>>("messages", {
+      account_id: conv.account_id,
+      conversation_id: data.conversationId,
+      inbox_id: conv.inbox_id,
+      content: data.html,
+      content_type: 4,
+      message_type: 1,
+      sender_type: "User",
+      sender_id: userId,
+      content_attributes: {
+        kind: "email",
+        subject: data.subject,
+        provider_message_id: body.id ?? null,
+      },
+    });
+    const inserted = insertedRows[0];
 
     return { ok: true, messageId: inserted.id, providerMessageId: body.id ?? null };
   });

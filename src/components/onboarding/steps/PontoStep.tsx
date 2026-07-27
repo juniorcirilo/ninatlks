@@ -5,7 +5,7 @@ export function PontoStep({ onClose }: { onClose: () => void }) {
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
           <CheckCircle2 className="h-6 w-6" />
         </div>
         <div>

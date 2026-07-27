@@ -8,23 +8,20 @@
 //   - request_handoff: escala para financeiro humano
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { query, insert } from "@/lib/db";
 import { runAgentLoop, type ToolDef } from "./runner";
 
 const MODEL = "google/gemini-2.5-flash";
 
 async function execLookupPending(accountId: string, args: { contact_id: string }) {
-  const { data, error } = await supabaseAdmin
-    .from("contact_facts")
-    .select("key, value, confidence")
-    .eq("account_id", accountId)
-    .eq("contact_id", args.contact_id)
-    .like("key", "debt:%")
-    .limit(10);
-  if (error) return { error: error.message };
-  return { pending: data ?? [] };
+  const rows = await query(
+    `SELECT key, value, confidence FROM contact_facts
+     WHERE account_id = $1 AND contact_id = $2 AND key LIKE $3 LIMIT 10`,
+    [accountId, args.contact_id, "debt:%"],
+  );
+  return { pending: rows };
 }
 
 async function execLogPromise(
@@ -34,16 +31,19 @@ async function execLogPromise(
 ) {
   if (!conversationId) return { ok: true, note: "promessa lógica" };
   if (args.amount <= 0) return { error: "valor inválido" };
-  const { error } = await supabaseAdmin.from("conversation_outcomes").insert([{
-    account_id: accountId,
-    conversation_id: conversationId,
-    outcome_type: "cobranca:promessa_pagamento",
-    value: args.amount,
-    currency: "BRL",
-    source: "diego",
-    metadata: { due_date: args.due_date, method: args.method ?? null, notes: args.notes ?? null } as never,
-  }]);
-  if (error) return { error: error.message };
+  try {
+    await insert("conversation_outcomes", {
+      account_id: accountId,
+      conversation_id: conversationId,
+      outcome_type: "cobranca:promessa_pagamento",
+      value: args.amount,
+      currency: "BRL",
+      source: "diego",
+      metadata: { due_date: args.due_date, method: args.method ?? null, notes: args.notes ?? null },
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
   return { ok: true };
 }
 
@@ -54,12 +54,15 @@ async function execHandoff(
   args: { reason: string },
 ) {
   if (!conversationId) return { ok: true, note: "handoff lógico" };
-  const { data, error } = await supabaseAdmin.from("agent_handoffs").insert([{
-    account_id: accountId, conversation_id: conversationId, from_persona_id: fromPersonaId,
-    reason: args.reason, context: { requested_by: "diego", target: "human" },
-  }]).select("id").single();
-  if (error) return { error: error.message };
-  return { ok: true, handoff_id: data.id };
+  try {
+    const [row] = await insert<{ id: string }>("agent_handoffs", {
+      account_id: accountId, conversation_id: conversationId, from_persona_id: fromPersonaId,
+      reason: args.reason, context: { requested_by: "diego", target: "human" },
+    });
+    return { ok: true, handoff_id: row.id };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 const TOOLS: ToolDef[] = [
@@ -114,7 +117,7 @@ REGRAS:
 - Respeite Lei do Consumidor: nunca cobre na frente de terceiros, nunca cause constrangimento.`;
 
 export const askDiego = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
       accountId: z.string().uuid(),
@@ -146,11 +149,12 @@ export const askDiego = createServerFn({ method: "POST" })
   });
 
 async function ensureDiegoPersona(accountId: string): Promise<string> {
-  const { data: existing } = await supabaseAdmin
-    .from("agent_personas").select("id")
-    .eq("account_id", accountId).eq("name", "Diego").maybeSingle();
-  if (existing) return existing.id;
-  const { data: persona, error } = await supabaseAdmin.from("agent_personas").insert([{
+  const found = await query<{ id: string }>(
+    `SELECT id FROM agent_personas WHERE account_id = $1 AND name = $2`,
+    [accountId, "Diego"],
+  );
+  if (found.length > 0) return found[0].id;
+  const [persona] = await insert<{ id: string }>("agent_personas", {
     account_id: accountId,
     name: "Diego",
     description: "Cobrança / Financeiro — UBVA",
@@ -158,9 +162,8 @@ async function ensureDiegoPersona(accountId: string): Promise<string> {
     status: "active", enabled: true,
     llm_model: MODEL, llm_temperature: 0.3, llm_max_tokens: 500,
     first_message: "Olá! Sou o Diego, do financeiro da UBVA. Posso confirmar seu nome para falarmos sobre seu orçamento?",
-  }]).select("id").single();
-  if (error) throw new Error(`seed Diego: ${error.message}`);
-  await supabaseAdmin.from("agent_roles").insert([{
+  });
+  await insert("agent_roles", {
     account_id: accountId, persona_id: persona.id,
     kind: "cobranca",
     display_name: "Diego — Cobrança",
@@ -173,6 +176,6 @@ async function ensureDiegoPersona(accountId: string): Promise<string> {
       { when: "ameaça procon/processo", action: "handoff_human" },
     ],
     daily_message_budget: 800,
-  }]);
+  });
   return persona.id;
 }

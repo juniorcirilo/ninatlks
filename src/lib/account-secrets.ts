@@ -6,10 +6,10 @@
 //   const list = await listAccountSecrets(accountId)  // metadata only
 //   await deleteAccountSecret(accountId, "elevenlabs", "api_key")
 //
-// Secret VALUES are never returned to the browser — only edge functions can
-// read them (via the service-role-only RPCs).
+// Secret VALUES are never returned to the browser — only the backend can
+// read them.
 
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
 export type SecretProvider =
   | "twilio"
@@ -34,14 +34,12 @@ export async function setAccountSecret(
   value: string,
   metadata: Record<string, unknown> = {},
 ): Promise<void> {
-  const { error } = await supabase.rpc("set_account_secret", {
-    p_account_id: accountId,
-    p_provider: provider,
-    p_key_name: keyName,
-    p_value: value,
-    p_metadata: metadata as any,
+  await apiClient.post(`/accounts/${accountId}/secrets`, {
+    provider,
+    keyName,
+    value,
+    metadata,
   });
-  if (error) throw new Error(error.message);
 }
 
 export async function deleteAccountSecret(
@@ -49,23 +47,15 @@ export async function deleteAccountSecret(
   provider: SecretProvider,
   keyName: string,
 ): Promise<boolean> {
-  const { data, error } = await supabase.rpc("delete_account_secret", {
-    p_account_id: accountId,
-    p_provider: provider,
-    p_key_name: keyName,
-  });
-  if (error) throw new Error(error.message);
-  return Boolean(data);
+  return apiClient.delete<boolean>(
+    `/accounts/${accountId}/secrets/${provider}/${keyName}`,
+  );
 }
 
 export async function listAccountSecrets(
   accountId: string,
 ): Promise<AccountSecretEntry[]> {
-  const { data, error } = await supabase.rpc("list_account_secrets", {
-    p_account_id: accountId,
-  });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AccountSecretEntry[];
+  return apiClient.get<AccountSecretEntry[]>(`/accounts/${accountId}/secrets`);
 }
 
 /**

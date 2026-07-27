@@ -1,11 +1,6 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 
-export type MeetingStatus =
-  | "scheduled"
-  | "attended"
-  | "no_show"
-  | "rescheduled"
-  | "canceled";
+export type MeetingStatus = "scheduled" | "attended" | "no_show" | "rescheduled" | "canceled";
 
 export type Meeting = {
   id: string;
@@ -38,17 +33,17 @@ export type AvailabilitySlot = {
   id: string;
   user_id: string;
   user_name: string | null;
-  weekday: number;       // 0..6 (0=domingo)
-  start_time: string;    // "HH:MM:SS"
+  weekday: number; // 0..6 (0=domingo)
+  start_time: string; // "HH:MM:SS"
   end_time: string;
 };
 
 export const MEETING_STATUS_LABEL: Record<MeetingStatus, { label: string; cls: string }> = {
-  scheduled:   { label: "Agendada",  cls: "bg-amber-50 text-amber-700 ring-amber-200" },
-  attended:    { label: "Realizada", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-  no_show:     { label: "No-show",   cls: "bg-rose-50 text-rose-700 ring-rose-200" },
-  rescheduled: { label: "Remarcada", cls: "bg-violet-50 text-violet-700 ring-violet-200" },
-  canceled:    { label: "Cancelada", cls: "bg-slate-100 text-slate-600 ring-slate-200" },
+  scheduled: { label: "Agendada", cls: "bg-amber-500/15 text-amber-400 ring-amber-500/30" },
+  attended: { label: "Realizada", cls: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30" },
+  no_show: { label: "No-show", cls: "bg-rose-500/15 text-rose-400 ring-rose-500/30" },
+  rescheduled: { label: "Remarcada", cls: "bg-violet-500/15 text-violet-400 ring-violet-500/30" },
+  canceled: { label: "Cancelada", cls: "bg-slate-500/15 text-slate-400 ring-slate-500/30" },
 };
 
 // ============================================================
@@ -56,8 +51,8 @@ export const MEETING_STATUS_LABEL: Record<MeetingStatus, { label: string; cls: s
 // ============================================================
 
 export type DoctorWeeklySlot = {
-  weekday: number;       // 0..6
-  start_time: string;    // "HH:MM:SS"
+  weekday: number; // 0..6
+  start_time: string; // "HH:MM:SS"
   end_time: string;
 };
 
@@ -73,11 +68,7 @@ export type Doctor = {
 };
 
 export async function fetchDoctors(accountId: string): Promise<Doctor[]> {
-  const { data, error } = await (supabase as any).rpc("doctors_list", {
-    p_account_id: accountId,
-  });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as Doctor[];
+  return apiClient.get<Doctor[]>(`/accounts/${accountId}/doctors`);
 }
 
 export async function upsertDoctor(input: {
@@ -90,41 +81,27 @@ export async function upsertDoctor(input: {
   notes?: string | null;
   active?: boolean;
 }): Promise<string> {
+  const payload = {
+    name: input.name,
+    specialty: input.specialty ?? undefined,
+    modalities: input.modalities,
+    defaultDurationMinutes: input.default_duration_minutes,
+    notes: input.notes ?? undefined,
+    active: input.active ?? true,
+  };
   if (input.id) {
-    const { error } = await supabase
-      .from("doctors")
-      .update({
-        name: input.name,
-        specialty: input.specialty ?? null,
-        modalities: input.modalities,
-        default_duration_minutes: input.default_duration_minutes,
-        notes: input.notes ?? null,
-        active: input.active ?? true,
-      })
-      .eq("id", input.id);
-    if (error) throw new Error(error.message);
+    await apiClient.patch(`/accounts/${input.account_id}/doctors/${input.id}`, payload);
     return input.id;
   }
-  const { data, error } = await supabase
-    .from("doctors")
-    .insert({
-      account_id: input.account_id,
-      name: input.name,
-      specialty: input.specialty ?? null,
-      modalities: input.modalities,
-      default_duration_minutes: input.default_duration_minutes,
-      notes: input.notes ?? null,
-      active: input.active ?? true,
-    })
-    .select("id")
-    .single();
-  if (error || !data) throw new Error(error?.message ?? "falha ao criar médico");
-  return (data as any).id;
+  const { id } = await apiClient.post<{ id: string }>(
+    `/accounts/${input.account_id}/doctors`,
+    payload,
+  );
+  return id;
 }
 
-export async function deleteDoctor(doctorId: string): Promise<void> {
-  const { error } = await supabase.from("doctors").delete().eq("id", doctorId);
-  if (error) throw new Error(error.message);
+export async function deleteDoctor(accountId: string, doctorId: string): Promise<void> {
+  await apiClient.delete(`/accounts/${accountId}/doctors/${doctorId}`);
 }
 
 export async function setDoctorAvailability(
@@ -132,50 +109,34 @@ export async function setDoctorAvailability(
   doctorId: string,
   slots: DoctorWeeklySlot[],
 ): Promise<void> {
-  const { error } = await (supabase as any).rpc("doctor_set_availability", {
-    p_account_id: accountId,
-    p_doctor_id: doctorId,
-    p_slots: slots,
-  });
-  if (error) throw new Error(error.message);
+  await apiClient.put(`/accounts/${accountId}/doctors/${doctorId}/availability`, { slots });
 }
 
 export const WEEKDAY_LABEL = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-export async function fetchMeetings(
-  accountId: string,
-  start: Date,
-  end: Date,
-): Promise<Meeting[]> {
-  const { data, error } = await (supabase as any).rpc("meetings_list", {
-    p_account_id: accountId,
-    p_start: start.toISOString(),
-    p_end: end.toISOString(),
+export async function fetchMeetings(accountId: string, start: Date, end: Date): Promise<Meeting[]> {
+  const params = new URLSearchParams({
+    start: start.toISOString(),
+    end: end.toISOString(),
   });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as Meeting[];
+  return apiClient.get<Meeting[]>(`/accounts/${accountId}/meetings?${params.toString()}`);
 }
 
 export async function setMeetingOutcome(
+  accountId: string,
   meetingId: string,
   status: MeetingStatus,
   opts: { notes?: string; cancellationReason?: string } = {},
 ): Promise<void> {
-  const { error } = await (supabase as any).rpc("meetings_set_outcome", {
-    p_meeting_id: meetingId,
-    p_status: status,
-    p_notes: opts.notes ?? null,
-    p_cancellation_reason: opts.cancellationReason ?? null,
+  await apiClient.patch(`/accounts/${accountId}/meetings/${meetingId}/outcome`, {
+    status,
+    notes: opts.notes,
+    cancellationReason: opts.cancellationReason,
   });
-  if (error) throw new Error(error.message);
 }
 
 export async function fetchWeeklyAvailability(accountId: string): Promise<AvailabilitySlot[]> {
-  const { data, error } = await (supabase as any).rpc("availability_get_weekly", {
-    p_account_id: accountId,
-  });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AvailabilitySlot[];
+  return apiClient.get<AvailabilitySlot[]>(`/accounts/${accountId}/availability`);
 }
 
 export async function setWeeklyAvailability(
@@ -183,12 +144,7 @@ export async function setWeeklyAvailability(
   userId: string,
   slots: { weekday: number; start_time: string; end_time: string }[],
 ): Promise<void> {
-  const { error } = await (supabase as any).rpc("availability_set_weekly", {
-    p_account_id: accountId,
-    p_user_id: userId,
-    p_slots: slots,
-  });
-  if (error) throw new Error(error.message);
+  await apiClient.put(`/accounts/${accountId}/availability`, { userId, slots });
 }
 
 export function formatMeetingTime(iso: string): string {

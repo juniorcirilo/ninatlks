@@ -106,7 +106,10 @@ function useDeferredGlobalUi() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const win = window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
     if (win.requestIdleCallback) {
       const id = win.requestIdleCallback(() => setReady(true), { timeout: 1_500 });
       return () => win.cancelIdleCallback?.(id);
@@ -129,27 +132,25 @@ function Sidebar() {
   const isAdmin = role === "admin";
 
   return (
-    <aside className="sticky top-0 flex h-screen w-[220px] shrink-0 flex-col border-r border-white/[0.06] bg-[#0a0a0f]">
-      <div className="flex h-16 items-center gap-2.5 px-5">
+    <aside className="sticky top-0 flex h-screen w-[248px] shrink-0 flex-col border-r border-white/[0.06] bg-[#0a0a0f]">
+      <div className="flex h-16 items-center gap-3 px-6">
         <NinaTalksLogo size="md" />
         <div className="leading-tight">
           <div className="text-sm font-semibold tracking-tight text-slate-300">Nina Talks</div>
-          <div className="text-[9px] uppercase tracking-wider text-slate-500">
-            Agente de SDR
-          </div>
+          <div className="text-[9px] uppercase tracking-wider text-slate-500">Agente de SDR</div>
         </div>
       </div>
 
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-2">
+      <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
         {NAV_SECTIONS.map((section) => {
           const items = section.items.filter((i) => !i.adminOnly || isAdmin);
           if (items.length === 0) return null;
           return (
             <div key={section.title}>
-              <div className="px-3 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-600">
+              <div className="px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.15em] text-slate-600">
                 {section.title}
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {items.map((item) => (
                   <NavLink key={item.to} item={item} pathname={pathname} />
                 ))}
@@ -171,15 +172,13 @@ function NavLink({ item, pathname }: { item: NavLeaf; pathname: string }) {
     <Link
       to={item.to}
       className={cn(
-        "group flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
+        "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
         isActive
           ? "bg-white/[0.08] font-medium text-white"
           : "text-slate-400 hover:bg-white/[0.04] hover:text-slate-200",
       )}
     >
-      <Icon
-        className={cn("h-4 w-4 shrink-0", isActive ? "text-violet-400" : "")}
-      />
+      <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-violet-400" : "")} />
       <span className="flex-1 truncate">{item.label}</span>
     </Link>
   );
@@ -188,10 +187,7 @@ function NavLink({ item, pathname }: { item: NavLeaf; pathname: string }) {
 function SidebarFooter() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const displayName =
-    (user?.user_metadata?.name as string | undefined) ??
-    user?.email?.split("@")[0] ??
-    "Você";
+  const displayName = user?.displayName ?? user?.name ?? user?.email?.split("@")[0] ?? "Você";
   const initials = displayName
     .split(" ")
     .map((p) => p[0])
@@ -205,15 +201,15 @@ function SidebarFooter() {
   };
 
   return (
-    <div className="border-t border-white/[0.06] p-3">
+    <div className="border-t border-white/[0.06] p-4">
       <button
         type="button"
-        className="mb-2 flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-slate-200"
+        className="mb-2 flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-white/[0.04] hover:text-slate-200"
       >
         <Bell className="h-4 w-4" />
         <span>Notificações</span>
       </button>
-      <div className="flex items-center gap-2 rounded-lg p-2">
+      <div className="flex items-center gap-2.5 rounded-xl p-2.5">
         <Avatar className="h-8 w-8">
           <AvatarFallback className="bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[11px] font-semibold text-white">
             {initials || "?"}
@@ -245,9 +241,7 @@ function Topbar() {
         <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
         <span>Conectado</span>
       </div>
-      <div className="flex items-center gap-3">
-        {showDeferred && <NotificationsBell />}
-      </div>
+      <div className="flex items-center gap-3">{showDeferred && <NotificationsBell />}</div>
     </header>
   );
 }

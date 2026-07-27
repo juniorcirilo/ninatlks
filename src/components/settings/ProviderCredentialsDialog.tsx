@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { apiClient } from "@/lib/api-client";
 import {
   setAccountSecretsBulk,
   deleteAccountSecret,
@@ -119,13 +120,10 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
     setLoading(true);
 
     const loadEvolution = async () => {
-      const { data } = await (await import("@/integrations/supabase/client"))
-        .supabase
-        .from("channels")
-        .select("config")
-        .eq("account_id", accountId)
-        .eq("channel_type", "whatsapp")
-        .maybeSingle();
+      const channels = await apiClient.get<Array<{ config: Record<string, string> }>>(
+        `/accounts/${accountId}/evolution`,
+      );
+      const data = channels[0];
       const cfg = (data?.config ?? {}) as Record<string, string>;
       const set = new Set<string>();
       if (cfg.evolution_url) set.add("evolution_url");

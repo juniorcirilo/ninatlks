@@ -4,11 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import {
-  fetchVoicesAndQuota,
-  previewVoice,
-  type ElevenLabsVoice,
-} from "@/lib/elevenlabs";
+import { fetchVoicesAndQuota, previewVoice, type ElevenLabsVoice } from "@/lib/elevenlabs";
 import { updatePersona } from "@/lib/personas";
 import { cloneVoiceForPersona } from "@/lib/voice";
 
@@ -16,10 +12,12 @@ const PREVIEW_TEXT_DEFAULT = "Olá, sou a Nina. Como posso te ajudar hoje?";
 
 export function VoicePicker({
   personaId,
+  accountId,
   currentVoiceId,
   onSaved,
 }: {
   personaId: string;
+  accountId: string;
   currentVoiceId: string | null;
   onSaved?: (voiceId: string) => void;
 }) {
@@ -41,7 +39,7 @@ export function VoicePicker({
 
   const reloadVoices = async () => {
     try {
-      const { voices: vs } = await fetchVoicesAndQuota();
+      const { voices: vs } = await fetchVoicesAndQuota(accountId);
       setVoices(vs);
     } catch {
       /* ignore */
@@ -62,6 +60,7 @@ export function VoicePicker({
     setCloneProgress("Fazendo upload e criando voz no ElevenLabs…");
     try {
       const result = await cloneVoiceForPersona({
+        accountId,
         personaId,
         file: cloneFile,
       });
@@ -84,7 +83,7 @@ export function VoicePicker({
     (async () => {
       setLoading(true);
       try {
-        const { voices } = await fetchVoicesAndQuota();
+        const { voices } = await fetchVoicesAndQuota(accountId);
         if (!cancelled) setVoices(voices);
       } catch (e: any) {
         if (!cancelled) {
@@ -109,18 +108,33 @@ export function VoicePicker({
         const accent = (v.labels?.accent ?? "").toLowerCase();
         const desc = (v.description ?? "").toLowerCase();
         const anyV = v as any;
-        const verified: any[] = Array.isArray(anyV.verified_languages) ? anyV.verified_languages : [];
-        const baseModels: string[] = Array.isArray(anyV.high_quality_base_model_ids) ? anyV.high_quality_base_model_ids : [];
-        const isPt = lang.includes("portuguese") || accent.includes("brazil") ||
-          verified.some((vl) => String(vl?.language ?? "").toLowerCase().startsWith("pt"));
-        const isMulti = lang.includes("multi") || desc.includes("multilingual") ||
+        const verified: any[] = Array.isArray(anyV.verified_languages)
+          ? anyV.verified_languages
+          : [];
+        const baseModels: string[] = Array.isArray(anyV.high_quality_base_model_ids)
+          ? anyV.high_quality_base_model_ids
+          : [];
+        const isPt =
+          lang.includes("portuguese") ||
+          accent.includes("brazil") ||
+          verified.some((vl) =>
+            String(vl?.language ?? "")
+              .toLowerCase()
+              .startsWith("pt"),
+          );
+        const isMulti =
+          lang.includes("multi") ||
+          desc.includes("multilingual") ||
           baseModels.some((m) => m.includes("multilingual"));
         if (!isPt && !isMulti) return false;
       } else if (filter === "multilingual") {
         const anyV = v as any;
         const lang = (v.labels?.language ?? "").toLowerCase();
-        const baseModels: string[] = Array.isArray(anyV.high_quality_base_model_ids) ? anyV.high_quality_base_model_ids : [];
-        if (!lang.includes("multi") && !baseModels.some((m) => m.includes("multilingual"))) return false;
+        const baseModels: string[] = Array.isArray(anyV.high_quality_base_model_ids)
+          ? anyV.high_quality_base_model_ids
+          : [];
+        if (!lang.includes("multi") && !baseModels.some((m) => m.includes("multilingual")))
+          return false;
       }
       return true;
     });
@@ -140,7 +154,7 @@ export function VoicePicker({
         // Use the TTS endpoint so preview uses the exact ElevenLabs voice
         // configured for the persona (including multilingual quality), not
         // the old static preview_url which is English-only.
-        const blob = await previewVoice({
+        const blob = await previewVoice(accountId, {
           voiceId: voice.voice_id,
           text: previewText,
           languageCode: "pt",
@@ -169,7 +183,7 @@ export function VoicePicker({
   const save = async (voice: ElevenLabsVoice) => {
     setSaving(voice.voice_id);
     try {
-      await updatePersona(personaId, {
+      await updatePersona(accountId, personaId, {
         voice_provider: "elevenlabs",
         voice_clone_id: voice.voice_id,
       });
@@ -207,8 +221,8 @@ export function VoicePicker({
           Clonar minha voz
         </div>
         <p className="mt-1 text-[10px] text-muted-foreground">
-          Envie 30s a 5min de áudio limpo (MP3 ou WAV, sem música de fundo).
-          O ElevenLabs cria uma voz personalizada e vincula automaticamente ao agente.
+          Envie 30s a 5min de áudio limpo (MP3 ou WAV, sem música de fundo). O ElevenLabs cria uma
+          voz personalizada e vincula automaticamente ao agente.
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input
@@ -243,9 +257,7 @@ export function VoicePicker({
             </>
           )}
         </div>
-        {cloneProgress && (
-          <p className="mt-1.5 text-[10px] text-primary">{cloneProgress}</p>
-        )}
+        {cloneProgress && <p className="mt-1.5 text-[10px] text-primary">{cloneProgress}</p>}
       </div>
 
       <div className="flex items-center gap-2">
@@ -284,8 +296,8 @@ export function VoicePicker({
       <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
         {filteredVoices.length === 0 && (
           <p className="text-[11px] text-muted-foreground">
-            Nenhuma voz {filter === "pt-BR" ? "em pt-BR" : "multilíngue"} no seu workspace.
-            Mude o filtro ou adicione uma nova em elevenlabs.io.
+            Nenhuma voz {filter === "pt-BR" ? "em pt-BR" : "multilíngue"} no seu workspace. Mude o
+            filtro ou adicione uma nova em elevenlabs.io.
           </p>
         )}
         {filteredVoices.map((v) => {
@@ -297,9 +309,7 @@ export function VoicePicker({
               key={v.voice_id}
               className={cn(
                 "flex items-center gap-2 rounded-md border p-2",
-                isCurrent
-                  ? "border-primary/40 bg-primary/5"
-                  : "border-border hover:bg-muted",
+                isCurrent ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted",
               )}
             >
               <button
@@ -341,7 +351,11 @@ export function VoicePicker({
                   disabled={isSaving}
                   className="h-6 px-2 text-[10px]"
                 >
-                  {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Volume2 className="h-3 w-3" />}
+                  {isSaving ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Volume2 className="h-3 w-3" />
+                  )}
                   Usar
                 </Button>
               )}

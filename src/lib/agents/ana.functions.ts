@@ -10,9 +10,9 @@
 //   - request_handoff: passa para humano de vendas
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { getOne, query, insert } from "@/lib/db"
 import { runAgentLoop, type ToolDef } from "./runner";
 
 const MODEL = "google/gemini-2.5-flash";
@@ -20,17 +20,20 @@ const MODEL = "google/gemini-2.5-flash";
 // ===================== TOOLS =====================
 
 async function execFindContact(accountId: string, args: { phone?: string; email?: string }) {
-  let q = supabaseAdmin
-    .from("contacts")
-    .select("id, name, email, phone_number, stage_id, score, briefing")
-    .eq("account_id", accountId)
-    .limit(1);
-  if (args.email) q = q.eq("email", args.email);
-  else if (args.phone) q = q.eq("phone_number", args.phone);
-  else return { error: "informe phone ou email" };
-  const { data, error } = await q.maybeSingle();
-  if (error) return { error: error.message };
-  return { contact: data };
+  let sql = `SELECT id, name, email, phone_number, stage_id, score, briefing FROM contacts WHERE account_id = $1`;
+  const params: unknown[] = [accountId];
+  if (args.email) {
+    sql += ` AND email = $2`;
+    params.push(args.email);
+  } else if (args.phone) {
+    sql += ` AND phone_number = $2`;
+    params.push(args.phone);
+  } else {
+    return { error: "informe phone ou email" };
+  }
+  sql += ` LIMIT 1`;
+  const contact = await getOne(sql, params);
+  return { contact };
 }
 
 async function execUpsertContact(
@@ -48,29 +51,28 @@ async function execUpsertContact(
   };
   // tenta upsert por email se existir; senão por phone_number.
   const conflictKey = args.email ? "account_id,email" : "account_id,phone_number";
-  const { data, error } = await supabaseAdmin
-    .from("contacts")
-    .upsert([payload], { onConflict: conflictKey })
-    .select("id, name, phone_number, email")
-    .single();
-  if (error) return { error: error.message };
-  return { contact: data };
+  const keys = Object.keys(payload);
+  const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(", ");
+  const params = keys.map((k) => (payload as Record<string, any>)[k]);
+  const sql = `INSERT INTO contacts (${keys.join(", ")}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(", ")})
+    ON CONFLICT (${conflictKey}) DO UPDATE SET ${setClause} RETURNING id, name, phone_number, email`;
+  const rows = await query(sql, params);
+  return { contact: rows[0] ?? null };
 }
 
 async function execSetStage(accountId: string, args: { contact_id: string; stage_name: string }) {
-  const { data: stage, error: e1 } = await supabaseAdmin
-    .from("lead_stages")
-    .select("id, pipeline_id, lead_pipelines!inner(account_id)")
-    .eq("name", args.stage_name)
-    .eq("lead_pipelines.account_id", accountId)
-    .maybeSingle();
-  if (e1 || !stage) return { error: `estágio '${args.stage_name}' não encontrado` };
-  const { error: e2 } = await supabaseAdmin
-    .from("contacts")
-    .update({ stage_id: stage.id, stage_changed_at: new Date().toISOString() })
-    .eq("id", args.contact_id)
-    .eq("account_id", accountId);
-  if (e2) return { error: e2.message };
+  const stages = await query<{ id: string; pipeline_id: string }>(
+    `SELECT ls.id, ls.pipeline_id FROM lead_stages ls
+     JOIN lead_pipelines lp ON lp.id = ls.pipeline_id
+     WHERE ls.name = $1 AND lp.account_id = $2 LIMIT 1`,
+    [args.stage_name, accountId],
+  );
+  const stage = stages[0];
+  if (!stage) return { error: `estágio '${args.stage_name}' não encontrado` };
+  await query(
+    `UPDATE contacts SET stage_id = $1, stage_changed_at = $2 WHERE id = $3 AND account_id = $4`,
+    [stage.id, new Date().toISOString(), args.contact_id, accountId],
+  );
   return { ok: true, stage_id: stage.id };
 }
 
@@ -98,24 +100,19 @@ async function execScheduleMeeting(
   args: { contact_id: string; starts_at: string; duration_minutes?: number; title?: string; modality?: string },
 ) {
   const ends = new Date(new Date(args.starts_at).getTime() + (args.duration_minutes ?? 30) * 60_000).toISOString();
-  const { data, error } = await supabaseAdmin
-    .from("scheduled_meetings")
-    .insert([{
-      account_id: accountId,
-      contact_id: args.contact_id,
-      provider: "internal",
-      provider_event_id: `ana-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      starts_at: args.starts_at,
-      ends_at: ends,
-      title: args.title ?? "Reunião com Ana (SDR)",
-      modality: args.modality ?? "online",
-      duration_minutes: args.duration_minutes ?? 30,
-      status: "scheduled",
-    }])
-    .select("id, starts_at")
-    .single();
-  if (error) return { error: error.message };
-  return { ok: true, meeting_id: data.id, starts_at: data.starts_at };
+  const [row] = await insert("scheduled_meetings", {
+    account_id: accountId,
+    contact_id: args.contact_id,
+    provider: "internal",
+    provider_event_id: `ana-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    starts_at: args.starts_at,
+    ends_at: ends,
+    title: args.title ?? "Reunião com Ana (SDR)",
+    modality: args.modality ?? "online",
+    duration_minutes: args.duration_minutes ?? 30,
+    status: "scheduled",
+  });
+  return { ok: true, meeting_id: row.id, starts_at: row.starts_at };
 }
 
 async function execHandoff(
@@ -125,20 +122,15 @@ async function execHandoff(
   args: { reason: string; target?: "human" | "persona"; target_persona_id?: string },
 ) {
   if (!conversationId) return { ok: true, note: "sem conversa ativa — handoff lógico" };
-  const { data, error } = await supabaseAdmin
-    .from("agent_handoffs")
-    .insert([{
-      account_id: accountId,
-      conversation_id: conversationId,
-      from_persona_id: fromPersonaId,
-      to_persona_id: args.target === "persona" ? args.target_persona_id ?? null : null,
-      reason: args.reason,
-      context: { requested_by: "ana", target: args.target ?? "human" },
-    }])
-    .select("id")
-    .single();
-  if (error) return { error: error.message };
-  return { ok: true, handoff_id: data.id };
+  const [row] = await insert("agent_handoffs", {
+    account_id: accountId,
+    conversation_id: conversationId,
+    from_persona_id: fromPersonaId,
+    to_persona_id: args.target === "persona" ? args.target_persona_id ?? null : null,
+    reason: args.reason,
+    context: { requested_by: "ana", target: args.target ?? "human" },
+  });
+  return { ok: true, handoff_id: row.id };
 }
 
 // ===================== SCHEMAS =====================
@@ -247,7 +239,7 @@ REGRAS:
 // ===================== SERVER FN =====================
 
 export const askAna = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
       accountId: z.string().uuid(),
@@ -285,33 +277,26 @@ export const askAna = createServerFn({ method: "POST" })
 // ===================== PERSONA SEEDER =====================
 
 async function ensureAnaPersona(accountId: string): Promise<string> {
-  const { data: existing } = await supabaseAdmin
-    .from("agent_personas")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("name", "Ana")
-    .maybeSingle();
+  const existing = await getOne<{ id: string }>(
+    `SELECT id FROM agent_personas WHERE account_id = $1 AND name = $2`,
+    [accountId, "Ana"],
+  );
   if (existing) return existing.id;
 
-  const { data: persona, error } = await supabaseAdmin
-    .from("agent_personas")
-    .insert([{
-      account_id: accountId,
-      name: "Ana",
-      description: "SDR — qualifica leads e marca reuniões",
-      system_prompt: ANA_SYSTEM,
-      status: "active",
-      enabled: true,
-      llm_model: MODEL,
-      llm_temperature: 0.5,
-      llm_max_tokens: 600,
-      first_message: "Oi! Sou a Ana. Posso te fazer 2 perguntinhas pra entender o que você precisa?",
-    }])
-    .select("id")
-    .single();
-  if (error) throw new Error(`seed persona Ana: ${error.message}`);
+  const [persona] = await insert<{ id: string }>("agent_personas", {
+    account_id: accountId,
+    name: "Ana",
+    description: "SDR — qualifica leads e marca reuniões",
+    system_prompt: ANA_SYSTEM,
+    status: "active",
+    enabled: true,
+    llm_model: MODEL,
+    llm_temperature: 0.5,
+    llm_max_tokens: 600,
+    first_message: "Oi! Sou a Ana. Posso te fazer 2 perguntinhas pra entender o que você precisa?",
+  });
 
-  await supabaseAdmin.from("agent_roles").insert([{
+  await insert("agent_roles", {
     account_id: accountId,
     persona_id: persona.id,
     kind: "sdr",
@@ -324,7 +309,7 @@ async function ensureAnaPersona(accountId: string): Promise<string> {
       { when: "demo técnica profunda", action: "handoff_human" },
     ],
     daily_message_budget: 2000,
-  }]);
+  });
 
   return persona.id;
 }

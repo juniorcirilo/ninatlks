@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
 import { Bell, Check, CheckCheck, ExternalLink, Loader2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useAuth } from "@/lib/auth-context";
 import { useAccount } from "@/lib/account-context";
+import { subscribeTable } from "@/lib/realtime-client";
 import {
   fetchNotifications,
   fetchUnreadCount,
@@ -16,63 +12,52 @@ import {
   markNotificationRead,
   type Notification,
 } from "@/lib/notifications";
-import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
 export function NotificationsBell() {
-  const { user } = useAuth();
   const { accountId } = useAccount();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  const userId = user?.id;
-
   const refresh = async () => {
-    if (!userId) return;
-    const count = await fetchUnreadCount(userId);
+    if (!accountId) return;
+    const count = await fetchUnreadCount(accountId);
     setUnread(count);
   };
 
   useEffect(() => {
-    if (!userId) return;
+    if (!accountId) return;
     refresh();
+    // Realtime is the primary update path; the 60s poll is just a safety
+    // net (e.g. socket reconnect gap).
     const id = setInterval(() => {
-      fetchUnreadCount(userId).then(setUnread).catch(() => {});
-    }, 30_000);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
-  // Realtime
-  useEffect(() => {
-    if (!userId || !accountId) return;
-    const channel = supabase
-      .channel(`notifs:${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        (payload) => {
-          setItems((prev) => [payload.new as Notification, ...prev].slice(0, 30));
-          setUnread((u) => u + 1);
-        },
-      )
-      .subscribe();
+      fetchUnreadCount(accountId)
+        .then(setUnread)
+        .catch(() => {});
+    }, 60_000);
+    const unsubscribe = subscribeTable("notifications", () => {
+      fetchUnreadCount(accountId)
+        .then(setUnread)
+        .catch(() => {});
+    });
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(id);
+      unsubscribe();
     };
-  }, [userId, accountId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
   const handleOpen = async (next: boolean) => {
     setOpen(next);
     if (next) {
       setLoading(true);
       try {
-        if (!userId) return;
+        if (!accountId) return;
         const [list, count] = await Promise.all([
-          fetchNotifications(userId),
-          fetchUnreadCount(userId),
+          fetchNotifications(accountId),
+          fetchUnreadCount(accountId),
         ]);
         setItems(list);
         setUnread(count);
@@ -83,19 +68,18 @@ export function NotificationsBell() {
   };
 
   const handleMarkOne = async (n: Notification) => {
-    if (!n.read_at) {
-      await markNotificationRead(n.id);
-      setItems((prev) =>
-        prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)),
-      );
-      setUnread((u) => Math.max(0, u - 1));
-    }
+    if (!accountId || n.readAt) return;
+    await markNotificationRead(accountId, n.id);
+    setItems((prev) =>
+      prev.map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)),
+    );
+    setUnread((u) => Math.max(0, u - 1));
   };
 
   const handleMarkAll = async () => {
-    if (!userId) return;
-    await markAllRead(userId);
-    setItems((prev) => prev.map((x) => ({ ...x, read_at: x.read_at ?? new Date().toISOString() })));
+    if (!accountId) return;
+    await markAllRead(accountId);
+    setItems((prev) => prev.map((x) => ({ ...x, readAt: x.readAt ?? new Date().toISOString() })));
     setUnread(0);
   };
 
@@ -145,24 +129,29 @@ export function NotificationsBell() {
                   key={n.id}
                   className={cn(
                     "group flex gap-2 px-3 py-2.5 transition-colors hover:bg-white/[0.03]",
-                    !n.read_at && "bg-violet-500/[0.04]",
+                    !n.readAt && "bg-violet-500/[0.04]",
                   )}
                 >
-                  <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" style={{ visibility: n.read_at ? "hidden" : "visible" }} />
+                  <div
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400"
+                    style={{ visibility: n.readAt ? "hidden" : "visible" }}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
                       <div className="text-[12px] font-medium leading-tight">{n.title}</div>
                       <span className="shrink-0 text-[10px] text-muted-foreground">
-                        {timeAgo(n.created_at)}
+                        {timeAgo(n.createdAt)}
                       </span>
                     </div>
                     {n.body && (
-                      <div className="mt-0.5 text-[11px] text-muted-foreground line-clamp-2">{n.body}</div>
+                      <div className="mt-0.5 text-[11px] text-muted-foreground line-clamp-2">
+                        {n.body}
+                      </div>
                     )}
                     <div className="mt-1.5 flex items-center gap-2">
-                      {n.link_to && (
+                      {n.linkTo && (
                         <Link
-                          to={n.link_to}
+                          to={n.linkTo}
                           onClick={() => {
                             setOpen(false);
                             handleMarkOne(n);
@@ -172,7 +161,7 @@ export function NotificationsBell() {
                           Ver <ExternalLink className="h-2.5 w-2.5" />
                         </Link>
                       )}
-                      {!n.read_at && (
+                      {!n.readAt && (
                         <button
                           type="button"
                           onClick={() => handleMarkOne(n)}

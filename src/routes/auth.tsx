@@ -1,14 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth-context";
 import { LoginSignupForm, type AuthMode } from "@/components/auth/LoginSignupForm";
-import {
-  acceptInviteByToken,
-  getInvitePreview,
-  type InvitePreview,
-} from "@/lib/team";
+import { acceptInviteByToken, getInvitePreview, type InvitePreview } from "@/lib/team";
 
 const searchSchema = z.object({
   invite: z.string().optional(),
@@ -40,7 +36,7 @@ const nameSchema = z
   .max(80, { message: "Nome muito longo" });
 
 function AuthPage() {
-  const { session, loading: authLoading } = useAuth();
+  const { session, loading: authLoading, refresh } = useAuth();
   const navigate = useNavigate();
   const search = Route.useSearch();
   const inviteToken = search.invite ?? null;
@@ -63,19 +59,17 @@ function AuthPage() {
   // Lê o toggle de registro. Se a row não existe, default = habilitado.
   useEffect(() => {
     let cancelled = false;
-    (supabase as any)
-      .from("system_settings")
-      .select("registration_enabled")
-      .limit(1)
-      .maybeSingle()
-      .then(({ data, error: err }: { data: { registration_enabled: boolean } | null; error: Error | null }) => {
+    apiClient
+      .get<{ registrationEnabled: boolean }>("/system-settings")
+      .then((data) => {
         if (cancelled) return;
-        if (err) {
-          // Em caso de falha de leitura, mantém permissivo.
-          setSignupOpen(true);
-        } else {
-          setSignupOpen(data ? Boolean(data.registration_enabled) : true);
-        }
+        setSignupOpen(data.registrationEnabled);
+        setSignupOpenLoaded(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Em caso de falha de leitura, mantém permissivo.
+        setSignupOpen(true);
         setSignupOpenLoaded(true);
       });
     return () => {
@@ -119,15 +113,13 @@ function AuthPage() {
 
   // Se já está logado:
   //  - sem invite → manda para /
-  //  - com invite válido → tenta aceitar e manda para /
+  //  - com invite válido (workspace DIFERENTE) → aceita e manda para /
   useEffect(() => {
     if (authLoading || !session) return;
     if (inviteToken && invitePreview) {
       acceptInviteByToken(inviteToken)
         .then(() => navigate({ to: "/", replace: true }))
         .catch((err: Error) => {
-          // Se já é membro, o RPC retorna o accountId sem erro. Aqui só
-          // capturamos token expirado/inválido.
           setError(err.message);
         });
       return;
@@ -166,26 +158,26 @@ function AuthPage() {
           setError(nameResult.error.issues[0]?.message ?? "Nome inválido");
           return;
         }
-        const signUpData: Record<string, string> = { name: nameResult.data };
         if (inviteToken) {
-          signUpData.invite_token = inviteToken;
+          await apiClient.post("/auth/invites/accept", {
+            token: inviteToken,
+            name: nameResult.data,
+            password: passwordResult.data,
+          });
+        } else {
+          await apiClient.post("/auth/register", {
+            email: emailResult.data,
+            name: nameResult.data,
+            password: passwordResult.data,
+          });
         }
-        const { error: err } = await supabase.auth.signUp({
-          email: emailResult.data,
-          password: passwordResult.data,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: signUpData,
-          },
-        });
-        if (err) throw err;
-        setInfo("Confira seu e-mail para confirmar a conta.");
+        await refresh();
       } else {
-        const { error: err } = await supabase.auth.signInWithPassword({
+        await apiClient.post("/auth/login", {
           email: emailResult.data,
           password: passwordResult.data,
         });
-        if (err) throw err;
+        await refresh();
       }
     } catch (err) {
       setError(err instanceof Error ? traduzirErro(err.message) : "Algo deu errado.");
@@ -194,47 +186,14 @@ function AuthPage() {
     }
   };
 
-  const handleMagicLink = async () => {
+  const handleMagicLink = () => {
     reset();
-    const emailResult = emailSchema.safeParse(email);
-    if (!emailResult.success) {
-      setError("Digite seu e-mail para receber o link mágico.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const { error: err } = await supabase.auth.signInWithOtp({
-        email: emailResult.data,
-        options: { emailRedirectTo: `${window.location.origin}/` },
-      });
-      if (err) throw err;
-      setInfo("Enviamos um link pro seu e-mail. Confira a caixa de entrada.");
-    } catch (err) {
-      setError(err instanceof Error ? traduzirErro(err.message) : "Não conseguimos enviar.");
-    } finally {
-      setSubmitting(false);
-    }
+    setInfo("Login por link mágico ainda não está disponível — use e-mail e senha.");
   };
 
-  const handleForgotPassword = async () => {
+  const handleForgotPassword = () => {
     reset();
-    const emailResult = emailSchema.safeParse(email);
-    if (!emailResult.success) {
-      setError("Digite seu e-mail primeiro para recuperar a senha.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const { error: err } = await supabase.auth.resetPasswordForEmail(emailResult.data, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (err) throw err;
-      setInfo("Enviamos instruções de recuperação pro seu e-mail.");
-    } catch (err) {
-      setError(err instanceof Error ? traduzirErro(err.message) : "Não foi possível enviar.");
-    } finally {
-      setSubmitting(false);
-    }
+    setInfo("Recuperação de senha ainda não está disponível. Fale com um administrador.");
   };
 
   return (
@@ -249,9 +208,8 @@ function AuthPage() {
               "Validando convite..."
             ) : invitePreview ? (
               <>
-                Você foi convidado para o workspace{" "}
-                <strong>{invitePreview.account_name}</strong> como{" "}
-                <strong>{invitePreview.role}</strong>
+                Você foi convidado para o workspace <strong>{invitePreview.account_name}</strong>{" "}
+                como <strong>{invitePreview.role}</strong>
                 {invitePreview.email_hint && (
                   <span className="mt-1 block text-xs text-violet-700 dark:text-violet-200/80">
                     Convite enviado para {invitePreview.email_hint}
@@ -289,16 +247,11 @@ function AuthPage() {
 
 function traduzirErro(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes("invalid login")) return "E-mail ou senha incorretos.";
-  if (m.includes("already registered") || m.includes("already exists"))
-    return "Este e-mail já está cadastrado. Faça login.";
-  if (m.includes("password") && m.includes("pwned"))
-    return "Esta senha já vazou em outros sites. Escolha outra.";
+  if (m.includes("invalid credentials")) return "E-mail ou senha incorretos.";
+  if (m.includes("already exists")) return "Este e-mail já está cadastrado. Faça login.";
   if (m.includes("rate limit"))
     return "Muitas tentativas. Aguarde alguns segundos e tente novamente.";
   if (m.includes("cadastros desativados"))
-    return "Este app é privado. Solicite um convite ao administrador.";
-  if (m.includes("database error saving new user"))
     return "Este app é privado. Solicite um convite ao administrador.";
   if (m.includes("email")) return "E-mail inválido.";
   return message;

@@ -1,13 +1,8 @@
-// Onboarding state for first-time admin setup. Lives in
-// public.org_onboarding_state — one row per account.
-//
-// We removed the legacy 13-step wizard and the `onboarding_advance` /
-// `onboarding_goto` RPCs (they never existed in the schema; the old code
-// silently failed). Now: 6 steps, all writes happen client-side via direct
-// table updates, and a health-check helper hits the existing
-// `integrations-status` edge.
+// Onboarding state for first-time admin setup. Backed by the NestJS
+// OnboardingModule (server/src/modules/onboarding) — 6 steps, health-check
+// helper hits /accounts/:id/onboarding/health-check.
 
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import {
   fetchIntegrationsStatus,
   type IntegrationsStatusReport,
@@ -39,9 +34,18 @@ export type OnboardingState = {
   dismissed_at: string | null;
 };
 
-// Anything not in the new 6-step list (including the old 13-step enum)
-// gets bucketed back to "welcome" so existing accounts see the new flow
-// without crashing.
+interface OnboardingStateApiRow {
+  accountId: string;
+  currentStep: string;
+  completedSteps: string[];
+  completedAt: string | null;
+  startedAt: string;
+  metadata: Record<string, any>;
+  healthCheckResults: Record<string, any>;
+  healthCheckAt: string | null;
+  dismissedAt: string | null;
+}
+
 function normalizeStep(step: string): OnboardingStep {
   if ((ONBOARDING_STEPS as readonly string[]).includes(step)) {
     return step as OnboardingStep;
@@ -49,28 +53,29 @@ function normalizeStep(step: string): OnboardingStep {
   return "welcome";
 }
 
-export async function getOnboardingState(
-  accountId: string,
-): Promise<OnboardingState | null> {
-  const { data, error } = await (supabase as any)
-    .from("org_onboarding_state")
-    .select("*")
-    .eq("account_id", accountId)
-    .maybeSingle();
-
-  if (error || !data) return null;
-
+function mapState(r: OnboardingStateApiRow): OnboardingState {
   return {
-    account_id: data.account_id,
-    current_step: normalizeStep(data.current_step),
-    completed_steps: (data.completed_steps as string[]) ?? [],
-    completed_at: data.completed_at,
-    started_at: data.started_at,
-    metadata: (data.metadata as Record<string, any>) ?? {},
-    health_check_results: (data.health_check_results as Record<string, any>) ?? {},
-    health_check_at: data.health_check_at ?? null,
-    dismissed_at: data.dismissed_at ?? null,
+    account_id: r.accountId,
+    current_step: normalizeStep(r.currentStep),
+    completed_steps: r.completedSteps ?? [],
+    completed_at: r.completedAt,
+    started_at: r.startedAt,
+    metadata: r.metadata ?? {},
+    health_check_results: r.healthCheckResults ?? {},
+    health_check_at: r.healthCheckAt ?? null,
+    dismissed_at: r.dismissedAt ?? null,
   };
+}
+
+export async function getOnboardingState(accountId: string): Promise<OnboardingState | null> {
+  try {
+    const row = await apiClient.get<OnboardingStateApiRow | null>(
+      `/accounts/${accountId}/onboarding`,
+    );
+    return row ? mapState(row) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -78,10 +83,7 @@ export async function getOnboardingState(
  * próximos logins até que `reopenOnboarding` seja chamado.
  */
 export async function dismissOnboarding(accountId: string): Promise<void> {
-  const { error } = await (supabase as any).rpc("onboarding_dismiss", {
-    p_account_id: accountId,
-  });
-  if (error) throw new Error(error.message);
+  await apiClient.post(`/accounts/${accountId}/onboarding/dismiss`);
 }
 
 /**
@@ -89,10 +91,7 @@ export async function dismissOnboarding(accountId: string): Promise<void> {
  * agora, se a página recarregar).
  */
 export async function reopenOnboarding(accountId: string): Promise<void> {
-  const { error } = await (supabase as any).rpc("onboarding_reopen", {
-    p_account_id: accountId,
-  });
-  if (error) throw new Error(error.message);
+  await apiClient.post(`/accounts/${accountId}/onboarding/reopen`);
 }
 
 const NEXT: Record<OnboardingStep, OnboardingStep> = {
@@ -155,48 +154,16 @@ export async function advanceOnboardingStep(
   step: OnboardingStep,
   payload?: Record<string, any>,
 ): Promise<{ nextStep: OnboardingStep }> {
-  const { data: cur } = await (supabase as any)
-    .from("org_onboarding_state")
-    .select("completed_steps, metadata")
-    .eq("account_id", accountId)
-    .maybeSingle();
-
-  const completed = new Set<string>((cur?.completed_steps as string[]) ?? []);
-  completed.add(step);
-  const metadata = { ...((cur?.metadata as Record<string, any>) ?? {}) };
-  if (payload && Object.keys(payload).length) {
-    metadata[step] = { ...(metadata[step] ?? {}), ...payload };
-  }
-
-  const next = NEXT[step];
-  const update: Record<string, any> = {
-    current_step: next,
-    completed_steps: Array.from(completed),
-    metadata,
-  };
-  if (next === "done") update.completed_at = new Date().toISOString();
-
-  await (supabase as any)
-    .from("org_onboarding_state")
-    .upsert(
-      { account_id: accountId, ...update },
-      { onConflict: "account_id" },
-    );
-
-  return { nextStep: next };
+  const result = await apiClient.post<{ nextStep: OnboardingStep }>(
+    `/accounts/${accountId}/onboarding/advance`,
+    { step, payload },
+  );
+  return result;
 }
 
 /** Jump directly to any step without marking it complete. */
-export async function gotoOnboardingStep(
-  accountId: string,
-  step: OnboardingStep,
-): Promise<void> {
-  await (supabase as any)
-    .from("org_onboarding_state")
-    .upsert(
-      { account_id: accountId, current_step: step },
-      { onConflict: "account_id" },
-    );
+export async function gotoOnboardingStep(accountId: string, step: OnboardingStep): Promise<void> {
+  await apiClient.post(`/accounts/${accountId}/onboarding/goto`, { step });
 }
 
 /**
@@ -205,21 +172,7 @@ export async function gotoOnboardingStep(
  * aparecer (até o admin completar de verdade os 5 steps).
  */
 export async function skipOnboarding(accountId: string): Promise<void> {
-  const { data: cur } = await (supabase as any)
-    .from("org_onboarding_state")
-    .select("metadata")
-    .eq("account_id", accountId)
-    .maybeSingle();
-  const metadata = {
-    ...((cur?.metadata as Record<string, any>) ?? {}),
-    last_skipped_at: new Date().toISOString(),
-  };
-  await (supabase as any)
-    .from("org_onboarding_state")
-    .upsert(
-      { account_id: accountId, metadata },
-      { onConflict: "account_id" },
-    );
+  await apiClient.post(`/accounts/${accountId}/onboarding/skip`);
 }
 
 /**
@@ -235,15 +188,7 @@ export function isOnboardingTrulyComplete(state: OnboardingState | null): boolea
 }
 
 export async function dismissChecklist(accountId: string): Promise<void> {
-  const { data: cur } = await (supabase as any)
-    .from("org_onboarding_state")
-    .select("metadata")
-    .eq("account_id", accountId)
-    .maybeSingle();
-  const metadata = { ...((cur?.metadata as Record<string, any>) ?? {}), checklist_dismissed: true };
-  await (supabase as any)
-    .from("org_onboarding_state")
-    .upsert({ account_id: accountId, metadata }, { onConflict: "account_id" });
+  await apiClient.post(`/accounts/${accountId}/onboarding/dismiss-checklist`);
 }
 
 /**
@@ -254,18 +199,10 @@ export async function runHealthCheck(
   accountId: string,
   opts: { force?: boolean } = {},
 ): Promise<IntegrationsStatusReport> {
-  const report = await fetchIntegrationsStatus(accountId, { force: opts.force ?? true });
-  await (supabase as any)
-    .from("org_onboarding_state")
-    .upsert(
-      {
-        account_id: accountId,
-        health_check_results: report as any,
-        health_check_at: new Date().toISOString(),
-      },
-      { onConflict: "account_id" },
-    );
-  return report;
+  if (opts.force === false) {
+    return fetchIntegrationsStatus(accountId, { force: false });
+  }
+  return apiClient.post<IntegrationsStatusReport>(`/accounts/${accountId}/onboarding/health-check`);
 }
 
 // ─── Static option lists used by the wizard ───────────────────────────

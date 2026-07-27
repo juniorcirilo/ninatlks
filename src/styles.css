@@ -95,179 +95,180 @@
   --color-icon-success: hsl(var(--accent-success));
   --color-icon-warning: hsl(var(--accent-warm));
 
-  /* Elevation shadows */
-  --shadow-elevation-1: 0 1px 2px rgba(26, 26, 46, 0.04);
-  --shadow-elevation-2: 0 2px 8px rgba(26, 26, 46, 0.05);
-  --shadow-elevation-3: 0 4px 16px rgba(26, 26, 46, 0.07);
-  --shadow-elevation-4: 0 8px 32px rgba(26, 26, 46, 0.09);
-  --shadow-elevation-5: 0 16px 48px rgba(26, 26, 46, 0.12);
-  --shadow-accent-glow: 0 4px 16px rgba(99, 102, 241, 0.25);
-  --shadow-accent-glow-lg: 0 8px 24px rgba(99, 102, 241, 0.35);
+  /* Elevation shadows (deeper/darker for a dark-surface UI) */
+  --shadow-elevation-1: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow-elevation-2: 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-elevation-3: 0 4px 16px rgba(0, 0, 0, 0.32);
+  --shadow-elevation-4: 0 8px 32px rgba(0, 0, 0, 0.36);
+  --shadow-elevation-5: 0 16px 48px rgba(0, 0, 0, 0.4);
+  --shadow-accent-glow: 0 4px 16px rgba(142, 42, 192, 0.3);
+  --shadow-accent-glow-lg: 0 8px 24px rgba(142, 42, 192, 0.4);
 }
 
 /*
- * LIGHT MODE (default) — Viver de IA navy/indigo.
+ * DARK MODE (default) — Livechat teal/purple (ported from /srv/sites/livechat).
  */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 
   /* Base */
-  --background: 0 0% 93%;
-  --foreground: 213 96% 9%;
+  --background: 230 12% 6%;
+  --foreground: 210 40% 98%;
 
-  --card: 0 0% 98%;
-  --card-foreground: 213 96% 9%;
+  --card: 230 12% 8%;
+  --card-foreground: 210 40% 98%;
 
-  --popover: 0 0% 98%;
-  --popover-foreground: 213 96% 9%;
+  --popover: 232 18% 10%;
+  --popover-foreground: 210 40% 98%;
 
-  --primary: 213 96% 9%;
+  --primary: 195 59% 29%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 0 0% 96%;
-  --secondary-foreground: 213 96% 9%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
 
-  --muted: 0 0% 89%;
-  --muted-foreground: 213 40% 30%;
+  --muted: 217.2 28% 16%;
+  --muted-foreground: 215 20.2% 65.1%;
 
-  --accent: 239 84% 67%;
-  --accent-foreground: 0 0% 100%;
+  --accent: 280 64% 46%;
+  --accent-foreground: 210 40% 98%;
 
-  --destructive: 0 84% 60%;
+  --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
-  --success: 160 84% 39%;
+  --success: 160 70% 42%;
   --success-foreground: 0 0% 100%;
 
-  --warning: 43 96% 56%;
-  --warning-foreground: 0 0% 10%;
+  --warning: 43 90% 56%;
+  --warning-foreground: 26 30% 10%;
 
-  --border: 0 0% 82%;
-  --input: 0 0% 82%;
-  --ring: 239 84% 67%;
+  --border: 230 12% 10%;
+  --input: 217 28% 18%;
+  --ring: 195 59% 29%;
 
-  --chart-1: 239 84% 67%;
-  --chart-2: 213 96% 30%;
-  --chart-3: 200 90% 45%;
-  --chart-4: 160 84% 39%;
-  --chart-5: 43 96% 56%;
+  --chart-1: 195 59% 40%;
+  --chart-2: 280 64% 55%;
+  --chart-3: 43 90% 56%;
+  --chart-4: 160 70% 42%;
+  --chart-5: 200 90% 50%;
 
   /* Sidebar */
-  --sidebar-background: 213 96% 6%;
-  --sidebar-foreground: 240 20% 85%;
-  --sidebar-primary: 239 84% 67%;
+  --sidebar-background: 230 12% 6%;
+  --sidebar-foreground: 240 4.8% 95.9%;
+  --sidebar-primary: 195 59% 29%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 213 96% 9%;
-  --sidebar-accent-foreground: 240 20% 95%;
-  --sidebar-border: 0 0% 100% / 8%;
-  --sidebar-ring: 239 84% 67%;
+  --sidebar-accent: 280 24% 14%;
+  --sidebar-accent-foreground: 240 4.8% 95.9%;
+  --sidebar-border: 230 12% 10%;
+  --sidebar-ring: 262 78% 56%;
 
   /* Misc */
-  --dark-bg: 213 96% 9%;
-  --progress-active: 239 84% 67%;
-  --progress-inactive: 0 0% 100% / 15%;
+  --dark-bg: 230 12% 6%;
+  --progress-active: 195 59% 29%;
+  --progress-inactive: 210 40% 98% / 15%;
 
   /* Surfaces */
-  --bg-base: 0 0% 93%;
-  --bg-surface-1: 0 0% 96%;
-  --bg-surface-2: 0 0% 89%;
-  --bg-elevated: 0 0% 98%;
-  --bg-subtle-accent: 213 10% 92%;
-  --bg-dark: 213 96% 9%;
-  --bg-darkest: 213 96% 6%;
+  --bg-base: 230 12% 6%;
+  --bg-surface-1: 230 12% 8%;
+  --bg-surface-2: 217.2 28% 16%;
+  --bg-elevated: 232 18% 10%;
+  --bg-subtle-accent: 195 30% 10%;
+  --bg-dark: 230 12% 6%;
+  --bg-darkest: 230 14% 4%;
 
   /* Text */
-  --text-primary: 213 96% 9%;
-  --text-secondary: 213 40% 30%;
-  --text-tertiary: 213 20% 50%;
-  --text-on-dark: 240 20% 95%;
-  --text-on-dark-muted: 240 10% 70%;
+  --text-primary: 210 40% 98%;
+  --text-secondary: 215 20.2% 65.1%;
+  --text-tertiary: 215 15% 45%;
+  --text-on-dark: 210 40% 98%;
+  --text-on-dark-muted: 215 20.2% 65.1%;
 
   /* Accents */
-  --accent-primary: 239 84% 67%;
-  --accent-primary-hover: 244 80% 58%;
-  --accent-primary-light: 234 89% 74%;
-  --accent-warm: 43 96% 56%;
-  --accent-success: 160 84% 39%;
+  --accent-primary: 195 59% 29%;
+  --accent-primary-hover: 195 59% 38%;
+  --accent-primary-light: 195 50% 55%;
+  --accent-warm: 43 90% 56%;
+  --accent-success: 160 70% 42%;
 
-  --border-default: 0 0% 82%;
-  --border-subtle: 0 0% 87%;
+  --border-default: 230 12% 10%;
+  --border-subtle: 230 10% 14%;
 
   /* Gradientes (preservados pra compat com componentes Nina Talks) */
-  --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(213 96% 9%));
-  --gradient-surface: linear-gradient(180deg, hsl(0 0% 98%), hsl(0 0% 93%));
-  --gradient-glow: radial-gradient(1200px circle at 50% -10%, hsl(239 84% 67% / 0.12), transparent 60%);
+  --gradient-primary: linear-gradient(135deg, hsl(195 59% 29%), hsl(280 64% 46%));
+  --gradient-surface: linear-gradient(180deg, hsl(230 12% 8%), hsl(230 12% 6%));
+  --gradient-glow: radial-gradient(1200px circle at 50% -10%, hsl(195 59% 29% / 0.18), transparent 60%);
 
-  --shadow-glow: 0 0 0 1px hsl(239 84% 67% / 0.15), 0 12px 40px -12px hsl(239 84% 67% / 0.4);
-  --shadow-elegant: 0 10px 30px -12px hsl(213 96% 9% / 0.18);
+  --shadow-glow: 0 0 0 1px hsl(195 59% 29% / 0.2), 0 12px 40px -12px hsl(280 64% 46% / 0.45);
+  --shadow-elegant: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
 
-  --glass-bg: hsl(0 0% 100% / 60%);
-  --glass-border: hsl(213 96% 9% / 8%);
+  --glass-bg: hsl(230 12% 10% / 60%);
+  --glass-border: hsl(210 40% 98% / 8%);
 }
 
 /*
- * DARK MODE (opcional) — toggle via .dark no <html>.
+ * Same palette under .dark — kept for compatibility with any future toggle
+ * and with the scattered `dark:` utility classes already in the codebase.
  */
 .dark {
-  --background: 220 20% 8%;
-  --foreground: 210 20% 92%;
+  --background: 230 12% 6%;
+  --foreground: 210 40% 98%;
 
-  --card: 220 18% 11%;
-  --card-foreground: 210 20% 92%;
+  --card: 230 12% 8%;
+  --card-foreground: 210 40% 98%;
 
-  --popover: 220 18% 11%;
-  --popover-foreground: 210 20% 92%;
+  --popover: 232 18% 10%;
+  --popover-foreground: 210 40% 98%;
 
-  --primary: 210 60% 70%;
-  --primary-foreground: 220 20% 8%;
+  --primary: 195 59% 29%;
+  --primary-foreground: 0 0% 100%;
 
-  --secondary: 220 16% 15%;
-  --secondary-foreground: 210 20% 92%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
 
-  --muted: 220 16% 15%;
-  --muted-foreground: 210 10% 55%;
+  --muted: 217.2 28% 16%;
+  --muted-foreground: 215 20.2% 65.1%;
 
-  --accent: 210 60% 70%;
-  --accent-foreground: 220 20% 8%;
+  --accent: 280 64% 46%;
+  --accent-foreground: 210 40% 98%;
 
-  --destructive: 0 63% 31%;
+  --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 220 14% 20%;
-  --input: 220 14% 20%;
-  --ring: 210 60% 70%;
+  --border: 230 12% 10%;
+  --input: 217 28% 18%;
+  --ring: 195 59% 29%;
 
-  --sidebar-background: 220 20% 6%;
-  --sidebar-foreground: 210 10% 55%;
-  --sidebar-primary: 210 60% 70%;
+  --sidebar-background: 230 12% 6%;
+  --sidebar-foreground: 240 4.8% 95.9%;
+  --sidebar-primary: 195 59% 29%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 16% 15%;
-  --sidebar-accent-foreground: 210 20% 92%;
-  --sidebar-border: 220 14% 20%;
-  --sidebar-ring: 210 60% 70%;
+  --sidebar-accent: 280 24% 14%;
+  --sidebar-accent-foreground: 240 4.8% 95.9%;
+  --sidebar-border: 230 12% 10%;
+  --sidebar-ring: 262 78% 56%;
 
-  --bg-base: 220 20% 8%;
-  --bg-surface-1: 220 18% 11%;
-  --bg-surface-2: 220 16% 15%;
-  --bg-elevated: 220 18% 13%;
-  --bg-subtle-accent: 220 20% 15%;
-  --bg-dark: 220 20% 6%;
-  --bg-darkest: 220 22% 4%;
+  --bg-base: 230 12% 6%;
+  --bg-surface-1: 230 12% 8%;
+  --bg-surface-2: 217.2 28% 16%;
+  --bg-elevated: 232 18% 10%;
+  --bg-subtle-accent: 195 30% 10%;
+  --bg-dark: 230 12% 6%;
+  --bg-darkest: 230 14% 4%;
 
-  --text-primary: 210 20% 92%;
-  --text-secondary: 210 10% 55%;
-  --text-tertiary: 210 8% 42%;
-  --text-on-dark: 210 20% 92%;
-  --text-on-dark-muted: 210 10% 55%;
+  --text-primary: 210 40% 98%;
+  --text-secondary: 215 20.2% 65.1%;
+  --text-tertiary: 215 15% 45%;
+  --text-on-dark: 210 40% 98%;
+  --text-on-dark-muted: 215 20.2% 65.1%;
 
-  --accent-primary: 210 60% 70%;
-  --accent-primary-hover: 210 60% 78%;
-  --accent-primary-light: 210 50% 80%;
-  --accent-warm: 43 96% 65%;
-  --accent-success: 160 84% 45%;
+  --accent-primary: 195 59% 29%;
+  --accent-primary-hover: 195 59% 38%;
+  --accent-primary-light: 195 50% 55%;
+  --accent-warm: 43 90% 56%;
+  --accent-success: 160 70% 42%;
 
-  --border-default: 220 14% 20%;
-  --border-subtle: 220 12% 16%;
+  --border-default: 230 12% 10%;
+  --border-subtle: 230 10% 14%;
 }
 
 @layer base {
@@ -276,12 +277,8 @@
   }
 
   html {
-    color-scheme: light;
-    background-color: var(--color-background);
-  }
-
-  html.dark {
     color-scheme: dark;
+    background-color: var(--color-background);
   }
 
   body {
@@ -292,8 +289,8 @@
   }
 
   ::selection {
-    background-color: hsl(239 84% 67% / 0.3);
-    color: hsl(213 96% 9%);
+    background-color: hsl(195 59% 29% / 0.4);
+    color: hsl(210 40% 98%);
   }
 }
 

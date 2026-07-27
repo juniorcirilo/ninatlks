@@ -3,13 +3,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
-import { supabase } from "@/integrations/supabase/client";
 import {
   fetchContactLists,
+  fetchCampaignPersonas,
+  fetchCampaignPhoneNumbers,
+  createCampaign,
   CAMPAIGN_KIND_LABEL,
   CAMPAIGN_KIND_DESC,
   type ContactListRow,
   type CampaignKind,
+  type PersonaLite,
+  type PhoneNumberLite,
 } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
 
@@ -35,8 +39,8 @@ function NewCampaignPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const [lists, setLists] = useState<ContactListRow[]>([]);
-  const [personas, setPersonas] = useState<any[]>([]);
-  const [phones, setPhones] = useState<any[]>([]);
+  const [personas, setPersonas] = useState<PersonaLite[]>([]);
+  const [phones, setPhones] = useState<PhoneNumberLite[]>([]);
 
   // form
   const [name, setName] = useState("");
@@ -55,24 +59,12 @@ function NewCampaignPage() {
       try {
         const [l, p, ph] = await Promise.all([
           fetchContactLists(accountId),
-          (supabase as any)
-            .from("agent_personas")
-            .select("id,name,voice_clone_id,status,enabled")
-            .eq("account_id", accountId)
-            .eq("enabled", true)
-            .in("status", ["active", "draft", "training"])
-            .order("name"),
-          (supabase as any)
-            .from("phone_numbers")
-            .select("id,e164,friendly_name,outbound_enabled,enabled")
-            .eq("account_id", accountId)
-            .eq("enabled", true)
-            .eq("outbound_enabled", true)
-            .order("e164"),
+          fetchCampaignPersonas(accountId),
+          fetchCampaignPhoneNumbers(accountId),
         ]);
         setLists(l);
-        setPersonas((p.data ?? []) as any[]);
-        setPhones((ph.data ?? []) as any[]);
+        setPersonas(p);
+        setPhones(ph);
       } catch (e: any) {
         toast.error(e?.message ?? "falha ao carregar dados");
       } finally {
@@ -81,10 +73,7 @@ function NewCampaignPage() {
     })();
   }, [accountId]);
 
-  const selectedList = useMemo(
-    () => lists.find((l) => l.id === listId) ?? null,
-    [lists, listId],
-  );
+  const selectedList = useMemo(() => lists.find((l) => l.id === listId) ?? null, [lists, listId]);
 
   const onSubmit = async () => {
     if (!accountId) return;
@@ -95,68 +84,19 @@ function NewCampaignPage() {
 
     setSubmitting(true);
     try {
-      const persona = personas.find((p) => p.id === personaId);
-      const phone = phones.find((p) => p.id === phoneId);
-      if (!phone) throw new Error("Número não encontrado");
+      const campaign = await createCampaign(accountId, {
+        name: name.trim(),
+        campaignKind: kind,
+        listId,
+        personaId,
+        phoneId,
+        openingScript: openingScript.trim() || undefined,
+        maxConcurrent,
+        retryAttempts,
+        recordCall,
+      });
 
-      // 1. Create campaign
-      const { data: campaign, error: cerr } = await (supabase as any)
-        .from("voice_campaigns")
-        .insert({
-          account_id: accountId,
-          name: name.trim(),
-          campaign_kind: kind,
-          status: "draft",
-          mode: "conversational",
-          persona_id: personaId,
-          voice_id: persona?.voice_clone_id ?? null,
-          from_number: phone.e164,
-          phone_number_id: phoneId,
-          opening_script: openingScript.trim() || null,
-          max_concurrent: maxConcurrent,
-          retry_attempts: retryAttempts,
-          retry_delay_minutes: 30,
-          record_call: recordCall,
-          language_code: "pt-BR",
-          script_mode: "conversational",
-        })
-        .select()
-        .single();
-      if (cerr) throw cerr;
-
-      // 2. Load list members → enqueue contacts
-      const { data: members, error: merr } = await (supabase as any)
-        .from("contact_list_members")
-        .select("contact_id, contacts!inner(id, phone_number, blocked)")
-        .eq("list_id", listId)
-        .eq("account_id", accountId);
-      if (merr) throw merr;
-
-      const rows = (members ?? [])
-        .map((m: any) => ({
-          account_id: accountId,
-          campaign_id: campaign.id,
-          contact_id: m.contact_id,
-          to_number: m.contacts?.phone_number,
-          phone_number: m.contacts?.phone_number,
-          status: "queued",
-          variables: {},
-        }))
-        .filter((r: any) => r.to_number && !members.find((mm: any) => mm.contacts?.blocked && mm.contact_id === r.contact_id));
-
-      if (rows.length === 0) throw new Error("Nenhum contato válido na lista");
-
-      const { error: ierr } = await (supabase as any)
-        .from("voice_campaign_contacts")
-        .insert(rows);
-      if (ierr) throw ierr;
-
-      await (supabase as any)
-        .from("voice_campaigns")
-        .update({ total_contacts: rows.length })
-        .eq("id", campaign.id);
-
-      toast.success(`Campanha criada com ${rows.length} contatos`);
+      toast.success(`Campanha criada com ${campaign.contactCount} contatos`);
       navigate({ to: "/campanhas/$campaignId", params: { campaignId: campaign.id } });
     } catch (e: any) {
       toast.error(e?.message ?? "falha ao criar campanha");
@@ -238,7 +178,11 @@ function NewCampaignPage() {
             </select>
             {lists.length === 0 && (
               <p className="mt-1 text-xs text-amber-600">
-                Nenhuma lista cadastrada. Crie uma em <a href="/listas" className="underline">/listas</a> antes de continuar.
+                Nenhuma lista cadastrada. Crie uma em{" "}
+                <a href="/listas" className="underline">
+                  /listas
+                </a>{" "}
+                antes de continuar.
               </p>
             )}
           </Field>
@@ -262,7 +206,11 @@ function NewCampaignPage() {
             </select>
             {personas.length === 0 && (
               <p className="mt-1 text-xs text-amber-600">
-                Nenhum agente ativo. Ative ou crie um em <a href="/agents" className="underline">/agents</a>.
+                Nenhum agente ativo. Ative ou crie um em{" "}
+                <a href="/agents" className="underline">
+                  /agents
+                </a>
+                .
               </p>
             )}
           </Field>
@@ -372,13 +320,18 @@ function Stepper({ step }: { step: number }) {
                 done
                   ? "bg-primary text-primary-foreground"
                   : active
-                  ? "bg-primary/15 text-primary ring-1 ring-primary"
-                  : "bg-muted text-muted-foreground",
+                    ? "bg-primary/15 text-primary ring-1 ring-primary"
+                    : "bg-muted text-muted-foreground",
               )}
             >
               {n}
             </div>
-            <span className={cn("text-xs", active ? "font-semibold text-foreground" : "text-muted-foreground")}>
+            <span
+              className={cn(
+                "text-xs",
+                active ? "font-semibold text-foreground" : "text-muted-foreground",
+              )}
+            >
               {s}
             </span>
             {i < steps.length - 1 && <div className="mx-1 h-px w-6 bg-border" />}

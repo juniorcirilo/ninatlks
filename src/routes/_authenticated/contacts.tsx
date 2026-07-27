@@ -160,9 +160,10 @@ function LeadsPage() {
   }
 
   async function handleDelete(id: string) {
+    if (!accountId) return;
     if (!confirm("Excluir definitivamente este lead (LGPD)?")) return;
     try {
-      await lgpdDeleteContact(id);
+      await lgpdDeleteContact(accountId, id);
       toast.success("Lead excluído");
       setData((prev) =>
         prev
@@ -281,7 +282,9 @@ function LeadsPage() {
       {filtered.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          title={search || stageFilter !== "all" ? "Nenhum lead com esses filtros" : "Sem leads ainda"}
+          title={
+            search || stageFilter !== "all" ? "Nenhum lead com esses filtros" : "Sem leads ainda"
+          }
           description={
             search || stageFilter !== "all"
               ? "Ajuste os filtros ou limpe a busca."
@@ -299,13 +302,21 @@ function LeadsPage() {
             <TableHeader>
               <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
                 <TableHead className="w-[36%] py-3 pl-4">
-                  <SortButton active={sortKey === "name"} dir={sortDir} onClick={() => toggleSort("name")}>
+                  <SortButton
+                    active={sortKey === "name"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("name")}
+                  >
                     Lead
                   </SortButton>
                 </TableHead>
                 <TableHead className="py-3">Stage</TableHead>
                 <TableHead className="py-3">
-                  <SortButton active={sortKey === "score"} dir={sortDir} onClick={() => toggleSort("score")}>
+                  <SortButton
+                    active={sortKey === "score"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("score")}
+                  >
                     Score
                   </SortButton>
                 </TableHead>
@@ -332,8 +343,8 @@ function LeadsPage() {
       )}
 
       <p className="mt-4 text-center text-xs text-muted-foreground">
-        {filtered.length} {filtered.length === 1 ? "lead exibido" : "leads exibidos"} ·{" "}
-        Atualização em tempo real via Nina IA
+        {filtered.length} {filtered.length === 1 ? "lead exibido" : "leads exibidos"} · Atualização
+        em tempo real via Nina IA
       </p>
     </div>
   );
