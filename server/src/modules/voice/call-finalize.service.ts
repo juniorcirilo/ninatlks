@@ -5,6 +5,12 @@ import { StorageService } from '../storage/storage.service';
 import { resolveElevenLabsApiKey } from './elevenlabs-creds.util';
 import { CallClassificationService } from './call-classification.service';
 import { CallSentimentService } from './call-sentiment.service';
+import {
+  applyCadenceDisposition,
+  applyCampaignDisposition,
+  dispositionFromElevenLabs,
+} from './campaign-disposition.util';
+import { WebhookDispatchService } from '../webhook-endpoints/webhook-dispatch.service';
 
 const BUCKET = 'voice-recordings';
 const RECORDING_URL_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days, matches original signed URL
@@ -55,6 +61,7 @@ export class CallFinalizeService {
     private readonly storage: StorageService,
     private readonly classification: CallClassificationService,
     private readonly sentiment: CallSentimentService,
+    private readonly dispatch: WebhookDispatchService,
   ) {}
 
   async finalize(voiceCallId: string, force = false): Promise<FinalizeResult> {
@@ -236,6 +243,34 @@ export class CallFinalizeService {
       this.sentiment.analyze(call.id),
     ]);
 
+    const disposition = dispositionFromElevenLabs(
+      elStatus,
+      durationSec,
+      transcriptArr.length,
+    );
+
+    // Depois da classificação, de propósito. Ela roda o smart retry, que é
+    // mais específico e pode reenfileirar o contato; a função no banco só age
+    // sobre contato ainda em voo, então aqui ela preenche exatamente a lacuna
+    // que existia — a ligação que nunca foi atendida, onde não há transcrição,
+    // a classificação não roda e o contato ficava preso em 'placed'.
+    await applyCampaignDisposition(
+      this.dataSource,
+      call.metadata?.campaign_contact_id as string | number | undefined,
+      disposition,
+      durationSec,
+    );
+
+    // Mesma lógica pro lado de cadência: cadence-tick.processor.ts deixou a
+    // execução em 'running' esperando este desfecho em vez de avançar cega
+    // no disparo (metadata.cadence_execution_id só existe pra ligações
+    // originadas por follow-up).
+    await applyCadenceDisposition(
+      this.dataSource,
+      call.metadata?.cadence_execution_id as string | undefined,
+      disposition,
+    );
+
     const classify =
       classifyResult.status === 'fulfilled'
         ? classifyResult.value
@@ -244,6 +279,8 @@ export class CallFinalizeService {
       sentimentResult.status === 'fulfilled'
         ? sentimentResult.value
         : { error: String(sentimentResult.reason) };
+
+    await this.emitCallFinished(call.id);
 
     this.logger.log(
       `call=${call.id} convo=${conversationId} transcript=${transcriptArr.length}msgs audio=${recordingStoragePath ? 'ok' : '—'} ` +
@@ -264,5 +301,97 @@ export class CallFinalizeService {
         sentiment: sentimentOut,
       },
     };
+  }
+
+  /**
+   * Evento `call.finished` para os destinos de envio da conta.
+   *
+   * Relido do banco em vez de montado com o que está em memória aqui: a
+   * classificação e o sentimento acabaram de gravar `outcome_category`,
+   * `outcome_summary` e `sentiment`, e é justamente esse conteúdo que o CRM do
+   * cliente quer. Montar do que temos na mão mandaria o desfecho vazio.
+   *
+   * Nunca lança: webhook é efeito colateral do pós-chamada, e o pós-chamada já
+   * terminou. Falha aqui vira log, não erro de finalização.
+   */
+  private async emitCallFinished(voiceCallId: string): Promise<void> {
+    try {
+      const rows = await this.dataSource.query<
+        {
+          id: string;
+          account_id: string;
+          direction: string;
+          status: string;
+          from_number: string;
+          to_number: string;
+          duration_seconds: number;
+          started_at: Date | null;
+          ended_at: Date | null;
+          recording_storage_path: string | null;
+          outcome_category: string | null;
+          outcome_summary: string | null;
+          ai_summary: string | null;
+          sentiment: Record<string, unknown> | null;
+          persona_id: string | null;
+          contact_id: string | null;
+          contact_name: string | null;
+          contact_external_id: string | null;
+          campaign_id: string | null;
+          campaign_name: string | null;
+          disposition: string | null;
+        }[]
+      >(
+        `SELECT vc.id, vc.account_id, vc.direction::text, vc.status::text,
+                vc.from_number, vc.to_number, vc.duration_seconds,
+                vc.started_at, vc.ended_at, vc.recording_storage_path,
+                vc.outcome_category, vc.outcome_summary, vc.ai_summary,
+                vc.sentiment, vc.persona_id,
+                c.id AS contact_id, c.name AS contact_name,
+                c.external_id AS contact_external_id,
+                camp.id AS campaign_id, camp.name AS campaign_name,
+                vcc.outcome AS disposition
+           FROM public.voice_calls vc
+           LEFT JOIN public.voice_campaign_contacts vcc ON vcc.voice_call_id = vc.id
+           LEFT JOIN public.voice_campaigns camp ON camp.id = vcc.campaign_id
+           LEFT JOIN public.contacts c ON c.id = vcc.contact_id
+          WHERE vc.id = $1
+          LIMIT 1`,
+        [voiceCallId],
+      );
+      const row = rows[0];
+      if (!row) return;
+
+      await this.dispatch.emit(row.account_id, 'call.finished', {
+        call_id: row.id,
+        direction: row.direction,
+        status: row.status,
+        from: row.from_number,
+        to: row.to_number,
+        duration_seconds: row.duration_seconds,
+        started_at: row.started_at,
+        ended_at: row.ended_at,
+        recording_storage_path: row.recording_storage_path,
+        outcome_category: row.outcome_category,
+        outcome_summary: row.outcome_summary ?? row.ai_summary,
+        disposition: row.disposition,
+        sentiment: row.sentiment,
+        persona_id: row.persona_id,
+        contact: row.contact_id
+          ? {
+              id: row.contact_id,
+              name: row.contact_name,
+              external_id: row.contact_external_id,
+              phone: row.to_number,
+            }
+          : null,
+        campaign: row.campaign_id
+          ? { id: row.campaign_id, name: row.campaign_name }
+          : null,
+      }, { agentId: row.persona_id });
+    } catch (err) {
+      this.logger.warn(
+        `emitir call.finished falhou para call=${voiceCallId}: ${(err as Error).message}`,
+      );
+    }
   }
 }

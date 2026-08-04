@@ -25,6 +25,7 @@ import {
   ExternalLink,
   FileText,
   Link2,
+  Webhook,
 } from "lucide-react";
 import {
   updatePersona,
@@ -35,11 +36,19 @@ import {
   type Persona,
 } from "@/lib/personas";
 import { VoicePicker } from "@/components/personas/VoicePicker";
+import { AgentWebhooksTab } from "@/components/personas/AgentWebhooksTab";
 import { DEFAULT_SDR_PROMPT, FIRST_MESSAGE_TEMPLATE } from "@/lib/sdr-agent-prompt";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-type Tab = "conversa" | "voz" | "modelo" | "comportamento" | "conhecimento" | "sync";
+type Tab =
+  | "conversa"
+  | "voz"
+  | "modelo"
+  | "comportamento"
+  | "conhecimento"
+  | "webhooks"
+  | "sync";
 
 const TABS: {
   id: Tab;
@@ -52,6 +61,7 @@ const TABS: {
   { id: "modelo", label: "Modelo", icon: Cpu, desc: "LLM, temperatura, tokens" },
   { id: "comportamento", label: "Comportamento", icon: Settings2, desc: "Pausas, timeout, ASR" },
   { id: "conhecimento", label: "Conhecimento", icon: BookOpen, desc: "RAG: docs e URLs" },
+  { id: "webhooks", label: "Webhooks", icon: Webhook, desc: "Destinos de eventos (n8n, CRM…)" },
   { id: "sync", label: "Sincronização", icon: Cloud, desc: "ElevenLabs + status" },
 ];
 
@@ -205,6 +215,9 @@ export function AgentEditor({
             {tab === "comportamento" && <ComportamentoTab draft={draft} update={update} />}
             {tab === "conhecimento" && (
               <ConhecimentoTab draft={draft} accountId={accountId} onChanged={onSaved} />
+            )}
+            {tab === "webhooks" && (
+              <AgentWebhooksTab agentId={draft.id} agentName={draft.name} accountId={accountId} />
             )}
             {tab === "sync" && <SyncTab draft={draft} onSynced={onSaved} accountId={accountId} />}
           </div>

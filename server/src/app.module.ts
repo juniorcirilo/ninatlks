@@ -37,10 +37,12 @@ import { CallsModule } from './modules/calls/calls.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { CadencesModule } from './modules/cadences/cadences.module';
 import { WebhookLogModule } from './modules/webhook-log/webhook-log.module';
+import { WebhookEndpointsModule } from './modules/webhook-endpoints/webhook-endpoints.module';
 import { IntegrationsStatusModule } from './modules/integrations-status/integrations-status.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { AgentToolsModule } from './modules/agent-tools/agent-tools.module';
+import { IngestModule } from './modules/ingest/ingest.module';
 
 @Module({
   imports: [
@@ -77,10 +79,12 @@ import { AgentToolsModule } from './modules/agent-tools/agent-tools.module';
     MessagesModule,
     CadencesModule,
     WebhookLogModule,
+    WebhookEndpointsModule,
     IntegrationsStatusModule,
     OnboardingModule,
     DashboardsModule,
     AgentToolsModule,
+    IngestModule,
   ],
   controllers: [AppController],
   providers: [
