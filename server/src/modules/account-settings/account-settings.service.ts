@@ -13,6 +13,8 @@ export interface DialingSettings {
   allowed_hours_local: Record<DayKey, HourRange>;
   max_attempts_per_day: number;
   min_minutes_between_attempts: number;
+  /** Números (E.164) isentos de janela/limite diário/intervalo — só pra teste, nunca pula DNC. */
+  test_numbers: string[];
 }
 
 export const DEFAULT_DIALING_SETTINGS: DialingSettings = {
@@ -28,6 +30,7 @@ export const DEFAULT_DIALING_SETTINGS: DialingSettings = {
   },
   max_attempts_per_day: 3,
   min_minutes_between_attempts: 60,
+  test_numbers: [],
 };
 
 const AVAIL_ENUM_MAP: Record<0 | 1 | 2, 'offline' | 'online' | 'busy'> = {
@@ -96,10 +99,28 @@ export class AccountSettingsService {
     accountId: string,
     next: DialingSettings,
   ): Promise<void> {
+    // O dispatcher de campanha (voice-campaign-dispatch.processor.ts) não lê
+    // dialing_settings — ele lê internal_attributes.compliance.test_numbers.
+    // Sem esse espelhamento, um número marcado como teste aqui segue sendo
+    // bloqueado normalmente nas campanhas.
+    const account = await this.tx.manager.findOne(Accounts, {
+      where: { id: accountId },
+      select: { internalAttributes: true },
+    });
+    const attrs = account?.internalAttributes ?? {};
+    const compliance = (attrs.compliance ?? {}) as Record<string, unknown>;
+    const nextInternalAttributes = {
+      ...attrs,
+      compliance: { ...compliance, test_numbers: next.test_numbers },
+    };
+
     await this.tx.manager
       .createQueryBuilder()
       .update(Accounts)
-      .set({ dialingSettings: next } as Record<string, unknown>)
+      .set({
+        dialingSettings: next,
+        internalAttributes: nextInternalAttributes,
+      } as Record<string, unknown>)
       .where('id = :accountId', { accountId })
       .execute();
   }

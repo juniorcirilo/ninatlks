@@ -47,7 +47,10 @@ export class AccountSettingsController {
     @Param('accountId') accountId: string,
     @Body() dto: DialingSettingsDto,
   ) {
-    return this.accountSettingsService.updateDialingSettings(accountId, dto);
+    return this.accountSettingsService.updateDialingSettings(accountId, {
+      ...dto,
+      test_numbers: dto.test_numbers ?? [],
+    });
   }
 
   @Post('webhook-secret')

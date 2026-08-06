@@ -1,4 +1,4 @@
-import { IsInt, IsObject, IsString, Min } from 'class-validator';
+import { IsArray, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class DialingSettingsDto {
   @IsString()
@@ -14,4 +14,9 @@ export class DialingSettingsDto {
   @IsInt()
   @Min(1)
   min_minutes_between_attempts!: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  test_numbers?: string[];
 }
