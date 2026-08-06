@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { lovableChatCompletion } from './lovable-ai.util';
+import type { CallDisposition } from './campaign-disposition.util';
 
 const DEFAULT_SDR_CATEGORIES = [
   'scheduled',
@@ -179,7 +180,11 @@ export class CallClassificationService {
 
   constructor(private readonly dataSource: DataSource) {}
 
-  async classify(voiceCallId: string): Promise<
+  async classify(
+    voiceCallId: string,
+    disposition?: CallDisposition,
+    durationSec?: number | null,
+  ): Promise<
     | {
         ok: true;
         voice_call_id: string;
@@ -330,6 +335,8 @@ export class CallClassificationService {
           accountId: call.account_id,
           outcomeCode: classification.category,
           kind: (call.metadata?.campaign_kind as string | undefined) ?? 'sdr',
+          disposition,
+          durationSec,
         });
       } catch (err) {
         smartRetry = { error: (err as Error).message };
@@ -356,6 +363,8 @@ export class CallClassificationService {
     accountId: string;
     outcomeCode: string;
     kind: string;
+    disposition?: CallDisposition;
+    durationSec?: number | null;
   }): Promise<unknown> {
     const RETRYABLE = new Set([
       'no_answer',
@@ -402,9 +411,16 @@ export class CallClassificationService {
         (ruleForOutcome?.max_attempts ?? 0) > 0);
 
     if (!isRetryable) {
+      // Usa a mesma função (e o mesmo vocabulário) que applyCampaignDisposition
+      // usaria — voice_campaign_contact_complete só marcava status='completed'
+      // sem nunca gravar outcome/call_duration_sec, deixando esses campos
+      // nulos para toda ligação classificada. O fallback do frontend para
+      // status='completed' sem outcome assume "atendeu", então uma ligação
+      // que a EL marcou como falha (disposition='nao_completou') aparecia
+      // como atendida normalmente.
       await this.dataSource.query(
-        `SELECT public.voice_campaign_contact_complete($1)`,
-        [args.campaignContactId],
+        `SELECT public.voice_campaign_contact_disposition($1, $2, $3)`,
+        [args.campaignContactId, args.disposition ?? 'atendida', args.durationSec ?? null],
       );
       return { action: 'completed', outcome: args.outcomeCode, terminal };
     }

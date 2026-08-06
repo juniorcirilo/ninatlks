@@ -238,16 +238,45 @@ export class CallFinalizeService {
       return { status: 500, body: { error: 'db update failed' } };
     }
 
-    const [classifyResult, sentimentResult] = await Promise.allSettled([
-      this.classification.classify(call.id),
-      this.sentiment.analyze(call.id),
-    ]);
-
     const disposition = dispositionFromElevenLabs(
       elStatus,
       durationSec,
       transcriptArr.length,
     );
+
+    // Sequencial, não Promise.allSettled: CallSentimentService relê
+    // contacts.stage_id do banco antes de decidir seu próprio auto-move
+    // (call-sentiment.service.ts), então rodar a classificação primeiro faz
+    // o sentimento decidir sobre o estado já atualizado em vez de correr
+    // contra ele — sem isso, os dois gravam stage_id de forma independente e
+    // quem termina por último vence, sem ordem determinística.
+    //
+    // disposition é calculado antes e passado adiante porque classify() —
+    // via applySmartRetry — é quem efetivamente grava outcome/status em
+    // voice_campaign_contacts quando a ligação foi classificada (o guard da
+    // função no banco só deixa applyCampaignDisposition, mais abaixo, agir
+    // sobre contato ainda em voo).
+    let classify:
+      | Awaited<ReturnType<CallClassificationService['classify']>>
+      | { error: string };
+    try {
+      classify = await this.classification.classify(
+        call.id,
+        disposition,
+        durationSec,
+      );
+    } catch (err) {
+      classify = { error: (err as Error).message };
+    }
+
+    let sentimentOut:
+      | Awaited<ReturnType<CallSentimentService['analyze']>>
+      | { error: string };
+    try {
+      sentimentOut = await this.sentiment.analyze(call.id);
+    } catch (err) {
+      sentimentOut = { error: (err as Error).message };
+    }
 
     // Depois da classificação, de propósito. Ela roda o smart retry, que é
     // mais específico e pode reenfileirar o contato; a função no banco só age
@@ -271,16 +300,18 @@ export class CallFinalizeService {
       disposition,
     );
 
-    const classify =
-      classifyResult.status === 'fulfilled'
-        ? classifyResult.value
-        : { error: String(classifyResult.reason) };
-    const sentimentOut =
-      sentimentResult.status === 'fulfilled'
-        ? sentimentResult.value
-        : { error: String(sentimentResult.reason) };
-
     await this.emitCallFinished(call.id);
+
+    const stageAssigned =
+      ('stage_id' in classify && classify.stage_id) ||
+      ('auto_move' in sentimentOut && sentimentOut.auto_move.to_stage);
+    if (stageAssigned) {
+      const contactId =
+        ('contact_id' in classify && classify.contact_id) ||
+        ('auto_move' in sentimentOut && sentimentOut.auto_move.contact_id) ||
+        null;
+      if (contactId) await this.emitDispositionChanged(call.id, contactId);
+    }
 
     this.logger.log(
       `call=${call.id} convo=${conversationId} transcript=${transcriptArr.length}msgs audio=${recordingStoragePath ? 'ok' : '—'} ` +
@@ -361,36 +392,122 @@ export class CallFinalizeService {
       const row = rows[0];
       if (!row) return;
 
-      await this.dispatch.emit(row.account_id, 'call.finished', {
-        call_id: row.id,
-        direction: row.direction,
-        status: row.status,
-        from: row.from_number,
-        to: row.to_number,
-        duration_seconds: row.duration_seconds,
-        started_at: row.started_at,
-        ended_at: row.ended_at,
-        recording_storage_path: row.recording_storage_path,
-        outcome_category: row.outcome_category,
-        outcome_summary: row.outcome_summary ?? row.ai_summary,
-        disposition: row.disposition,
-        sentiment: row.sentiment,
-        persona_id: row.persona_id,
-        contact: row.contact_id
-          ? {
-              id: row.contact_id,
-              name: row.contact_name,
-              external_id: row.contact_external_id,
-              phone: row.to_number,
-            }
-          : null,
-        campaign: row.campaign_id
-          ? { id: row.campaign_id, name: row.campaign_name }
-          : null,
-      }, { agentId: row.persona_id });
+      await this.dispatch.emit(
+        row.account_id,
+        'call.finished',
+        {
+          call_id: row.id,
+          direction: row.direction,
+          status: row.status,
+          from: row.from_number,
+          to: row.to_number,
+          duration_seconds: row.duration_seconds,
+          started_at: row.started_at,
+          ended_at: row.ended_at,
+          recording_storage_path: row.recording_storage_path,
+          outcome_category: row.outcome_category,
+          outcome_summary: row.outcome_summary ?? row.ai_summary,
+          disposition: row.disposition,
+          sentiment: row.sentiment,
+          persona_id: row.persona_id,
+          contact: row.contact_id
+            ? {
+                id: row.contact_id,
+                name: row.contact_name,
+                external_id: row.contact_external_id,
+                phone: row.to_number,
+              }
+            : null,
+          campaign: row.campaign_id
+            ? { id: row.campaign_id, name: row.campaign_name }
+            : null,
+        },
+        { agentId: row.persona_id },
+      );
     } catch (err) {
       this.logger.warn(
         `emitir call.finished falhou para call=${voiceCallId}: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * Evento `contact.disposition_changed` — dispara sempre que a classificação
+   * ou o sentimento desta ligação resolveram um estágio para o contato
+   * (mesmo que o estágio final acabe igual ao anterior). Relido do banco
+   * pelo mesmo motivo de `emitCallFinished`: o estado que importa é o que
+   * ficou gravado depois das duas etapas, não o que cada uma tinha em mãos
+   * isoladamente.
+   */
+  private async emitDispositionChanged(
+    voiceCallId: string,
+    contactId: string,
+  ): Promise<void> {
+    try {
+      const contactRows = await this.dataSource.query<
+        {
+          id: string;
+          account_id: string;
+          name: string | null;
+          phone_number: string | null;
+          stage_id: string | null;
+          score: number | null;
+          source: string | null;
+          briefing: Record<string, unknown> | null;
+          last_sentiment: string | null;
+          last_sentiment_score: number | null;
+          stage_source: string | null;
+        }[]
+      >(`SELECT * FROM public.contact_get_by_id($1)`, [contactId]);
+      const contact = contactRows[0];
+      if (!contact) return;
+
+      let stageName: string | null = null;
+      if (contact.stage_id) {
+        const stageRows = await this.dataSource.query<
+          { name: string; is_won: boolean; is_lost: boolean }[]
+        >(`SELECT * FROM public.lead_stage_get($1)`, [contact.stage_id]);
+        stageName = stageRows[0]?.name ?? null;
+      }
+
+      const callRows = await this.dataSource.query<
+        { persona_id: string | null; outcome_category: string | null }[]
+      >(
+        `SELECT persona_id, outcome_category FROM public.voice_calls WHERE id = $1 LIMIT 1`,
+        [voiceCallId],
+      );
+      const call = callRows[0];
+
+      await this.dispatch.emit(
+        contact.account_id,
+        'contact.disposition_changed',
+        {
+          call_id: voiceCallId,
+          contact: {
+            id: contact.id,
+            name: contact.name,
+            phone: contact.phone_number,
+          },
+          stage: contact.stage_id
+            ? { id: contact.stage_id, name: stageName }
+            : null,
+          stage_source: contact.stage_source,
+          score: contact.score,
+          source: contact.source,
+          briefing: contact.briefing,
+          sentiment: contact.last_sentiment
+            ? {
+                aggregate: contact.last_sentiment,
+                score: contact.last_sentiment_score,
+              }
+            : null,
+          outcome_category: call?.outcome_category ?? null,
+        },
+        { agentId: call?.persona_id ?? null },
+      );
+    } catch (err) {
+      this.logger.warn(
+        `emitir contact.disposition_changed falhou para call=${voiceCallId}: ${(err as Error).message}`,
       );
     }
   }
