@@ -33,7 +33,7 @@ export function DoctorsManager({ accountId }: { accountId: string }) {
     try {
       setDoctors(await fetchDoctors(accountId));
     } catch (e: any) {
-      toast.error(e?.message ?? "falha ao listar médicos");
+      toast.error(e?.message ?? "falha ao listar contatos");
     } finally {
       setLoading(false);
     }
@@ -55,19 +55,19 @@ export function DoctorsManager({ accountId }: { accountId: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Médicos</h2>
+          <h2 className="text-base font-semibold text-foreground">Contatos</h2>
           <p className="text-xs text-muted-foreground">
-            A Nina usa essa lista para oferecer e marcar consultas.
+            A Nina usa essa lista para oferecer e marcar reuniões comerciais e financeiras.
           </p>
         </div>
         <Button size="sm" onClick={() => setCreating(true)} className="gap-1.5">
-          <UserPlus className="h-4 w-4" /> Novo médico
+          <UserPlus className="h-4 w-4" /> Novo contato
         </Button>
       </div>
 
       {doctors.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card py-12 text-center text-sm text-muted-foreground">
-          Nenhum médico cadastrado. Adicione o primeiro para a Nina conseguir agendar.
+          Nenhum contato cadastrado. Adicione o primeiro para a Nina conseguir agendar.
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
@@ -113,10 +113,10 @@ function DoctorCard({
   onChanged: () => void;
 }) {
   async function handleDelete() {
-    if (!confirm(`Remover ${doctor.name}? As consultas já agendadas mantêm o nome.`)) return;
+    if (!confirm(`Remover ${doctor.name}? As reuniões já agendadas mantêm o nome.`)) return;
     try {
       await deleteDoctor(accountId, doctor.id);
-      toast.success("Médico removido");
+      toast.success("Contato removido");
       onChanged();
     } catch (e: any) {
       toast.error(e?.message ?? "falha ao remover");
@@ -135,7 +135,7 @@ function DoctorCard({
             )}
           </div>
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {doctor.specialty ?? "Sem especialidade"} · {doctor.default_duration_minutes}min ·{" "}
+            {doctor.specialty ?? "Sem área definida"} · {doctor.default_duration_minutes}min ·{" "}
             {doctor.modalities.join(", ")}
           </div>
         </div>
@@ -154,7 +154,7 @@ function DoctorCard({
         </div>
         {doctor.weekly_slots.length === 0 ? (
           <p className="mt-1 text-xs text-amber-700">
-            ⚠ Sem janelas configuradas — a Nina não vai oferecer horários para esse médico.
+            ⚠ Sem janelas configuradas — a Nina não vai oferecer horários para esse contato.
           </p>
         ) : (
           <ul className="mt-1 space-y-0.5 text-xs text-foreground">
@@ -240,7 +240,7 @@ function DoctorDialog({
         active,
       });
       await setDoctorAvailability(accountId, id, slots);
-      toast.success(doctor ? "Médico atualizado" : "Médico criado");
+      toast.success(doctor ? "Contato atualizado" : "Contato criado");
       onSaved();
     } catch (e: any) {
       toast.error(e?.message ?? "falha ao salvar");
@@ -253,7 +253,7 @@ function DoctorDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{doctor ? "Editar médico" : "Novo médico"}</DialogTitle>
+          <DialogTitle>{doctor ? "Editar contato" : "Novo contato"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -262,15 +262,15 @@ function DoctorDialog({
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Dr. João Pereira"
+                placeholder="Ana Ribeiro"
               />
             </div>
             <div>
-              <Label>Especialidade</Label>
+              <Label>Área</Label>
               <Input
                 value={specialty}
                 onChange={(e) => setSpecialty(e.target.value)}
-                placeholder="Ortopedia esportiva"
+                placeholder="Comercial, Financeiro…"
               />
             </div>
             <div>
@@ -299,7 +299,7 @@ function DoctorDialog({
                   checked={modTele}
                   onChange={(e) => setModTele(e.target.checked)}
                 />{" "}
-                Teleconsulta
+                Remoto
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -317,7 +317,7 @@ function DoctorDialog({
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ex.: aceita convênio X, consultas longas para primeira vez…"
+              placeholder="Ex.: prefere reuniões pela manhã, decisor financeiro do grupo…"
             />
           </div>
           <div>

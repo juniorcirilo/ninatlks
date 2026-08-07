@@ -13,7 +13,7 @@ import {
   LayoutGrid,
   List,
   CalendarDays,
-  Stethoscope,
+  Contact,
   Plus,
   Video,
   Copy,
@@ -304,13 +304,13 @@ function MeetingsPage() {
           <ViewBtn
             active={view === "doctors"}
             onClick={() => setView("doctors")}
-            icon={Stethoscope}
-            label="Médicos"
+            icon={Contact}
+            label="Contatos"
           />
         </div>
         <div className="text-[11px] text-muted-foreground">
           {view === "doctors"
-            ? "Configure quem a Nina pode marcar"
+            ? "Configure com quem a Nina pode marcar reuniões"
             : `${filteredData.length} ${filteredData.length === 1 ? "reunião" : "reuniões"} no período`}
         </div>
       </div>
