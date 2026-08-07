@@ -8,6 +8,7 @@ export type CadenceStep = {
   offset_hours: number;
   channel: CadenceChannel;
   template_key?: string | null;
+  message?: string | null;
 };
 
 export type Cadence = {

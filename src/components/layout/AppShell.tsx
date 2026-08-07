@@ -22,6 +22,7 @@ import {
   BookOpen,
   Rocket,
   ClipboardList,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -61,6 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/pipeline", label: "Pipeline", icon: KanbanSquare },
       { to: "/contacts", label: "Leads", icon: Users },
       { to: "/chat", label: "Ao vivo", icon: Radio },
+      { to: "/inbox", label: "Mensagens", icon: MessageCircle },
       { to: "/calls", label: "Ligações", icon: Phone },
       { to: "/reunioes", label: "Reuniões", icon: CalendarDays },
       { to: "/follow-ups", label: "Follow-ups", icon: PhoneCall },

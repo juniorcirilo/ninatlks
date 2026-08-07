@@ -440,8 +440,8 @@ function CadenceForm({
             )}
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Sprint 4: apenas o canal <strong>Ligação</strong> dispara de fato. WhatsApp e e-mail são
-            marcados como concluídos sem ação (Sprint 5+).
+            <strong>Ligação</strong> e <strong>WhatsApp</strong> disparam de fato. E-mail ainda é
+            marcado como concluído sem ação.
           </p>
         </div>
 
@@ -518,6 +518,21 @@ function StepEditor({
             ? `${step.offset_hours} h após o trigger`
             : `${Math.round(step.offset_hours / 24)} dias após o trigger`}
       </p>
+      {step.channel === "whatsapp" && (
+        <div className="mt-2">
+          <label className="block text-[10px] text-muted-foreground">Mensagem</label>
+          <Textarea
+            value={step.message ?? ""}
+            onChange={(e) => onChange({ message: e.target.value })}
+            rows={3}
+            placeholder="Oi {{nome}}, tudo bem? Passando pra lembrar sobre..."
+            className="text-xs"
+          />
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Use {"{{nome}}"} e outras variáveis do contato entre chaves duplas.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,6 +16,7 @@ export type AppChangeEvent = {
   id: string;
   accountId: string | null;
   userId?: string;
+  conversationId?: string;
 };
 
 const WS_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
@@ -49,6 +50,8 @@ export function subscribeTable(table: string, cb: (event: AppChangeEvent) => voi
 export const REALTIME_TABLES = [
   "agent_handoffs",
   "contacts",
+  "conversations",
+  "messages",
   "notifications",
   "scheduled_meetings",
   "voice_calls",

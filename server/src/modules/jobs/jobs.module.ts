@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { StorageModule } from '../storage/storage.module';
 import { VoiceModule } from '../voice/voice.module';
 import { IngestModule } from '../ingest/ingest.module';
+import { EvolutionModule } from '../evolution/evolution.module';
 import { MediaCleanupProcessor } from './processors/media-cleanup.processor';
 import { RateLimitAlertProcessor } from './processors/rate-limit-alert.processor';
 import {
@@ -63,6 +64,7 @@ import { JobsSchedulerService } from './jobs-scheduler.service';
     StorageModule,
     VoiceModule,
     IngestModule,
+    EvolutionModule,
   ],
   providers: [
     MediaCleanupProcessor,

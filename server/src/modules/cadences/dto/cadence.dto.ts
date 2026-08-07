@@ -28,6 +28,10 @@ export class CadenceStepDto {
   @IsOptional()
   @IsString()
   template_key?: string | null;
+
+  @IsOptional()
+  @IsString()
+  message?: string | null;
 }
 
 export class UpsertCadenceDto {

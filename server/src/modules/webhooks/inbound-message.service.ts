@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { PersonaAutoReplyService } from '../messages/persona-auto-reply.service';
 
 /**
  * Shared contact/inbox/conversation/message upsert used by both the Twilio
@@ -7,20 +8,26 @@ import { DataSource } from 'typeorm';
  * identical `handleSms`/`handleMessage` helpers in
  * supabase/functions/twilio-sms-incoming and supabase/functions/evolution-incoming.
  *
- * Auto-reply is NOT invoked here: the ported `tg_trigger_auto_reply` trigger
- * (Migration20260423191559 and siblings) already fires on every `messages`
- * INSERT via pg_net, so an explicit invoke here would double-fire it.
+ * Auto-reply is invoked directly in-process right after a successful insert
+ * (PersonaAutoReplyService, fire-and-forget — never throws). This replaces
+ * the old `tg_trigger_auto_reply` Postgres trigger, which called out via
+ * pg_net to a Supabase Edge Function that no longer exists in this backend
+ * (see 20260807120000-DropLegacyAutoReplyTrigger.ts).
  *
  * Goes through `webhook_ingest_inbound_message`, a SECURITY DEFINER
- * function (migrations/20260720160000-InboundMessagingBypass.ts) — an
- * inbound webhook has no session/tenant context (it's an external system
- * authenticated by signature, not a user), and every table this touches is
- * RLS-enabled+forced keyed on auth.uid(). Without the bypass this silently
- * dropped every inbound message under real RLS.
+ * function (migrations/20260720160000-InboundMessagingBypass.ts, extended in
+ * 20260807110000-PersonaAutoReplyBypass.ts to return the conversation/message
+ * ids) — an inbound webhook has no session/tenant context (it's an external
+ * system authenticated by signature, not a user), and every table this
+ * touches is RLS-enabled+forced keyed on auth.uid(). Without the bypass this
+ * silently dropped every inbound message under real RLS.
  */
 @Injectable()
 export class InboundMessageService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly autoReply: PersonaAutoReplyService,
+  ) {}
 
   async ingest(args: {
     accountId: string;
@@ -59,7 +66,16 @@ export class InboundMessageService {
         }
       : { kind: 'text' };
 
-    const [row] = await this.dataSource.query<{ webhook_ingest_inbound_message: boolean }[]>(
+    const [row] = await this.dataSource.query<
+      {
+        webhook_ingest_inbound_message: {
+          inserted: boolean;
+          conversation_id: string | null;
+          inbox_id: string | null;
+          message_id: string | null;
+        };
+      }[]
+    >(
       `SELECT public.webhook_ingest_inbound_message($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb)`,
       [
         accountId,
@@ -77,6 +93,14 @@ export class InboundMessageService {
       ],
     );
 
-    return { inserted: row?.webhook_ingest_inbound_message ?? false };
+    const result = row?.webhook_ingest_inbound_message;
+    if (result?.inserted && result.conversation_id && result.message_id) {
+      void this.autoReply.maybeReply({
+        conversationId: result.conversation_id,
+        triggeringMessageId: result.message_id,
+      });
+    }
+
+    return { inserted: result?.inserted ?? false };
   }
 }

@@ -26,6 +26,7 @@ import { Route as AuthenticatedListasRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
+import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedCentralRouteImport } from './routes/_authenticated/central'
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
@@ -127,6 +128,11 @@ const AuthenticatedContactsRoute = AuthenticatedContactsRouteImport.update({
   path: '/contacts',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/calls': typeof AuthenticatedCallsRoute
   '/central': typeof AuthenticatedCentralRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByTo {
   '/calls': typeof AuthenticatedCallsRoute
   '/central': typeof AuthenticatedCentralRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
@@ -287,6 +295,7 @@ export interface FileRoutesById {
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
   '/_authenticated/central': typeof AuthenticatedCentralRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
+  '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
@@ -322,6 +331,7 @@ export interface FileRouteTypes {
     | '/calls'
     | '/central'
     | '/chat'
+    | '/inbox'
     | '/contacts'
     | '/equipe'
     | '/follow-ups'
@@ -353,6 +363,7 @@ export interface FileRouteTypes {
     | '/calls'
     | '/central'
     | '/chat'
+    | '/inbox'
     | '/contacts'
     | '/equipe'
     | '/follow-ups'
@@ -386,6 +397,7 @@ export interface FileRouteTypes {
     | '/_authenticated/calls'
     | '/_authenticated/central'
     | '/_authenticated/chat'
+    | '/_authenticated/inbox'
     | '/_authenticated/contacts'
     | '/_authenticated/equipe'
     | '/_authenticated/follow-ups'
@@ -544,6 +556,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/inbox': {
+      id: '/_authenticated/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthenticatedInboxRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/central': {
       id: '/_authenticated/central'
       path: '/central'
@@ -660,6 +679,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
   AuthenticatedCentralRoute: typeof AuthenticatedCentralRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRouteWithChildren
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
@@ -685,6 +705,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
   AuthenticatedCentralRoute: AuthenticatedCentralRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedContactsRoute: AuthenticatedContactsRouteWithChildren,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,

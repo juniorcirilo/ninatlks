@@ -1527,7 +1527,7 @@ function ContactRow({
           </>
         )}
         <Button size="icon" variant="ghost" className="h-7 w-7" title="Abrir conversa" asChild>
-          <Link to="/chat">
+          <Link to="/inbox" search={{ contactId: c.id }}>
             <Sparkles className="h-3.5 w-3.5" />
           </Link>
         </Button>
@@ -1689,7 +1689,7 @@ function ContactDrawer({
               </>
             )}
             <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <Link to="/chat">
+              <Link to="/inbox" search={{ contactId: contact.id }}>
                 <Bot className="h-3.5 w-3.5" /> Conversa
               </Link>
             </Button>
