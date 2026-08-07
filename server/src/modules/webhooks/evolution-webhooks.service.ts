@@ -90,7 +90,12 @@ export class EvolutionWebhooksService {
   ) {}
 
   async handle(payload: EvolutionPayload): Promise<{ ignored?: string }> {
-    const event = str(payload?.event).toUpperCase();
+    // Evolution v2 sends the event name dot-separated in the webhook body
+    // (e.g. "messages.upsert"), even though its own config env vars use
+    // underscores (WEBHOOK_EVENTS_MESSAGES_UPSERT). Normalize so both forms
+    // match IGNORED_EVENTS/the MESSAGES_UPSERT check below — without this,
+    // every real inbound message was silently dropped as "unknown event".
+    const event = str(payload?.event).toUpperCase().replace(/\./g, '_');
     const data: EvolutionEventData = payload?.data ?? payload ?? {};
 
     if (event && event !== 'MESSAGES_UPSERT') {
