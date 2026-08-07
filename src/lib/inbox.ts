@@ -46,6 +46,13 @@ export async function fetchConversationMessages(
   );
 }
 
+export async function startConversation(
+  accountId: string,
+  contactId: string,
+): Promise<{ id: string; created: boolean }> {
+  return apiClient.post(`/accounts/${accountId}/conversations/start`, { contactId });
+}
+
 export async function sendConversationMessage(
   accountId: string,
   conversationId: string,

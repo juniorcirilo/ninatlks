@@ -4,12 +4,14 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { AccountMemberGuard } from '../../common/guards/account-member.guard';
 import { ConversationsService } from './conversations.service';
 import { ListMessagesDto } from './dto/list-messages.dto';
+import { StartConversationDto } from './dto/start-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 
 @UseGuards(AccountMemberGuard)
@@ -23,6 +25,14 @@ export class ConversationsController {
     @Query('contactId') contactId?: string,
   ) {
     return this.service.list(accountId, contactId);
+  }
+
+  @Post('start')
+  start(
+    @Param('accountId') accountId: string,
+    @Body() dto: StartConversationDto,
+  ) {
+    return this.service.start(accountId, dto.contactId);
   }
 
   @Get(':conversationId/messages')

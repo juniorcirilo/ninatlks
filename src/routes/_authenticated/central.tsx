@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Loader2,
@@ -99,6 +99,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { mergeContacts } from "@/lib/contacts";
+import { startConversation } from "@/lib/inbox";
+import { NewCallDialog } from "@/components/calls/NewCallDialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -118,6 +120,7 @@ export const Route = createFileRoute("/_authenticated/central")({
 
 function CentralPage() {
   const { accountId } = useAccount();
+  const navigate = useNavigate();
   const [rows, setRows] = useState<CentralContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -134,6 +137,21 @@ function CentralPage() {
   const [dedupeOpen, setDedupeOpen] = useState(false);
   const [prodOpen, setProdOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [callTarget, setCallTarget] = useState<CentralContact | null>(null);
+  const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
+
+  const handleWhatsApp = async (c: CentralContact) => {
+    if (!accountId || !c.phone_number) return;
+    setWhatsappBusyId(c.id);
+    try {
+      await startConversation(accountId, c.id);
+      navigate({ to: "/inbox", search: { contactId: c.id } });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao abrir conversa de WhatsApp");
+    } finally {
+      setWhatsappBusyId(null);
+    }
+  };
 
   const togglePick = (id: string) =>
     setPicked((prev) => {
@@ -375,6 +393,9 @@ function CentralPage() {
                 checked={picked.has(c.id)}
                 onCheck={() => togglePick(c.id)}
                 onOpen={() => setSelected(c)}
+                onCall={() => setCallTarget(c)}
+                onWhatsApp={() => handleWhatsApp(c)}
+                whatsappBusy={whatsappBusyId === c.id}
               />
             ))}
           </ul>
@@ -396,6 +417,18 @@ function CentralPage() {
           setCampaignSingle(c);
           setCampaignOpen(true);
         }}
+        onCall={(c) => setCallTarget(c)}
+        onWhatsApp={handleWhatsApp}
+        whatsappBusy={whatsappBusyId === selected?.id}
+      />
+
+      <NewCallDialog
+        open={!!callTarget}
+        onOpenChange={(o) => !o && setCallTarget(null)}
+        accountId={accountId ?? null}
+        initialTo={callTarget?.phone_number ?? ""}
+        contactId={callTarget?.id}
+        onPlaced={() => setCallTarget(null)}
       />
 
       {picked.size > 0 && (
@@ -1423,11 +1456,17 @@ function ContactRow({
   checked,
   onCheck,
   onOpen,
+  onCall,
+  onWhatsApp,
+  whatsappBusy,
 }: {
   c: CentralContact;
   checked: boolean;
   onCheck: () => void;
   onOpen: () => void;
+  onCall: () => void;
+  onWhatsApp: () => void;
+  whatsappBusy?: boolean;
 }) {
   const initials = (c.name ?? c.phone_number ?? "?")
     .split(/\s+/)
@@ -1504,13 +1543,7 @@ function ContactRow({
       <div className="col-span-2 flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
         {c.phone_number && (
           <>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-7 w-7"
-              title="Ligar"
-              onClick={() => window.open(`tel:${c.phone_number}`)}
-            >
+            <Button size="icon" variant="ghost" className="h-7 w-7" title="Ligar" onClick={onCall}>
               <Phone className="h-3.5 w-3.5" />
             </Button>
             <Button
@@ -1518,11 +1551,14 @@ function ContactRow({
               variant="ghost"
               className="h-7 w-7"
               title="WhatsApp"
-              onClick={() =>
-                window.open(`https://wa.me/${(c.phone_number ?? "").replace(/\D/g, "")}`, "_blank")
-              }
+              disabled={whatsappBusy}
+              onClick={onWhatsApp}
             >
-              <MessageSquare className="h-3.5 w-3.5" />
+              {whatsappBusy ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <MessageSquare className="h-3.5 w-3.5" />
+              )}
             </Button>
           </>
         )}
@@ -1541,11 +1577,17 @@ function ContactDrawer({
   onClose,
   onChanged,
   onAddToCampaign,
+  onCall,
+  onWhatsApp,
+  whatsappBusy,
 }: {
   contact: CentralContact | null;
   onClose: () => void;
   onChanged: (c: CentralContact) => void;
   onAddToCampaign: (c: CentralContact) => void;
+  onCall: (c: CentralContact) => void;
+  onWhatsApp: (c: CentralContact) => void;
+  whatsappBusy?: boolean;
 }) {
   const { accountId } = useAccount();
   const [timeline, setTimeline] = useState<{
@@ -1669,7 +1711,7 @@ function ContactDrawer({
                   size="sm"
                   variant="outline"
                   className="gap-1.5"
-                  onClick={() => window.open(`tel:${contact.phone_number}`)}
+                  onClick={() => onCall(contact)}
                 >
                   <Phone className="h-3.5 w-3.5" /> Ligar
                 </Button>
@@ -1677,14 +1719,15 @@ function ContactDrawer({
                   size="sm"
                   variant="outline"
                   className="gap-1.5"
-                  onClick={() =>
-                    window.open(
-                      `https://wa.me/${(contact.phone_number ?? "").replace(/\D/g, "")}`,
-                      "_blank",
-                    )
-                  }
+                  disabled={whatsappBusy}
+                  onClick={() => onWhatsApp(contact)}
                 >
-                  <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
+                  {whatsappBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <MessageSquare className="h-3.5 w-3.5" />
+                  )}{" "}
+                  WhatsApp
                 </Button>
               </>
             )}

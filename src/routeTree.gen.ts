@@ -23,10 +23,10 @@ import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
 import { Route as AuthenticatedMissionControlRouteImport } from './routes/_authenticated/mission-control'
 import { Route as AuthenticatedListasRouteImport } from './routes/_authenticated/listas'
+import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
-import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedCentralRouteImport } from './routes/_authenticated/central'
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
@@ -113,6 +113,11 @@ const AuthenticatedListasRoute = AuthenticatedListasRouteImport.update({
   path: '/listas',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedFollowUpsRoute = AuthenticatedFollowUpsRouteImport.update({
   id: '/follow-ups',
   path: '/follow-ups',
@@ -126,11 +131,6 @@ const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
 const AuthenticatedContactsRoute = AuthenticatedContactsRouteImport.update({
   id: '/contacts',
   path: '/contacts',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedInboxRoute = AuthenticatedInboxRouteImport.update({
-  id: '/inbox',
-  path: '/inbox',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
@@ -228,10 +228,10 @@ export interface FileRoutesByFullPath {
   '/calls': typeof AuthenticatedCallsRoute
   '/central': typeof AuthenticatedCentralRoute
   '/chat': typeof AuthenticatedChatRoute
-  '/inbox': typeof AuthenticatedInboxRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -260,10 +260,10 @@ export interface FileRoutesByTo {
   '/calls': typeof AuthenticatedCallsRoute
   '/central': typeof AuthenticatedCentralRoute
   '/chat': typeof AuthenticatedChatRoute
-  '/inbox': typeof AuthenticatedInboxRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/inbox': typeof AuthenticatedInboxRoute
   '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -295,10 +295,10 @@ export interface FileRoutesById {
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
   '/_authenticated/central': typeof AuthenticatedCentralRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
-  '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/contacts': typeof AuthenticatedContactsRouteWithChildren
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
+  '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/listas': typeof AuthenticatedListasRoute
   '/_authenticated/mission-control': typeof AuthenticatedMissionControlRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
@@ -331,10 +331,10 @@ export interface FileRouteTypes {
     | '/calls'
     | '/central'
     | '/chat'
-    | '/inbox'
     | '/contacts'
     | '/equipe'
     | '/follow-ups'
+    | '/inbox'
     | '/listas'
     | '/mission-control'
     | '/phone-numbers'
@@ -363,10 +363,10 @@ export interface FileRouteTypes {
     | '/calls'
     | '/central'
     | '/chat'
-    | '/inbox'
     | '/contacts'
     | '/equipe'
     | '/follow-ups'
+    | '/inbox'
     | '/listas'
     | '/mission-control'
     | '/phone-numbers'
@@ -397,10 +397,10 @@ export interface FileRouteTypes {
     | '/_authenticated/calls'
     | '/_authenticated/central'
     | '/_authenticated/chat'
-    | '/_authenticated/inbox'
     | '/_authenticated/contacts'
     | '/_authenticated/equipe'
     | '/_authenticated/follow-ups'
+    | '/_authenticated/inbox'
     | '/_authenticated/listas'
     | '/_authenticated/mission-control'
     | '/_authenticated/phone-numbers'
@@ -528,6 +528,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedListasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/inbox': {
+      id: '/_authenticated/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof AuthenticatedInboxRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/follow-ups': {
       id: '/_authenticated/follow-ups'
       path: '/follow-ups'
@@ -554,13 +561,6 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof AuthenticatedChatRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/inbox': {
-      id: '/_authenticated/inbox'
-      path: '/inbox'
-      fullPath: '/inbox'
-      preLoaderRoute: typeof AuthenticatedInboxRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/central': {
@@ -679,10 +679,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
   AuthenticatedCentralRoute: typeof AuthenticatedCentralRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
-  AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRouteWithChildren
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
+  AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedListasRoute: typeof AuthenticatedListasRoute
   AuthenticatedMissionControlRoute: typeof AuthenticatedMissionControlRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
@@ -705,10 +705,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
   AuthenticatedCentralRoute: AuthenticatedCentralRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
-  AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedContactsRoute: AuthenticatedContactsRouteWithChildren,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,
+  AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedListasRoute: AuthenticatedListasRoute,
   AuthenticatedMissionControlRoute: AuthenticatedMissionControlRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,

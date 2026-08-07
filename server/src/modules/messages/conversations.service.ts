@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Scope } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  Scope,
+} from '@nestjs/common';
 import { TenantTxHost } from '../../common/tenant-tx.host';
 
 export interface ConversationListItem {
@@ -120,5 +125,50 @@ export class ConversationsService {
       );
     }
     return { ok: true };
+  }
+
+  /**
+   * Find-or-create the open WhatsApp conversation for a contact, so
+   * "message this contact" from Central de Contatos has somewhere to send
+   * to even before the contact has ever texted in. Mirrors the find-or-create
+   * in cadence_whatsapp_record_message (20260807130000-CadenceWhatsappStepBypass)
+   * but runs inside the normal tenant-scoped request tx instead of a
+   * SECURITY DEFINER function, since this is user-initiated, not a cron job.
+   */
+  async start(
+    accountId: string,
+    contactId: string,
+  ): Promise<{ id: string; created: boolean }> {
+    const contactRows = await this.tx.manager.query<{ id: string }[]>(
+      `SELECT id FROM contacts WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL LIMIT 1`,
+      [contactId, accountId],
+    );
+    if (!contactRows[0]) throw new NotFoundException('contact not found');
+
+    const inboxRows = await this.tx.manager.query<{ id: string }[]>(
+      `SELECT id FROM inboxes
+        WHERE account_id = $1 AND channel_type = 'whatsapp' AND enabled = true
+        LIMIT 1`,
+      [accountId],
+    );
+    const inbox = inboxRows[0];
+    if (!inbox) throw new ConflictException('WhatsApp channel not configured');
+
+    const existing = await this.tx.manager.query<{ id: string }[]>(
+      `SELECT id FROM conversations
+        WHERE account_id = $1 AND contact_id = $2 AND inbox_id = $3 AND deleted_at IS NULL
+        ORDER BY last_activity_at DESC LIMIT 1`,
+      [accountId, contactId, inbox.id],
+    );
+    if (existing[0]) return { id: existing[0].id, created: false };
+
+    const created = await this.tx.manager.query<{ id: string }[]>(
+      `INSERT INTO conversations
+         (account_id, contact_id, inbox_id, status, last_activity_at, created_at, updated_at)
+       VALUES ($1, $2, $3, 0, now(), now(), now())
+       RETURNING id`,
+      [accountId, contactId, inbox.id],
+    );
+    return { id: created[0].id, created: true };
   }
 }

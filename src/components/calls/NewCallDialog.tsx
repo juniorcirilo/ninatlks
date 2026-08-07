@@ -28,11 +28,15 @@ export function NewCallDialog({
   onOpenChange,
   accountId,
   onPlaced,
+  initialTo,
+  contactId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   accountId: string | null;
   onPlaced?: (callId: string) => void;
+  initialTo?: string;
+  contactId?: string;
 }) {
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -47,6 +51,7 @@ export function NewCallDialog({
   useEffect(() => {
     if (!open || !accountId) return;
     setLoading(true);
+    setTo(initialTo ?? "");
     Promise.all([fetchPhoneNumbers(accountId), fetchPersonas(accountId)])
       .then(([nums, ps]) => {
         const enabled = nums.filter((n) => n.enabled);
@@ -71,6 +76,7 @@ export function NewCallDialog({
         toNumber: to.trim(),
         personaId: personaId === "auto" ? undefined : personaId,
         notes: notes.trim() || undefined,
+        contactId,
       });
       if (!r.ok) {
         toast.error(r.message ?? `Falha ao discar (${r.reason ?? "erro"})`);
