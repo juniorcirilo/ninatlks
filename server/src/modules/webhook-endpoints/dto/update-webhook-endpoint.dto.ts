@@ -10,7 +10,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { WEBHOOK_EVENTS } from '../webhook-endpoints.service';
+import { WEBHOOK_EVENTS, WEBHOOK_METHODS } from '../webhook-endpoints.service';
 
 /** Patch parcial: só o que vier no corpo é alterado. */
 export class UpdateWebhookEndpointDto {
@@ -24,6 +24,10 @@ export class UpdateWebhookEndpointDto {
   @IsUrl({ protocols: ['http', 'https'], require_tld: false })
   @MaxLength(2000)
   url?: string;
+
+  @IsOptional()
+  @IsIn(WEBHOOK_METHODS as unknown as string[])
+  method?: string;
 
   @IsOptional()
   @IsArray()

@@ -1,5 +1,14 @@
-import { Injectable, Scope } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Scope,
+} from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { TenantTxHost } from '../../common/tenant-tx.host';
+import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
+import { MeetingNotificationsService } from '../meeting-notifications/meeting-notifications.service';
 
 export interface Meeting {
   id: string;
@@ -54,7 +63,178 @@ export interface Doctor {
  */
 @Injectable({ scope: Scope.REQUEST })
 export class MeetingsService {
-  constructor(private readonly tx: TenantTxHost) {}
+  private readonly logger = new Logger(MeetingsService.name);
+
+  constructor(
+    private readonly tx: TenantTxHost,
+    private readonly googleCalendar: GoogleCalendarService,
+    private readonly meetingNotifications: MeetingNotificationsService,
+  ) {}
+
+  async createMeeting(
+    accountId: string,
+    dto: {
+      title?: string;
+      startsAt: string;
+      durationMinutes: number;
+      hostUserId: string;
+      inviteeName?: string;
+      inviteeEmail?: string;
+      inviteePhone?: string;
+      contactId?: string;
+      doctorId?: string;
+      modality?: string;
+      notes?: string;
+      useGoogleMeet?: boolean;
+    },
+  ): Promise<{ id: string }> {
+    const host = await this.tx.manager.query<{ user_id: string }[]>(
+      `SELECT user_id FROM public.account_users WHERE account_id = $1 AND user_id = $2`,
+      [accountId, dto.hostUserId],
+    );
+    if (!host.length) {
+      throw new BadRequestException('Host não pertence a esta conta.');
+    }
+
+    const startsAt = new Date(dto.startsAt);
+    if (Number.isNaN(startsAt.getTime())) {
+      throw new BadRequestException('startsAt inválido.');
+    }
+    const endsAt = new Date(startsAt.getTime() + dto.durationMinutes * 60_000);
+    const title = dto.title?.trim() || `Reunião com ${dto.inviteeName ?? 'lead'}`;
+
+    let provider = 'internal';
+    let providerEventId = `manual-${randomUUID()}`;
+    let meetingUrl: string | null = null;
+
+    if (dto.useGoogleMeet !== false) {
+      const status = await this.googleCalendar.getStatus(accountId);
+      if (status.connected) {
+        const event = await this.googleCalendar.createMeetEvent(accountId, {
+          title,
+          description: dto.notes ?? null,
+          startsAt,
+          endsAt,
+          attendeeEmails: dto.inviteeEmail ? [dto.inviteeEmail] : [],
+        });
+        provider = 'google_calendar';
+        providerEventId = event.providerEventId;
+        meetingUrl = event.meetingUrl;
+      }
+    }
+
+    const rows = await this.tx.manager.query<{ id: string }[]>(
+      `INSERT INTO public.scheduled_meetings
+         (account_id, contact_id, doctor_id, provider, provider_event_id, title, starts_at, ends_at,
+          duration_minutes, status, modality, invitee_name, invitee_email, invitee_phone, notes,
+          attendee_user_id, meeting_url, payload, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'scheduled',$10,$11,$12,$13,$14,$15,$16,$17::jsonb, now(), now())
+       RETURNING id`,
+      [
+        accountId,
+        dto.contactId ?? null,
+        dto.doctorId ?? null,
+        provider,
+        providerEventId,
+        title,
+        startsAt,
+        endsAt,
+        dto.durationMinutes,
+        dto.modality ?? null,
+        dto.inviteeName ?? null,
+        dto.inviteeEmail ?? null,
+        dto.inviteePhone ?? null,
+        dto.notes ?? null,
+        dto.hostUserId,
+        meetingUrl,
+        JSON.stringify({ scheduled_via: 'manual' }),
+      ],
+    );
+    const meetingId = rows[0].id;
+
+    await this.meetingNotifications
+      .notifyMeetingScheduled({
+        id: meetingId,
+        accountId,
+        title,
+        startsAt,
+        endsAt,
+        durationMinutes: dto.durationMinutes,
+        meetingUrl,
+        status: 'scheduled',
+        hostUserId: dto.hostUserId,
+        inviteeName: dto.inviteeName ?? null,
+        inviteeEmail: dto.inviteeEmail ?? null,
+        inviteePhone: dto.inviteePhone ?? null,
+        scheduledVia: 'manual',
+      })
+      .catch((err) =>
+        this.logger.error(`notify falhou meeting=${meetingId}: ${(err as Error).message}`),
+      );
+
+    return { id: meetingId };
+  }
+
+  async updateMeeting(
+    accountId: string,
+    id: string,
+    patch: { title?: string; startsAt?: string; durationMinutes?: number },
+  ): Promise<void> {
+    const rows = await this.tx.manager.query<
+      {
+        provider: string;
+        provider_event_id: string;
+        starts_at: string;
+        duration_minutes: number | null;
+      }[]
+    >(
+      `SELECT provider, provider_event_id, starts_at, duration_minutes
+         FROM public.scheduled_meetings WHERE id = $1 AND account_id = $2`,
+      [id, accountId],
+    );
+    const existing = rows[0];
+    if (!existing) throw new NotFoundException('Reunião não encontrada.');
+
+    const newStartsAt = patch.startsAt ? new Date(patch.startsAt) : new Date(existing.starts_at);
+    const newDuration = patch.durationMinutes ?? existing.duration_minutes ?? 30;
+    const newEndsAt = new Date(newStartsAt.getTime() + newDuration * 60_000);
+
+    await this.tx.manager.query(
+      `UPDATE public.scheduled_meetings
+          SET title = COALESCE($3, title), starts_at = $4, ends_at = $5, duration_minutes = $6, updated_at = now()
+        WHERE id = $1 AND account_id = $2`,
+      [id, accountId, patch.title ?? null, newStartsAt, newEndsAt, newDuration],
+    );
+
+    if (existing.provider === 'google_calendar') {
+      await this.googleCalendar.updateMeetEvent(accountId, existing.provider_event_id, {
+        startsAt: newStartsAt,
+        endsAt: newEndsAt,
+        title: patch.title,
+      });
+    }
+  }
+
+  async cancelMeeting(accountId: string, id: string, reason?: string): Promise<void> {
+    const rows = await this.tx.manager.query<
+      { provider: string; provider_event_id: string }[]
+    >(
+      `SELECT provider, provider_event_id FROM public.scheduled_meetings WHERE id = $1 AND account_id = $2`,
+      [id, accountId],
+    );
+    const existing = rows[0];
+    if (!existing) throw new NotFoundException('Reunião não encontrada.');
+
+    await this.setOutcome(id, 'canceled', undefined, reason ?? 'manual');
+
+    if (existing.provider === 'google_calendar') {
+      await this.googleCalendar
+        .cancelMeetEvent(accountId, existing.provider_event_id)
+        .catch((err) =>
+          this.logger.error(`cancelar evento no Google falhou meeting=${id}: ${(err as Error).message}`),
+        );
+    }
+  }
 
   async listMeetings(
     accountId: string,

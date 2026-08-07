@@ -32,6 +32,9 @@ export class FollowUpExecutions {
   @Column('text', { name: 'last_error', nullable: true })
   lastError?: string | null;
 
+  @Column('uuid', { name: 'waiting_call_id', nullable: true })
+  waitingCallId?: string | null;
+
   @Column('jsonb', { name: 'metadata', default: '{}' })
   metadata!: Record<string, unknown>;
 

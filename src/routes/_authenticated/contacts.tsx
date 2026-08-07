@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Loader2,
   Search,
@@ -17,24 +17,18 @@ import {
   Copy,
   Trash2,
   ArrowUpDown,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Inbox,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
+import { useRealtimeRefresh } from "@/lib/realtime-client";
+import { fetchPipeline, stageTone, timeAgo, type LeadCard, type Pipeline } from "@/lib/pipeline";
 import {
-  fetchPipeline,
-  scoreTone,
-  sentimentTone,
-  stageTone,
-  timeAgo,
-  isRecentAutoMove,
-  leadInitials,
-  avatarGradient,
-  type LeadCard,
-  type Pipeline,
-} from "@/lib/pipeline";
+  LeadAvatar,
+  ScoreBadge,
+  SentimentBadge,
+  StageBadge,
+  AiSourceBadge,
+} from "@/components/pipeline/badges";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -87,6 +81,29 @@ function LeadsPage() {
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const load = useCallback(
+    async (opts: { silent?: boolean } = {}) => {
+      if (!accountId) {
+        setLoading(false);
+        return;
+      }
+      try {
+        setData(await fetchPipeline(accountId));
+      } catch {
+        if (!opts.silent) setData(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [accountId],
+  );
+
+  // Leads mudam de estágio por classificação automática pós-ligação, não só
+  // por ação do usuário nesta tela.
+  useRealtimeRefresh(["contacts"], accountId, () => load({ silent: true }), {
+    debounceMs: 1000,
+  });
 
   useEffect(() => {
     if (!accountId) {
@@ -426,13 +443,6 @@ function FilterChip({
 /* ─────────────── Lead row ─────────────── */
 
 function LeadRow({ lead, onDelete }: { lead: FlatLead; onDelete: (id: string) => void }) {
-  const tone = stageTone(lead.stage_color);
-  const score = scoreTone(lead.score);
-  const sent = sentimentTone(lead.last_sentiment);
-  const recentAi = isRecentAutoMove(lead.auto_moved_at);
-  const initials = leadInitials(lead.name, lead.phone_number);
-  const gradient = avatarGradient(lead.id);
-
   function copyPhone() {
     if (!lead.phone_number) return;
     navigator.clipboard.writeText(lead.phone_number);
@@ -444,28 +454,13 @@ function LeadRow({ lead, onDelete }: { lead: FlatLead; onDelete: (id: string) =>
       {/* Lead */}
       <TableCell className="py-3 pl-4">
         <div className="flex items-start gap-3">
-          <div
-            className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[11px] font-semibold text-white shadow-elevation-1",
-              gradient,
-            )}
-          >
-            {initials}
-          </div>
+          <LeadAvatar id={lead.id} name={lead.name} phone={lead.phone_number} className="h-9 w-9" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-sm font-medium text-foreground">
                 {lead.name ?? lead.phone_number ?? "Sem nome"}
               </span>
-              {recentAi && (
-                <span
-                  title="Movido pela IA recentemente"
-                  className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-accent ring-1 ring-accent/30"
-                >
-                  <Sparkles className="h-2.5 w-2.5" />
-                  IA
-                </span>
-              )}
+              <AiSourceBadge source={lead.stage_source} className="ring-1 ring-accent/30" />
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
               {lead.phone_number && (
@@ -493,53 +488,18 @@ function LeadRow({ lead, onDelete }: { lead: FlatLead; onDelete: (id: string) =>
 
       {/* Stage */}
       <TableCell className="py-3">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ring-1",
-            tone.chipBg,
-            tone.chipText,
-            tone.ring,
-          )}
-        >
-          <span className={cn("h-1.5 w-1.5 rounded-full", tone.dot)} />
-          {lead.stage_name}
-        </span>
+        <StageBadge name={lead.stage_name} color={lead.stage_color} />
       </TableCell>
 
       {/* Score */}
       <TableCell className="py-3">
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-semibold tabular-nums ring-1",
-            score.cls,
-          )}
-        >
-          {lead.score}
-          <span className="opacity-70">· {score.label}</span>
-        </span>
+        <ScoreBadge score={lead.score} />
       </TableCell>
 
       {/* Sentimento */}
       <TableCell className="py-3">
-        {sent ? (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ring-1",
-              sent.cls,
-            )}
-          >
-            {lead.last_sentiment === "positive" ? (
-              <TrendingUp className="h-3 w-3" />
-            ) : lead.last_sentiment === "negative" ? (
-              <TrendingDown className="h-3 w-3" />
-            ) : (
-              <Minus className="h-3 w-3" />
-            )}
-            {sent.label}
-          </span>
-        ) : (
-          <span className="text-[11px] text-muted-foreground">—</span>
-        )}
+        <SentimentBadge sentiment={lead.last_sentiment} />
+        {!lead.last_sentiment && <span className="text-[11px] text-muted-foreground">—</span>}
       </TableCell>
 
       {/* Última atividade */}

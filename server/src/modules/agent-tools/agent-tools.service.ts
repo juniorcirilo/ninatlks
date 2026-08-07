@@ -12,9 +12,11 @@ import {
   ConfirmMeetingDto,
   GetAvailabilityDto,
   QualifyLeadDto,
+  RegistrarDesfechoCobrancaDto,
   RescheduleMeetingDto,
   ScheduleMeetingDto,
 } from './dto/agent-tools.dto';
+import { MeetingNotificationsService } from '../meeting-notifications/meeting-notifications.service';
 
 export interface ToolResponse {
   status: number;
@@ -72,6 +74,52 @@ function mapSentiment(v: string): 'positive' | 'neutral' | 'negative' | null {
   return SENTIMENT_MAP[v.trim().toLowerCase()] ?? null;
 }
 
+// Same 9 codes seeded into call_outcomes_catalog for campaign_kind='cobranca'
+// (migration 20260520181346) and listed in the "Diego Cobrança" persona
+// prompt's # OUTCOMES section (migration 20260520184051) — mapped here to
+// voice_calls.outcome_category, whose CHECK constraint only accepts the set
+// from migration 20260423231138.
+const COBRANCA_OUTCOME_DB_MAP: Record<string, string> = {
+  quitou: 'interested',
+  prometeu_pagar: 'interested',
+  negociou_parcelas: 'interested',
+  pediu_boleto: 'callback_requested',
+  contestou_divida: 'escalated',
+  sem_condicoes: 'not_interested',
+  recusou_pagar: 'not_interested',
+  no_answer: 'no_answer',
+  wrong_number: 'wrong_number',
+};
+
+const COBRANCA_DESFECHO_LABEL: Record<string, string> = {
+  quitou: 'Pagou na hora',
+  prometeu_pagar: 'Promessa de pagamento',
+  negociou_parcelas: 'Negociou parcelas',
+  pediu_boleto: 'Pediu boleto/PIX',
+  contestou_divida: 'Contestou dívida',
+  sem_condicoes: 'Sem condições',
+  recusou_pagar: 'Recusou pagar',
+  no_answer: 'Sem resposta',
+  wrong_number: 'Número errado',
+};
+
+// Aceita "1.240,55" (BR) e "1240.55" (US) vindos em fala livre do agente.
+function parseNumericLoose(v: string): number | null {
+  const cleaned = v.replace(/[^\d,.-]/g, '');
+  if (!cleaned) return null;
+  let normalized = cleaned;
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    normalized =
+      cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')
+        ? cleaned.replace(/\./g, '').replace(',', '.')
+        : cleaned.replace(/,/g, '');
+  } else if (cleaned.includes(',')) {
+    normalized = cleaned.replace(',', '.');
+  }
+  const n = parseFloat(normalized);
+  return Number.isNaN(n) ? null : n;
+}
+
 // voice_calls.outcome_category has its own CHECK constraint whose value set
 // doesn't match OutcomeCategory from lead-resolve.util.ts (e.g. no
 // 'scheduled'/'qualified'/'callback') — map to the closest allowed value
@@ -99,7 +147,10 @@ const OUTCOME_CATEGORY_DB_MAP: Record<OutcomeCategory, string> = {
 export class AgentToolsService {
   private readonly logger = new Logger(AgentToolsService.name);
 
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly meetingNotifications: MeetingNotificationsService,
+  ) {}
 
   async confirmMeeting(dto: ConfirmMeetingDto): Promise<ToolResponse> {
     const rows = await this.dataSource.query<
@@ -463,6 +514,8 @@ export class AgentToolsService {
            last_sentiment = COALESCE($4, last_sentiment),
            last_activity_at = now(),
            stage_id = COALESCE($5, stage_id),
+           stage_source = CASE WHEN $5::uuid IS NOT NULL THEN 'agent_tool' ELSE stage_source END,
+           auto_moved_at = CASE WHEN $5::uuid IS NOT NULL THEN now() ELSE auto_moved_at END,
            name = COALESCE($6, name),
            email = COALESCE($7, email),
            phone_number = COALESCE($8, phone_number),
@@ -576,6 +629,122 @@ export class AgentToolsService {
       parts.push(`Próximo passo: ${briefing.next_action}`);
     if (stringOrNull(dto.observacao)) parts.push(dto.observacao!.trim());
     return parts.join(' · ').slice(0, 500) || 'Lead qualificado pelo agente';
+  }
+
+  async registrarDesfechoCobranca(
+    dto: RegistrarDesfechoCobrancaDto,
+    conversationIdHeader: string | null,
+  ): Promise<ToolResponse> {
+    const conversationId = conversationIdHeader || dto.conversation_id || null;
+    if (!conversationId) {
+      return fail('x-conversation-id header or conversation_id required', 400);
+    }
+
+    const callRows = await this.dataSource.query<
+      {
+        id: string;
+        account_id: string;
+        conversation_id: string | null;
+        from_number: string | null;
+        to_number: string | null;
+        direction: string | null;
+        metadata: Record<string, unknown> | null;
+      }[]
+    >(
+      `SELECT id, account_id, conversation_id, from_number, to_number, direction, metadata
+       FROM voice_calls WHERE source_id = $1 LIMIT 1`,
+      [conversationId],
+    );
+    const call = callRows[0];
+    if (!call) {
+      this.logger.warn(
+        `voice_call não encontrada p/ conversation_id=${conversationId}`,
+      );
+      return fail('call context not found', 404);
+    }
+
+    const contactId = await resolveContactIdFromCall(this.dataSource, call);
+    if (!contactId) return fail('could not resolve contact', 500);
+
+    const outcomeCategory = COBRANCA_OUTCOME_DB_MAP[dto.desfecho] ?? 'other';
+    const summary = COBRANCA_DESFECHO_LABEL[dto.desfecho] ?? dto.desfecho;
+    const promiseAmount = stringOrNull(dto.valor_prometido);
+    const promiseDate = stringOrNull(dto.data_prometida);
+
+    const classification = {
+      source: 'agent_tool',
+      kind: 'cobranca',
+      desfecho: dto.desfecho,
+      valor_prometido: promiseAmount,
+      data_prometida: promiseDate,
+      forma_pagamento: stringOrNull(dto.forma_pagamento),
+      observacao: stringOrNull(dto.observacao),
+      classified_at: new Date().toISOString(),
+    };
+
+    try {
+      await this.dataSource.query(
+        `UPDATE voice_calls SET
+           outcome_category = $2, outcome_confidence = 0.9, outcome_summary = $3,
+           outcome_classified_at = now(), classification = $4::jsonb
+         WHERE id = $1`,
+        [call.id, outcomeCategory, summary, JSON.stringify(classification)],
+      );
+    } catch (err) {
+      this.logger.error('voice_calls update failed', err as Error);
+      return fail('voice_calls update failed', 500);
+    }
+
+    await this.dataSource.query(
+      `UPDATE contacts SET last_activity_at = now(), updated_at = now() WHERE id = $1`,
+      [contactId],
+    );
+
+    if (promiseAmount || promiseDate) {
+      if (promiseAmount) {
+        await this.dataSource.query(
+          `INSERT INTO contact_facts (account_id, contact_id, key, value, value_numeric, confidence, created_at, updated_at)
+           VALUES ($1, $2, 'debt:promise_amount', $3, $4, 0.9, now(), now())`,
+          [call.account_id, contactId, promiseAmount, parseNumericLoose(promiseAmount)],
+        );
+      }
+      if (promiseDate) {
+        await this.dataSource.query(
+          `INSERT INTO contact_facts (account_id, contact_id, key, value, value_numeric, confidence, created_at, updated_at)
+           VALUES ($1, $2, 'debt:promise_date', $3, NULL, 0.9, now(), now())`,
+          [call.account_id, contactId, promiseDate],
+        );
+      }
+    }
+
+    if (call.conversation_id) {
+      await this.dataSource.query(
+        `INSERT INTO conversation_outcomes (account_id, conversation_id, contact_id, outcome_type, confidence, source, observed_at, metadata, created_at)
+         VALUES ($1, $2, $3, $4, 0.9, 'agent-tool-registrar-desfecho-cobranca', now(), $5::jsonb, now())`,
+        [
+          call.account_id,
+          call.conversation_id,
+          contactId,
+          dto.desfecho,
+          JSON.stringify({ valor_prometido: promiseAmount, data_prometida: promiseDate }),
+        ],
+      );
+    }
+
+    this.logger.log(
+      `call=${call.id} contact=${contactId} desfecho_cobranca=${dto.desfecho}`,
+    );
+
+    const confirmationMessage =
+      promiseAmount && promiseDate
+        ? `Anotado: ${summary.toLowerCase()}, valor ${promiseAmount}, data ${promiseDate}.`
+        : `Anotado: ${summary.toLowerCase()}.`;
+
+    return ok({
+      contact_id: contactId,
+      desfecho: dto.desfecho,
+      confirmation_message: confirmationMessage,
+    });
   }
 
   async rescheduleMeeting(dto: RescheduleMeetingDto): Promise<ToolResponse> {
@@ -705,7 +874,7 @@ export class AgentToolsService {
       );
       if (stageId) {
         await this.dataSource.query(
-          `UPDATE contacts SET stage_id = $2, updated_at = now() WHERE id = $1`,
+          `UPDATE contacts SET stage_id = $2, stage_source = 'agent_tool', auto_moved_at = now(), updated_at = now() WHERE id = $1`,
           [original.contact_id, stageId],
         );
       }
@@ -881,7 +1050,7 @@ export class AgentToolsService {
       );
       if (stageId) {
         await this.dataSource.query(
-          `UPDATE contacts SET stage_id = $2, score = 95, updated_at = now() WHERE id = $1`,
+          `UPDATE contacts SET stage_id = $2, score = 95, stage_source = 'agent_tool', auto_moved_at = now(), updated_at = now() WHERE id = $1`,
           [contactId, stageId],
         );
       }
@@ -890,6 +1059,26 @@ export class AgentToolsService {
     this.logger.log(
       `meeting=${meeting.id} doctor=${dto.doctor_id} contact=${contactId} starts=${startsAt.toISOString()}`,
     );
+
+    this.meetingNotifications
+      .notifyMeetingScheduled({
+        id: meeting.id,
+        accountId: call.account_id,
+        title,
+        startsAt,
+        endsAt,
+        durationMinutes: durationMin,
+        meetingUrl: null,
+        status: 'scheduled',
+        hostUserId: null,
+        inviteeName,
+        inviteeEmail,
+        inviteePhone,
+        scheduledVia: 'agent_tool',
+      })
+      .catch((err) =>
+        this.logger.error(`notify falhou meeting=${meeting!.id}: ${(err as Error).message}`),
+      );
 
     return ok({
       meeting_id: meeting.id,

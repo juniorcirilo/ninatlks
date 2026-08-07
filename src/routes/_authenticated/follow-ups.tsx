@@ -234,7 +234,15 @@ function CadenceRow({
         <div className="mt-2 flex gap-3 text-[10px] text-muted-foreground">
           <span>{cadence.pending_count} pendentes</span>
           <span>·</span>
+          <span>{cadence.waiting_count} aguardando ligação</span>
+          <span>·</span>
           <span>{cadence.completed_count} concluídas</span>
+          {cadence.failed_count > 0 && (
+            <>
+              <span>·</span>
+              <span className="text-destructive">{cadence.failed_count} falharam</span>
+            </>
+          )}
         </div>
       </div>
 

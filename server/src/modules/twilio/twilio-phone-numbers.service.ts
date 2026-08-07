@@ -173,17 +173,27 @@ export class TwilioPhoneNumbersService {
       );
     }
 
-    const updated = await this.twilioNumbers.configureNumber(
-      creds,
-      existing.sid,
-      {
+    let updated;
+    try {
+      updated = await this.twilioNumbers.configureNumber(creds, existing.sid, {
         voiceUrl,
         voiceMethod: 'POST',
         smsUrl,
         smsMethod: 'POST',
         statusCallback,
-      },
-    );
+      });
+    } catch (err) {
+      await this.logProvisioning(
+        accountId,
+        null,
+        input.phoneNumber,
+        'import',
+        { ...input, voiceUrl, smsUrl, statusCallback },
+        { error: err instanceof Error ? err.message : String(err) },
+        err instanceof TwilioError ? err.status : 502,
+      );
+      throw err;
+    }
 
     const existingRow = await this.tx.manager.findOne(PhoneNumbers, {
       where: { accountId, e164: input.phoneNumber },

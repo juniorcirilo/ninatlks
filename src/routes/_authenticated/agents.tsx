@@ -197,13 +197,18 @@ function AgentCard({
 
   return (
     <div className="group relative flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted">
+      {/* Alvo de clique do card inteiro. Os blocos abaixo são `relative` e vêm
+          depois no DOM, então pintavam acima deste botão (que não tem z-index)
+          e engoliam o clique — só as folgas do gap/padding chegavam aqui, o que
+          fazia o card parecer que "às vezes não abre". Conteúdo decorativo leva
+          pointer-events-none; quem é interativo de verdade reativa por conta. */}
       <button
         type="button"
         onClick={onClick}
         className="absolute inset-0 rounded-xl"
         aria-label={`Configurar ${persona.name}`}
       />
-      <div className="relative flex items-start justify-between gap-2">
+      <div className="pointer-events-none relative flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500">
             <Bot className="h-4 w-4 text-white" />
@@ -228,17 +233,19 @@ function AgentCard({
       </div>
 
       {persona.description && (
-        <p className="relative line-clamp-2 text-[11px] text-muted-foreground">{persona.description}</p>
+        <p className="pointer-events-none relative line-clamp-2 text-[11px] text-muted-foreground">
+          {persona.description}
+        </p>
       )}
 
-      <div className="relative flex flex-wrap items-center gap-1.5">
+      <div className="pointer-events-none relative flex flex-wrap items-center gap-1.5">
         <CapBadge active={hasPrompt} icon={MessageSquare} label="prompt" />
         <CapBadge active={hasVoice} icon={Mic} label="voz" />
         <CapBadge active={hasKB} icon={BookOpen} label="RAG" />
       </div>
 
       {synced && (
-        <div className="relative flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5">
+        <div className="pointer-events-none relative flex items-center justify-between gap-2 rounded-md border border-border/60 bg-background/60 px-2 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5">
             {info === undefined ? (
               <>
@@ -269,7 +276,7 @@ function AgentCard({
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="relative z-10 inline-flex items-center gap-1 rounded text-[10px] text-primary hover:underline"
+              className="pointer-events-auto relative z-10 inline-flex items-center gap-1 rounded text-[10px] text-primary hover:underline"
               title="Abrir no painel ElevenLabs"
             >
               ElevenLabs
@@ -279,7 +286,7 @@ function AgentCard({
         </div>
       )}
 
-      <div className="relative text-[10px] text-primary opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="pointer-events-none relative text-[10px] text-primary opacity-0 transition-opacity group-hover:opacity-100">
         Clique para configurar →
       </div>
     </div>

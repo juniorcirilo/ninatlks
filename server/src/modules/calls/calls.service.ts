@@ -17,6 +17,7 @@ export interface CallSummaryRow {
   recording_url: string | null;
   transcript: unknown;
   contact_name: string | null;
+  persona_name: string | null;
 }
 
 export interface CallDetailRow extends CallSummaryRow {
@@ -33,23 +34,35 @@ export class CallsService {
 
   async list(
     accountId: string,
-    filter: { direction?: 'inbound' | 'outbound' | 'all'; limit?: number } = {},
+    filter: {
+      direction?: 'inbound' | 'outbound' | 'all';
+      limit?: number;
+      contactId?: string;
+    } = {},
   ): Promise<CallSummaryRow[]> {
-    const { direction = 'all', limit = 100 } = filter;
+    const { direction = 'all', limit = 100, contactId } = filter;
     return this.tx.manager.query<CallSummaryRow[]>(
       `SELECT vc.id, vc.direction, vc.status, vc.from_number, vc.to_number, vc.started_at, vc.ended_at,
               vc.duration_seconds, vc.outcome_category, vc.outcome_summary, vc.sentiment, vc.metadata,
               vc.recording_url, vc.transcript,
-              c.name AS contact_name
+              c.name AS contact_name,
+              ap.name AS persona_name
          FROM voice_calls vc
          LEFT JOIN contacts c
            ON c.account_id = vc.account_id
           AND c.phone_number = (CASE WHEN vc.direction = 'outbound' THEN vc.to_number ELSE vc.from_number END)
+         LEFT JOIN agent_personas ap ON ap.id = vc.persona_id
         WHERE vc.account_id = $1
           AND ($2::text IS NULL OR vc.direction::text = $2)
+          AND ($4::uuid IS NULL OR c.id = $4)
         ORDER BY vc.started_at DESC NULLS LAST
         LIMIT $3`,
-      [accountId, direction === 'all' ? null : direction, limit],
+      [
+        accountId,
+        direction === 'all' ? null : direction,
+        limit,
+        contactId ?? null,
+      ],
     );
   }
 
@@ -62,11 +75,13 @@ export class CallsService {
               vc.ended_at, vc.duration_seconds, vc.outcome_category, vc.outcome_summary, vc.sentiment,
               vc.metadata, vc.recording_url, vc.recording_storage_path, vc.transcript, vc.classification,
               vc.ai_summary,
-              c.name AS contact_name
+              c.name AS contact_name,
+              ap.name AS persona_name
          FROM voice_calls vc
          LEFT JOIN contacts c
            ON c.account_id = vc.account_id
           AND c.phone_number = (CASE WHEN vc.direction = 'outbound' THEN vc.to_number ELSE vc.from_number END)
+         LEFT JOIN agent_personas ap ON ap.id = vc.persona_id
         WHERE vc.account_id = $1 AND vc.id = $2
         LIMIT 1`,
       [accountId, callId],

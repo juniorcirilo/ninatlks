@@ -28,6 +28,7 @@ export type CallSummary = {
   call_purpose: string;
   contact_name: string | null;
   contact_phone: string | null;
+  persona_name: string | null;
   recording_url: string | null;
   has_transcript: boolean;
 };
@@ -72,14 +73,26 @@ export const CALL_PURPOSE_LABEL: Record<string, string> = {
 };
 
 export const OUTCOME_LABEL: Record<string, { label: string; cls: string }> = {
-  scheduled: { label: "Agendou", cls: "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30" },
+  scheduled: {
+    label: "Agendou",
+    cls: "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30",
+  },
   qualified: { label: "Qualificou", cls: "bg-primary/10 text-primary ring-1 ring-primary/20" },
   callback: { label: "Pediu retorno", cls: "bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/30" },
-  escalated: { label: "Pediu humano", cls: "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30" },
+  escalated: {
+    label: "Pediu humano",
+    cls: "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30",
+  },
   no_answer: { label: "Sem resposta", cls: "bg-muted text-muted-foreground ring-1 ring-border" },
   voicemail: { label: "Caixa postal", cls: "bg-muted text-muted-foreground ring-1 ring-border" },
-  not_interested: { label: "Sem interesse", cls: "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30" },
-  wrong_number: { label: "Número errado", cls: "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30" },
+  not_interested: {
+    label: "Sem interesse",
+    cls: "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30",
+  },
+  wrong_number: {
+    label: "Número errado",
+    cls: "bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30",
+  },
   other: { label: "Outro", cls: "bg-muted text-muted-foreground ring-1 ring-border" },
 };
 
@@ -110,6 +123,7 @@ interface CallApiRow {
   recording_url: string | null;
   transcript: unknown;
   contact_name: string | null;
+  persona_name: string | null;
 }
 
 interface CallDetailApiRow extends CallApiRow {
@@ -143,6 +157,7 @@ function mapSummary(r: CallApiRow): CallSummary {
     call_purpose: (r.metadata?.call_purpose as string) ?? "discovery",
     contact_name: r.contact_name,
     contact_phone: leadPhone ?? null,
+    persona_name: r.persona_name,
     recording_url: r.recording_url,
     has_transcript: hasTranscript(r.transcript),
   };
@@ -150,11 +165,12 @@ function mapSummary(r: CallApiRow): CallSummary {
 
 export async function fetchCalls(
   accountId: string,
-  filter: { direction?: CallDirection | "all"; limit?: number } = {},
+  filter: { direction?: CallDirection | "all"; limit?: number; contactId?: string } = {},
 ): Promise<CallSummary[]> {
-  const { direction = "all", limit = 100 } = filter;
+  const { direction = "all", limit = 100, contactId } = filter;
   const params = new URLSearchParams({ limit: String(limit) });
   if (direction !== "all") params.set("direction", direction);
+  if (contactId) params.set("contactId", contactId);
   const rows = await apiClient.get<CallApiRow[]>(
     `/accounts/${accountId}/calls?${params.toString()}`,
   );

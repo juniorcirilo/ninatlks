@@ -8,16 +8,13 @@ import {
   Sparkles,
   User as UserIcon,
   Volume2,
-  Smile,
-  Meh,
-  Frown,
   Search,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
+import { useRealtimeRefresh } from "@/lib/realtime-client";
 import {
   fetchCalls,
   fetchCallDetail,
-  generateCallSummary,
   formatDuration,
   formatCallTime,
   CALL_DIRECTION_LABEL,
@@ -27,8 +24,12 @@ import {
   type CallSummary,
   type CallDetail,
   type CallDirection,
-  type TranscriptTurn,
 } from "@/lib/calls";
+import {
+  AiSummaryBlock,
+  TranscriptTurnRow,
+  TurnSentimentIcon,
+} from "@/components/calls/ai-summary";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -73,6 +74,10 @@ function CallsPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Ligações entram e mudam de status durante a chamada (ringing → connected →
+  // finalizada), então a lista tem que acompanhar sem F5.
+  useRealtimeRefresh(["voice_calls"], accountId, refresh);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return data;
@@ -248,7 +253,9 @@ function CallRow({ call, onClick }: { call: CallSummary; onClick: () => void }) 
         <div
           className={cn(
             "absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-card",
-            call.direction === "inbound" ? "bg-sky-500/15 text-sky-400" : "bg-primary/15 text-primary",
+            call.direction === "inbound"
+              ? "bg-sky-500/15 text-sky-400"
+              : "bg-primary/15 text-primary",
           )}
         >
           <DirIcon className="h-3 w-3" />
@@ -263,7 +270,7 @@ function CallRow({ call, onClick }: { call: CallSummary; onClick: () => void }) 
               · {call.contact_phone}
             </span>
           )}
-          <SentimentBadge sentiment={call.sentiment_aggregate} />
+          <TurnSentimentIcon sentiment={call.sentiment_aggregate} />
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
           <span className="tabular-nums">{formatCallTime(call.started_at)}</span>
@@ -299,29 +306,33 @@ function CallRow({ call, onClick }: { call: CallSummary; onClick: () => void }) 
   );
 }
 
-function SentimentBadge({ sentiment }: { sentiment: "positive" | "neutral" | "negative" | null }) {
-  if (!sentiment) return null;
-  const Icon = sentiment === "positive" ? Smile : sentiment === "negative" ? Frown : Meh;
-  const cls =
-    sentiment === "positive"
-      ? "text-emerald-600"
-      : sentiment === "negative"
-        ? "text-rose-600"
-        : "text-muted-foreground";
-  return <Icon className={cn("h-3.5 w-3.5", cls)} />;
-}
-
 function CallDetailSheet({ accountId, callId }: { accountId: string; callId: string }) {
   const [detail, setDetail] = useState<CallDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const load = useCallback(
+    async (opts: { silent?: boolean } = {}) => {
+      if (!opts.silent) setLoading(true);
+      try {
+        setDetail(await fetchCallDetail(accountId, callId));
+      } catch (e: any) {
+        // Refetch silencioso não interrompe o usuário com toast — a chamada
+        // pode estar em transição e a próxima notificação corrige.
+        if (!opts.silent) toast.error(e?.message ?? "falha ao carregar");
+      } finally {
+        if (!opts.silent) setLoading(false);
+      }
+    },
+    [accountId, callId],
+  );
+
   useEffect(() => {
-    setLoading(true);
-    fetchCallDetail(accountId, callId)
-      .then(setDetail)
-      .catch((e) => toast.error(e?.message ?? "falha ao carregar"))
-      .finally(() => setLoading(false));
-  }, [accountId, callId]);
+    load();
+  }, [load]);
+
+  // Transcrição, gravação e classificação chegam depois que a ligação termina;
+  // sem isto o painel mostrava o estado do instante em que foi aberto.
+  useRealtimeRefresh(["voice_calls"], accountId, () => load({ silent: true }));
 
   if (loading) {
     return (
@@ -415,7 +426,7 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
             )}
             {detail.sentiment_aggregate && (
               <div className="flex items-center gap-2 text-[11px]">
-                <SentimentBadge sentiment={detail.sentiment_aggregate} />
+                <TurnSentimentIcon sentiment={detail.sentiment_aggregate} />
                 <span className="font-medium text-foreground capitalize">
                   {detail.sentiment_aggregate}
                 </span>
@@ -477,35 +488,13 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
             </div>
             <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
               {detail.transcript.map((t) => (
-                <TranscriptTurnRow key={t.index} turn={t} />
+                <TranscriptTurnRow key={t.index} turn={t} agentName={detail.persona_name ?? "Nina"} />
               ))}
             </div>
           </div>
         )}
       </div>
     </>
-  );
-}
-
-function TranscriptTurnRow({ turn }: { turn: TranscriptTurn }) {
-  const isAgent = turn.role === "agent" || turn.role === "assistant";
-  return (
-    <div
-      className={cn(
-        "rounded-lg border px-3 py-2 text-xs",
-        isAgent
-          ? "border-primary/15 bg-primary/[0.05] text-foreground"
-          : "border-border bg-muted/40 text-foreground",
-      )}
-    >
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
-        <span className={isAgent ? "text-primary" : "text-sky-400"}>
-          {isAgent ? "Nina" : "Lead"}
-        </span>
-        {turn.sentiment && <SentimentBadge sentiment={turn.sentiment} />}
-      </div>
-      <p className="leading-relaxed text-foreground/85">{turn.text}</p>
-    </div>
   );
 }
 
@@ -523,72 +512,6 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-xs leading-relaxed text-foreground/85">{value}</div>
-    </div>
-  );
-}
-
-function AiSummaryBlock({
-  accountId,
-  callId,
-  initial,
-  onUpdate,
-}: {
-  accountId: string | null;
-  callId: string;
-  initial: string | null;
-  onUpdate: (s: string) => void;
-}) {
-  const [text, setText] = useState<string | null>(initial);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    setText(initial);
-  }, [initial, callId]);
-
-  const generate = async () => {
-    if (!accountId) return;
-    setLoading(true);
-    try {
-      const result = await generateCallSummary(accountId, callId, true);
-      if (result.ok && result.ai_summary) {
-        setText(result.ai_summary);
-        onUpdate(result.ai_summary);
-        toast.success("Resumo gerado");
-      } else {
-        toast.error(result.error ?? "Não foi possível gerar o resumo");
-      }
-    } catch (e: any) {
-      const apiError = e?.body?.error as string | undefined;
-      toast.error(apiError ?? e?.message ?? "Erro ao gerar resumo");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
-          <Sparkles className="h-3 w-3" />
-          Resumo IA
-        </div>
-        <button
-          type="button"
-          onClick={generate}
-          disabled={loading}
-          className="rounded-md border border-primary/30 bg-card px-2 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
-        >
-          {loading ? "Gerando…" : text ? "Regenerar" : "Gerar resumo"}
-        </button>
-      </div>
-      {text ? (
-        <div className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/85">{text}</div>
-      ) : (
-        <p className="text-[11px] text-muted-foreground">
-          Nenhum resumo ainda. Clique em “Gerar resumo” para criar um briefing executivo desta
-          ligação.
-        </p>
-      )}
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { WEBHOOK_EVENTS } from '../webhook-endpoints.service';
+import { WEBHOOK_EVENTS, WEBHOOK_METHODS } from '../webhook-endpoints.service';
 
 export class CreateWebhookEndpointDto {
   @IsString()
@@ -26,6 +26,15 @@ export class CreateWebhookEndpointDto {
   @IsUrl({ protocols: ['http', 'https'], require_tld: false })
   @MaxLength(2000)
   url!: string;
+
+  /**
+   * Padrão POST. GET existe porque o nó Webhook do n8n criado pro lado de
+   * entrada (agente → ERP) costuma nascer em GET (`N8N_HTTP_METHOD`), e é
+   * comum o cliente reaproveitar a mesma URL como destino de saída.
+   */
+  @IsOptional()
+  @IsIn(WEBHOOK_METHODS as unknown as string[])
+  method?: string;
 
   /** Vazio = todos os eventos. */
   @IsOptional()

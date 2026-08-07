@@ -1,6 +1,8 @@
 import { Injectable, Scope } from '@nestjs/common';
 import { TenantTxHost } from '../../common/tenant-tx.host';
 import { SecretsService } from '../secrets/secrets.service';
+import { n8nLockedByEnv } from '../n8n/n8n-client.service';
+import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 
 export interface ProviderStatus {
   key: string;
@@ -9,6 +11,8 @@ export interface ProviderStatus {
   ok: boolean | null;
   detail?: string;
   usage?: Record<string, string | number | null>;
+  /** true quando a credencial vem fixada por variável de ambiente do servidor — a tela não deve oferecer editar. */
+  locked?: boolean;
 }
 
 export interface IntegrationsStatusReport {
@@ -33,15 +37,20 @@ export class IntegrationsStatusService {
   constructor(
     private readonly tx: TenantTxHost,
     private readonly secrets: SecretsService,
+    private readonly googleCalendar: GoogleCalendarService,
   ) {}
 
   async check(accountId: string): Promise<IntegrationsStatusReport> {
-    const [elevenlabs, twilio, evolution, deepgram] = await Promise.all([
-      this.checkElevenLabs(accountId),
-      this.checkTwilio(accountId),
-      this.checkEvolution(accountId),
-      this.checkDeepgram(accountId),
-    ]);
+    const [elevenlabs, twilio, evolution, deepgram, n8n, googleCalendar, resend] =
+      await Promise.all([
+        this.checkElevenLabs(accountId),
+        this.checkTwilio(accountId),
+        this.checkEvolution(accountId),
+        this.checkDeepgram(accountId),
+        this.checkN8n(accountId),
+        this.checkGoogleCalendar(accountId),
+        this.checkResend(accountId),
+      ]);
 
     const personas = await this.tx.manager.query<
       { id: string; elevenlabs_agent_id: string | null }[]
@@ -62,7 +71,15 @@ export class IntegrationsStatusService {
 
     return {
       ok: true,
-      providers: [elevenlabs, twilio, evolution, deepgram],
+      providers: [
+        elevenlabs,
+        twilio,
+        evolution,
+        deepgram,
+        n8n,
+        googleCalendar,
+        resend,
+      ],
       nexus: {
         agents_total: personas.length,
         agents_synced_to_el: personas.filter((p) => !!p.elevenlabs_agent_id)
@@ -252,6 +269,78 @@ export class IntegrationsStatusService {
     }
   }
 
+  private async checkGoogleCalendar(accountId: string): Promise<ProviderStatus> {
+    if (!this.googleCalendar.isConfigured()) {
+      return {
+        key: 'google_calendar',
+        label: 'Google Calendar / Meet',
+        configured: false,
+        ok: null,
+        detail: 'GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET não configurados no servidor',
+        locked: true,
+      };
+    }
+    const status = await this.googleCalendar.getStatus(accountId);
+    if (!status.connected) {
+      return {
+        key: 'google_calendar',
+        label: 'Google Calendar / Meet',
+        configured: false,
+        ok: null,
+      };
+    }
+    return {
+      key: 'google_calendar',
+      label: 'Google Calendar / Meet',
+      configured: true,
+      ok: status.enabled,
+      detail: status.email ? `Conectado como ${status.email}` : 'Conectado',
+    };
+  }
+
+  private async checkResend(accountId: string): Promise<ProviderStatus> {
+    const key =
+      (await this.secrets.getInternal(accountId, 'resend', 'api_key')) ||
+      process.env.RESEND_API_KEY ||
+      '';
+    if (!key)
+      return {
+        key: 'resend',
+        label: 'Resend (e-mail)',
+        configured: false,
+        ok: null,
+      };
+    try {
+      const res = await fetch('https://api.resend.com/domains', {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      if (!res.ok) {
+        return {
+          key: 'resend',
+          label: 'Resend (e-mail)',
+          configured: true,
+          ok: false,
+          detail: `HTTP ${res.status}`,
+        };
+      }
+      return {
+        key: 'resend',
+        label: 'Resend (e-mail)',
+        configured: true,
+        ok: true,
+        detail: 'Pronto para enviar e-mails de confirmação de reunião',
+      };
+    } catch (err) {
+      return {
+        key: 'resend',
+        label: 'Resend',
+        configured: true,
+        ok: false,
+        detail: String(err).slice(0, 120),
+      };
+    }
+  }
+
   private async checkEvolution(accountId: string): Promise<ProviderStatus> {
     const rows = await this.tx.manager.query<
       { config: Record<string, string> }[]
@@ -300,8 +389,8 @@ export class IntegrationsStatusService {
         key: 'evolution',
         label: 'Evolution (WhatsApp Web)',
         configured: true,
-        ok: true,
-        detail: `${connected}/${total} conectada(s) · status: ${cfg.evolution_instance_status ?? '?'}`,
+        ok: connected > 0,
+        detail: `${connected}/${total} conectada(s)`,
         usage: { instancias_total: total, instancias_conectadas: connected },
       };
     } catch (err) {
@@ -311,6 +400,71 @@ export class IntegrationsStatusService {
         configured: true,
         ok: false,
         detail: String(err).slice(0, 120),
+      };
+    }
+  }
+
+  /**
+   * Mesmo padrão de dois campos do Twilio (account_sid + auth_token) — aqui
+   * `api_url` (instância) + `api_key` (X-N8N-API-KEY). O ping é
+   * `GET /workflows?limit=1`: barato, e já valida credencial + alcance da
+   * URL numa tacada.
+   */
+  private async checkN8n(accountId: string): Promise<ProviderStatus> {
+    // N8N_URL/N8N_API_KEY no ambiente do servidor ganham do vault da conta —
+    // mesma precedência de N8nClientService.credentials, para o card não
+    // mostrar "não configurado" enquanto a leitura de verdade já usa o
+    // ambiente.
+    const locked = n8nLockedByEnv();
+    let baseUrl: string;
+    let apiKey: string;
+    if (locked) {
+      baseUrl = (process.env.N8N_URL ?? '').trim().replace(/\/+$/, '');
+      apiKey = (process.env.N8N_API_KEY ?? '').trim();
+    } else {
+      const bundle = await this.secrets.getInternalBulk(accountId, 'n8n');
+      baseUrl = (bundle.api_url ?? '').trim().replace(/\/+$/, '');
+      apiKey = (bundle.api_key ?? '').trim();
+    }
+    if (!baseUrl || !apiKey) {
+      return { key: 'n8n', label: 'n8n (automação)', configured: false, ok: null, locked };
+    }
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/workflows?limit=1`, {
+        headers: { 'X-N8N-API-KEY': apiKey },
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) {
+        return {
+          key: 'n8n',
+          label: 'n8n (automação)',
+          configured: true,
+          ok: false,
+          detail: `HTTP ${res.status}`,
+          locked,
+        };
+      }
+      return {
+        key: 'n8n',
+        label: 'n8n (automação)',
+        configured: true,
+        ok: true,
+        detail: locked
+          ? 'Fixado por variável de ambiente do servidor (N8N_URL). Workflow "Utalks" criado automaticamente ao configurar a 1ª fonte de dados.'
+          : 'Workflow "Utalks" criado automaticamente ao configurar a 1ª fonte de dados.',
+        locked,
+      };
+    } catch (err) {
+      return {
+        key: 'n8n',
+        label: 'n8n (automação)',
+        configured: true,
+        ok: false,
+        detail:
+          (err as Error).name === 'TimeoutError'
+            ? 'sem resposta em 8s'
+            : String(err).slice(0, 120),
+        locked,
       };
     }
   }

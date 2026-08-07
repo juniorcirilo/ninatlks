@@ -1,7 +1,14 @@
-// Runner genérico para loop de tool-calling OpenAI-compatible contra
-// o Lovable AI Gateway. Compartilhado por Bruno, Ana, Carla e futuras personas.
+// Runner genérico de tool-calling. Usa o provedor de IA configurado pela
+// conta (Configurações → Integrações → Provedor de IA do Agente — OpenAI,
+// Gemini, Anthropic, Groq, DeepSeek, Mistral, Ollama ou LM Studio; cai pra IA
+// própria legada e depois pro Lovable — ver resolveLlmConfig). O formato
+// específico de cada provedor (Anthropic é diferente do resto) fica isolado
+// em providers.ts; aqui só se enxerga mensagens/tool_calls no formato
+// OpenAI-shaped. Compartilhado por Ana, Carla, Felipe, Clara, Diego e o
+// Playground (ask-persona).
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
+import { resolveLlmConfig } from "./llm-config";
+import { callChatCompletion, type ChatCallResult } from "./providers";
 
 export interface ToolDef {
   type: "function";
@@ -35,6 +42,7 @@ export interface RunnerResult {
 export type ToolExecutor = (name: string, args: Record<string, unknown>) => Promise<unknown>;
 
 export async function runAgentLoop(params: {
+  accountId: string;
   system: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   userMessage: string;
@@ -42,10 +50,7 @@ export async function runAgentLoop(params: {
   execute: ToolExecutor;
   opts?: RunnerOpts;
 }): Promise<RunnerResult> {
-  const apiKey = process.env.LOVABLE_API_KEY;
-  if (!apiKey) throw new Error("LOVABLE_API_KEY não configurado");
-
-  const model = params.opts?.model ?? "google/gemini-2.5-flash";
+  const llm = await resolveLlmConfig(params.accountId, params.opts?.model);
   const temperature = params.opts?.temperature ?? 0.4;
   const maxSteps = params.opts?.maxSteps ?? 6;
 
@@ -58,32 +63,31 @@ export async function runAgentLoop(params: {
   const trace: RunnerResult["trace"] = [];
 
   for (let step = 0; step < maxSteps; step++) {
-    const res = await fetch(GATEWAY, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
+    let msg: ChatCallResult;
+    try {
+      msg = await callChatCompletion({
+        provider: llm.provider,
+        baseUrl: llm.baseUrl,
+        apiKey: llm.apiKey,
+        model: llm.model,
         temperature,
         messages,
         tools: params.tools,
-        tool_choice: "auto",
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      if (res.status === 429) throw new Error("Limite de uso do gateway atingido. Tente novamente em instantes.");
-      if (res.status === 402) throw new Error("Créditos do Lovable AI esgotados. Adicione créditos em Configurações.");
-      throw new Error(`Gateway ${res.status}: ${body.slice(0, 200)}`);
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (llm.provider === "lovable") {
+        if (message.includes(" 429:")) throw new Error("Limite de uso do gateway atingido. Tente novamente em instantes.");
+        if (message.includes(" 402:")) throw new Error("Créditos do Lovable AI esgotados. Adicione créditos em Configurações.");
+      }
+      throw err;
     }
-    const json = await res.json();
-    const msg = json.choices?.[0]?.message;
-    if (!msg) throw new Error("Resposta inválida do gateway");
 
     if (!msg.tool_calls || msg.tool_calls.length === 0) {
-      return { reply: (msg.content as string) ?? "", steps: step + 1, trace };
+      return { reply: msg.content ?? "", steps: step + 1, trace };
     }
 
-    messages.push({ role: "assistant", content: msg.content ?? null, tool_calls: msg.tool_calls });
+    messages.push({ role: "assistant", content: msg.content || null, tool_calls: msg.tool_calls });
 
     const results = await Promise.all(
       msg.tool_calls.map(async (tc: NonNullable<AgentMessage["tool_calls"]>[number]) => {

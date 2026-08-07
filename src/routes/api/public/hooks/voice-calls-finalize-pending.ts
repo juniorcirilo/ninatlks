@@ -1,3 +1,4 @@
+import { createFileRoute } from '@tanstack/react-router'
 // Cron-triggered endpoint: pega chamadas EL que ficaram travadas em
 // queued/ringing/in_progress há mais de 90s e dispara voice-call-finalize
 // pra cada uma. Isso garante que mesmo se o webhook EL não chegar, o

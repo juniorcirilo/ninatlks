@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   Delete,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AccountMemberGuard } from '../../common/guards/account-member.guard';
@@ -21,7 +22,13 @@ import {
   BulkRoundRobinDto,
   BulkAddToCampaignDto,
 } from './dto/bulk-contacts.dto';
-import { CreateListDto, AddToListDto } from './dto/create-list.dto';
+import {
+  CreateListDto,
+  UpdateListDto,
+  AddToListDto,
+} from './dto/create-list.dto';
+import { ListCandidatesQueryDto } from './dto/list-candidates.dto';
+import { SetContactVariablesDto } from './dto/set-contact-variables.dto';
 
 @UseGuards(AccountMemberGuard)
 @Controller('accounts/:accountId/contacts')
@@ -31,6 +38,24 @@ export class ContactsController {
   @Get()
   list(@Param('accountId') accountId: string) {
     return this.contactsService.listCentral(accountId);
+  }
+
+  /**
+   * Ponto de partida de "criar lista sem CSV". Rota própria, e não query
+   * params no `GET /contacts` acima: aquele endpoint alimenta a Central
+   * (mais recentes, sem filtro nenhum) e mudar seu contrato quebraria quem já
+   * depende dele.
+   */
+  @Get('candidates')
+  candidates(
+    @Param('accountId') accountId: string,
+    @Query() dto: ListCandidatesQueryDto,
+  ) {
+    return this.contactsService.listCreationCandidates(accountId, {
+      stageId: dto.stageId,
+      excludeListed: dto.excludeListed ?? true,
+      limit: dto.limit ?? 5000,
+    });
   }
 
   @Post()
@@ -133,6 +158,20 @@ export class ContactsController {
     return this.contactsService.fetchProductivity(accountId);
   }
 
+  @Get(':id/variables')
+  getVariables(@Param('accountId') accountId: string, @Param('id') id: string) {
+    return this.contactsService.getVariables(accountId, id);
+  }
+
+  @Patch(':id/variables')
+  setVariables(
+    @Param('accountId') accountId: string,
+    @Param('id') id: string,
+    @Body() dto: SetContactVariablesDto,
+  ) {
+    return this.contactsService.setVariables(accountId, id, dto.variables);
+  }
+
   @Get(':id/timeline')
   timeline(@Param('accountId') accountId: string, @Param('id') id: string) {
     return this.contactsService.fetchTimeline(accountId, id);
@@ -156,11 +195,7 @@ export class ContactListsController {
 
   @Post()
   create(@Param('accountId') accountId: string, @Body() dto: CreateListDto) {
-    return this.contactsService.createListFromContacts(
-      accountId,
-      dto.name,
-      dto.contactIds,
-    );
+    return this.contactsService.createListFromContacts(accountId, dto);
   }
 
   @Get(':listId')
@@ -172,9 +207,9 @@ export class ContactListsController {
   update(
     @Param('accountId') accountId: string,
     @Param('listId') listId: string,
-    @Body() body: { name?: string; description?: string | null; campaignKind?: string; filters?: Record<string, unknown> },
+    @Body() dto: UpdateListDto,
   ) {
-    return this.contactsService.updateContactList(accountId, listId, body);
+    return this.contactsService.updateContactList(accountId, listId, dto);
   }
 
   @Delete(':listId')

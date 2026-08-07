@@ -19,8 +19,11 @@ import {
   PhoneCall,
   Bot,
   Plus,
+  ArrowRightLeft,
+  AlertTriangle,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
+import { useRealtimeRefresh } from "@/lib/realtime-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,6 +61,8 @@ import {
   contactsToCsv,
   downloadCsv,
   createManualContact,
+  parseCsv,
+  detectContactColumns,
   QUICK_FILTERS,
   LIFECYCLE_LABEL,
   OPERATIONAL_LABEL,
@@ -123,7 +128,9 @@ function CentralPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [ownerOpen, setOwnerOpen] = useState(false);
   const [tagOpen, setTagOpen] = useState(false);
+  const [stageOpen, setStageOpen] = useState(false);
   const [campaignOpen, setCampaignOpen] = useState(false);
+  const [campaignSingle, setCampaignSingle] = useState<CentralContact | null>(null);
   const [dedupeOpen, setDedupeOpen] = useState(false);
   const [prodOpen, setProdOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
@@ -136,16 +143,16 @@ function CentralPage() {
     });
   const clearPicked = () => setPicked(new Set());
 
-  const load = async () => {
+  const load = async (opts: { silent?: boolean } = {}) => {
     if (!accountId) return;
-    setLoading(true);
+    if (!opts.silent) setLoading(true);
     try {
       const data = await fetchCentralContacts(accountId);
       setRows(data);
     } catch (e: any) {
-      toast.error(e?.message ?? "Falha ao carregar contatos");
+      if (!opts.silent) toast.error(e?.message ?? "Falha ao carregar contatos");
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   };
 
@@ -153,6 +160,13 @@ function CentralPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
+
+  // Contatos mudam por ligação atendida, import, e ações em massa de outro
+  // operador. Refetch silencioso: a lista atualiza sem piscar o spinner.
+  // Debounce maior porque import/bulk disparam um evento por linha.
+  useRealtimeRefresh(["contacts"], accountId, () => load({ silent: true }), {
+    debounceMs: 1000,
+  });
 
   const filtered = useMemo(() => {
     let list = applyQuickFilter(rows, quick);
@@ -171,11 +185,12 @@ function CentralPage() {
 
   const kpis = useMemo(() => {
     const total = rows.length;
+    const leads = rows.filter((r) => r.lifecycle_stage === "lead").length;
     const hot = rows.filter((r) => (r.score ?? 0) >= 75).length;
     const customers = rows.filter((r) => r.lifecycle_stage === "customer").length;
     const delinquent = rows.filter((r) => r.lifecycle_stage === "delinquent").length;
     const inactive = rows.filter((r) => r.lifecycle_stage === "inactive").length;
-    return { total, hot, customers, delinquent, inactive };
+    return { total, leads, hot, customers, delinquent, inactive };
   }, [rows]);
 
   const counts = useMemo(() => {
@@ -183,6 +198,10 @@ function CentralPage() {
     QUICK_FILTERS.forEach((f) => map.set(f.id, applyQuickFilter(rows, f.id).length));
     return map;
   }, [rows]);
+
+  // O backend limita a listagem a 1000 contatos (contacts.service.ts). Acima
+  // disso a lista fica truncada silenciosamente — avisamos o usuário.
+  const truncated = rows.length >= 1000;
 
   if (loading) {
     return (
@@ -255,8 +274,9 @@ function CentralPage() {
         </div>
       </header>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="Total" value={String(kpis.total)} icon={Users} />
+        <StatCard label="Leads" value={String(kpis.leads)} icon={UserPlus} />
         <StatCard label="Quentes" value={String(kpis.hot)} icon={Flame} trend="up" />
         <StatCard label="Clientes" value={String(kpis.customers)} icon={TrendingUp} trend="up" />
         <StatCard
@@ -267,6 +287,14 @@ function CentralPage() {
         />
         <StatCard label="Inativos" value={String(kpis.inactive)} icon={Minus} />
       </div>
+
+      {truncated && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          Exibindo os 1000 contatos mais recentes. Pode haver mais contatos na conta — use a busca para
+          encontrar contatos específicos ou exporte por lista.
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[260px] flex-1">
@@ -319,7 +347,13 @@ function CentralPage() {
           <div className="grid grid-cols-12 items-center gap-2 border-b border-border bg-muted/30 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             <div className="col-span-1 flex items-center">
               <Checkbox
-                checked={picked.size > 0 && filtered.every((r) => picked.has(r.id))}
+                checked={
+                  filtered.length > 0 && filtered.every((r) => picked.has(r.id))
+                    ? true
+                    : filtered.some((r) => picked.has(r.id))
+                      ? "indeterminate"
+                      : false
+                }
                 onCheckedChange={(v) => {
                   if (v) setPicked(new Set(filtered.map((r) => r.id)));
                   else clearPicked();
@@ -358,6 +392,10 @@ function CentralPage() {
           setRows((prev) => prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)));
           setSelected((prev) => (prev ? { ...prev, ...updated } : prev));
         }}
+        onAddToCampaign={(c) => {
+          setCampaignSingle(c);
+          setCampaignOpen(true);
+        }}
       />
 
       {picked.size > 0 && (
@@ -384,6 +422,9 @@ function CentralPage() {
           </Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTagOpen(true)}>
             <Tag className="h-3.5 w-3.5" /> Tag
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setStageOpen(true)}>
+            <ArrowRightLeft className="h-3.5 w-3.5" /> Mover estágio
           </Button>
           <Button size="sm" variant="ghost" onClick={clearPicked}>
             Limpar
@@ -425,16 +466,34 @@ function CentralPage() {
         }}
       />
 
+      <BulkStageDialog
+        open={stageOpen}
+        onClose={() => setStageOpen(false)}
+        accountId={accountId ?? ""}
+        contactIds={Array.from(picked)}
+        onDone={() => {
+          clearPicked();
+          setStageOpen(false);
+          load();
+        }}
+      />
+
       <BulkCampaignDialog
         open={campaignOpen}
-        onClose={() => setCampaignOpen(false)}
+        onClose={() => {
+          setCampaignOpen(false);
+          setCampaignSingle(null);
+        }}
         accountId={accountId ?? ""}
-        contacts={rows
-          .filter((r) => picked.has(r.id))
-          .map((r) => ({ id: r.id, phone_number: r.phone_number }))}
+        contacts={
+          campaignSingle
+            ? [{ id: campaignSingle.id, phone_number: campaignSingle.phone_number }]
+            : rows.filter((r) => picked.has(r.id)).map((r) => ({ id: r.id, phone_number: r.phone_number }))
+        }
         onDone={() => {
           clearPicked();
           setCampaignOpen(false);
+          setCampaignSingle(null);
         }}
       />
 
@@ -598,15 +657,43 @@ function ImportCsvDialog({
   onDone: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [text, setText] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{
+    headers: string[];
+    rows: string[][];
+    cols: { iName: number; iPhone: number; iEmail: number };
+  } | null>(null);
+
+  const reset = () => {
+    setFileName(null);
+    setText(null);
+    setPreview(null);
+  };
 
   const handleFile = async (file: File) => {
+    const raw = await file.text();
+    const { headers, rows } = parseCsv(raw);
+    if (!headers.length) {
+      toast.error("Não foi possível ler o CSV — verifique se o arquivo tem cabeçalho.");
+      return;
+    }
+    setFileName(file.name);
+    setText(raw);
+    setPreview({ headers, rows, cols: detectContactColumns(headers) });
+  };
+
+  const noIdentifier = preview && preview.cols.iPhone < 0 && preview.cols.iEmail < 0;
+
+  const confirmImport = async () => {
+    if (!text) return;
     setBusy(true);
     try {
-      const text = await file.text();
       const res = await importContactsCsv(accountId, text);
       toast.success(
         `${res.created} contato(s) importado(s)${res.skipped ? `, ${res.skipped} ignorado(s)` : ""}`,
       );
+      reset();
       onDone();
     } catch (e: any) {
       toast.error(e?.message ?? "Falha no import");
@@ -616,7 +703,15 @@ function ImportCsvDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          reset();
+          onClose();
+        }
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Importar contatos de CSV</DialogTitle>
@@ -624,15 +719,103 @@ function ImportCsvDialog({
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
             Colunas reconhecidas: <code>nome</code>, <code>telefone</code>, <code>email</code>.
-            Duplicados por telefone são atualizados.
+            Duplicados por telefone ou email são atualizados, não duplicados.
           </p>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            disabled={busy}
-            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-            className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-violet-500/10 file:px-3 file:py-1.5 file:text-violet-300 hover:file:bg-violet-500/20"
-          />
+          {!preview ? (
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-violet-500/10 file:px-3 file:py-1.5 file:text-violet-300 hover:file:bg-violet-500/20"
+            />
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-3 py-2 text-xs">
+                <span className="truncate text-foreground">{fileName}</span>
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="shrink-0 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  Trocar arquivo
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 text-[11px]">
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5",
+                    preview.cols.iName >= 0
+                      ? "bg-emerald-500/10 text-emerald-300"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  Nome {preview.cols.iName >= 0 ? "✓" : "não encontrado"}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5",
+                    preview.cols.iPhone >= 0
+                      ? "bg-emerald-500/10 text-emerald-300"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  Telefone {preview.cols.iPhone >= 0 ? "✓" : "não encontrado"}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5",
+                    preview.cols.iEmail >= 0
+                      ? "bg-emerald-500/10 text-emerald-300"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  Email {preview.cols.iEmail >= 0 ? "✓" : "não encontrado"}
+                </span>
+              </div>
+
+              {noIdentifier ? (
+                <div className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  Nenhuma coluna de telefone ou email foi reconhecida — todas as{" "}
+                  {preview.rows.length} linha(s) serão ignoradas. Renomeie a coluna para
+                  "telefone" ou "email" e selecione o arquivo novamente.
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {preview.rows.length} linha(s) detectada(s). Pré-visualização das primeiras{" "}
+                  {Math.min(5, preview.rows.length)}:
+                </p>
+              )}
+
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <th className="px-2 py-1.5">Nome</th>
+                      <th className="px-2 py-1.5">Telefone</th>
+                      <th className="px-2 py-1.5">Email</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.rows.slice(0, 5).map((r, i) => (
+                      <tr key={i} className="border-b border-border/60 last:border-0">
+                        <td className="px-2 py-1.5 text-foreground">
+                          {preview.cols.iName >= 0 ? r[preview.cols.iName] || "—" : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-foreground">
+                          {preview.cols.iPhone >= 0 ? r[preview.cols.iPhone] || "—" : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-foreground">
+                          {preview.cols.iEmail >= 0 ? r[preview.cols.iEmail] || "—" : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {busy && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Importando…
@@ -640,9 +823,21 @@ function ImportCsvDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={busy}>
-            Fechar
+          <Button
+            variant="outline"
+            onClick={() => {
+              reset();
+              onClose();
+            }}
+            disabled={busy}
+          >
+            Cancelar
           </Button>
+          {preview && (
+            <Button onClick={confirmImport} disabled={busy || !!noIdentifier}>
+              {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Confirmar importação
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -965,6 +1160,108 @@ function BulkTagDialog({
   );
 }
 
+function BulkStageDialog({
+  open,
+  onClose,
+  accountId,
+  contactIds,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  accountId: string;
+  contactIds: string[];
+  onDone: () => void;
+}) {
+  const [mode, setMode] = useState<"lifecycle" | "status">("lifecycle");
+  const [lifecycle, setLifecycle] = useState<LifecycleStage>("lead");
+  const [status, setStatus] = useState<OperationalStatus>("new");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    try {
+      if (mode === "lifecycle") {
+        await bulkSetLifecycle(accountId, contactIds, lifecycle);
+        toast.success(
+          `Ciclo de vida atualizado para ${contactIds.length} contato(s): ${LIFECYCLE_LABEL[lifecycle]}`,
+        );
+      } else {
+        await bulkSetOperationalStatus(accountId, contactIds, status);
+        toast.success(
+          `Status operacional atualizado para ${contactIds.length} contato(s): ${OPERATIONAL_LABEL[status]}`,
+        );
+      }
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao mover estágio");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Mover {contactIds.length} contato(s) no funil</DialogTitle>
+        </DialogHeader>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={mode === "lifecycle" ? "default" : "outline"}
+            onClick={() => setMode("lifecycle")}
+          >
+            Ciclo de vida
+          </Button>
+          <Button
+            size="sm"
+            variant={mode === "status" ? "default" : "outline"}
+            onClick={() => setMode("status")}
+          >
+            Status operacional
+          </Button>
+        </div>
+        {mode === "lifecycle" ? (
+          <Select value={lifecycle} onValueChange={(v) => setLifecycle(v as LifecycleStage)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(LIFECYCLE_LABEL).map(([k, v]) => (
+                <SelectItem key={k} value={k}>
+                  {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Select value={status} onValueChange={(v) => setStatus(v as OperationalStatus)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(OPERATIONAL_LABEL).map(([k, v]) => (
+                <SelectItem key={k} value={k}>
+                  {v}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button onClick={submit} disabled={busy}>
+            {busy && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}Confirmar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BulkCampaignDialog({
   open,
   onClose,
@@ -1243,10 +1540,12 @@ function ContactDrawer({
   contact,
   onClose,
   onChanged,
+  onAddToCampaign,
 }: {
   contact: CentralContact | null;
   onClose: () => void;
   onChanged: (c: CentralContact) => void;
+  onAddToCampaign: (c: CentralContact) => void;
 }) {
   const { accountId } = useAccount();
   const [timeline, setTimeline] = useState<{
@@ -1394,10 +1693,19 @@ function ContactDrawer({
                 <Bot className="h-3.5 w-3.5" /> Conversa
               </Link>
             </Button>
-            <Button asChild size="sm" variant="outline" className="gap-1.5">
-              <Link to="/campanhas/nova">
-                <Rocket className="h-3.5 w-3.5" /> Em campanha
-              </Link>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={!contact.phone_number}
+              title={
+                contact.phone_number
+                  ? undefined
+                  : "Contato sem telefone não pode ser adicionado a uma campanha de voz"
+              }
+              onClick={() => onAddToCampaign(contact)}
+            >
+              <Rocket className="h-3.5 w-3.5" /> Em campanha
             </Button>
           </div>
 

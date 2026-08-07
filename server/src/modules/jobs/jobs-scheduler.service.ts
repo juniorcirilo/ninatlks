@@ -27,6 +27,8 @@ export class JobsSchedulerService implements OnModuleInit {
     private readonly voiceCampaignDispatchQueue: Queue,
     @InjectQueue('voice-call-finalize-pending')
     private readonly voiceCallFinalizePendingQueue: Queue,
+    @InjectQueue('agent-source-poll')
+    private readonly agentSourcePollQueue: Queue,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -65,8 +67,15 @@ export class JobsSchedulerService implements OnModuleInit {
       { pattern: '*/2 * * * *' }, // matches voice-calls-finalize-pending-2m
       { name: 'tick' },
     );
+    // De minuto em minuto porque quem decide a janela é cada fonte
+    // (schedule_minutes, mínimo 5); o tick só varre quem já venceu.
+    await this.agentSourcePollQueue.upsertJobScheduler(
+      'agent-source-poll-1min',
+      { pattern: '* * * * *' },
+      { name: 'tick' },
+    );
     this.logger.log(
-      'Repeatable jobs scheduled: media-cleanup, rate-limit-alert, meeting-reminder-tick, meeting-noshow-tick, cadence-tick, voice-campaign-dispatch, voice-call-finalize-pending',
+      'Repeatable jobs scheduled: media-cleanup, rate-limit-alert, meeting-reminder-tick, meeting-noshow-tick, cadence-tick, voice-campaign-dispatch, voice-call-finalize-pending, agent-source-poll',
     );
   }
 }

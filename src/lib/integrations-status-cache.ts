@@ -1,12 +1,14 @@
 import { apiClient } from "@/lib/api-client";
 
 export interface ProviderReport {
-  key: "elevenlabs" | "twilio" | "evolution" | "deepgram";
+  key: "elevenlabs" | "twilio" | "evolution" | "deepgram" | "n8n" | "google_calendar" | "resend";
   label: string;
   configured: boolean;
   ok: boolean | null;
   detail?: string;
   usage?: Record<string, string | number | null>;
+  /** true quando a credencial vem fixada por variável de ambiente do servidor — a tela não oferece editar. */
+  locked?: boolean;
 }
 
 export interface NexusReport {

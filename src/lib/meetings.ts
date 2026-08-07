@@ -122,6 +122,40 @@ export async function fetchMeetings(accountId: string, start: Date, end: Date): 
   return apiClient.get<Meeting[]>(`/accounts/${accountId}/meetings?${params.toString()}`);
 }
 
+export type CreateMeetingInput = {
+  title?: string;
+  startsAt: string; // ISO
+  durationMinutes: number;
+  hostUserId: string;
+  inviteeName?: string;
+  inviteeEmail?: string;
+  inviteePhone?: string;
+  contactId?: string;
+  doctorId?: string;
+  modality?: string;
+  notes?: string;
+  useGoogleMeet?: boolean;
+};
+
+export async function createMeeting(
+  accountId: string,
+  input: CreateMeetingInput,
+): Promise<{ id: string }> {
+  return apiClient.post<{ id: string }>(`/accounts/${accountId}/meetings`, input);
+}
+
+export async function updateMeeting(
+  accountId: string,
+  meetingId: string,
+  patch: { title?: string; startsAt?: string; durationMinutes?: number },
+): Promise<void> {
+  await apiClient.patch(`/accounts/${accountId}/meetings/${meetingId}`, patch);
+}
+
+export async function cancelMeeting(accountId: string, meetingId: string): Promise<void> {
+  await apiClient.delete(`/accounts/${accountId}/meetings/${meetingId}`);
+}
+
 export async function setMeetingOutcome(
   accountId: string,
   meetingId: string,

@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { StorageModule } from '../storage/storage.module';
 import { VoiceModule } from '../voice/voice.module';
+import { IngestModule } from '../ingest/ingest.module';
 import { MediaCleanupProcessor } from './processors/media-cleanup.processor';
 import { RateLimitAlertProcessor } from './processors/rate-limit-alert.processor';
 import {
@@ -12,6 +13,7 @@ import {
 import { CadenceTickProcessor } from './processors/cadence-tick.processor';
 import { VoiceCampaignDispatchProcessor } from './processors/voice-campaign-dispatch.processor';
 import { VoiceCallFinalizePendingProcessor } from './processors/voice-call-finalize-pending.processor';
+import { AgentSourcePollProcessor } from './processors/agent-source-poll.processor';
 import { JobsSchedulerService } from './jobs-scheduler.service';
 
 /**
@@ -56,9 +58,11 @@ import { JobsSchedulerService } from './jobs-scheduler.service';
       { name: 'cadence-tick' },
       { name: 'voice-campaign-dispatch' },
       { name: 'voice-call-finalize-pending' },
+      { name: 'agent-source-poll' },
     ),
     StorageModule,
     VoiceModule,
+    IngestModule,
   ],
   providers: [
     MediaCleanupProcessor,
@@ -68,6 +72,7 @@ import { JobsSchedulerService } from './jobs-scheduler.service';
     CadenceTickProcessor,
     VoiceCampaignDispatchProcessor,
     VoiceCallFinalizePendingProcessor,
+    AgentSourcePollProcessor,
     JobsSchedulerService,
   ],
 })

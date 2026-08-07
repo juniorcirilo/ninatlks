@@ -1,7 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Activity, AlertTriangle, Clock, Mail, RefreshCw, Workflow } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  Clock,
+  ListChecks,
+  Phone,
+  PhoneCall,
+  PhoneOff,
+  Radar,
+  RefreshCw,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +21,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { CAMPAIGN_KIND_LABEL, CAMPAIGN_STATUS_LABEL } from "@/lib/campaigns";
 import {
   getQueueSummary,
   listFailedDispatch,
+  listActiveCampaignsQueue,
   type QueueSummary,
-  type DispatchQueueRow,
+  type FailedCampaignContactRow,
+  type CampaignQueueRow,
 } from "@/lib/admin-queues.functions";
 
 export const Route = createFileRoute("/_authenticated/admin-filas")({
@@ -35,10 +51,17 @@ function formatRelative(iso: string | null) {
 function AdminFilasPage() {
   const fetchSummary = useServerFn(getQueueSummary);
   const fetchFailed = useServerFn(listFailedDispatch);
+  const fetchActiveCampaigns = useServerFn(listActiveCampaignsQueue);
 
   const summary = useQuery({
     queryKey: ["admin", "queues", "summary"],
     queryFn: () => fetchSummary(),
+    refetchInterval: 15_000,
+  });
+
+  const activeCampaigns = useQuery({
+    queryKey: ["admin", "queues", "active-campaigns"],
+    queryFn: () => fetchActiveCampaigns(),
     refetchInterval: 15_000,
   });
 
@@ -52,13 +75,14 @@ function AdminFilasPage() {
     <div className="space-y-6 p-6">
       <PageHeader
         title="Filas e processamento"
-        description="Monitor em tempo real das filas de mensagens, follow-ups, workflows e webhooks."
+        description="Monitor em tempo real da discagem de campanhas, follow-ups, listas operacionais e webhooks."
         actions={
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
               void summary.refetch();
+              void activeCampaigns.refetch();
               void failed.refetch();
             }}
           >
@@ -68,22 +92,25 @@ function AdminFilasPage() {
         }
       />
 
-      {(summary.isError || failed.isError) && (
+      {(summary.isError || activeCampaigns.isError || failed.isError) && (
         <Card className="border-destructive/50 bg-destructive/5">
           <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
             <span className="text-destructive">
               Falha ao carregar dados das filas
               {summary.error instanceof Error
                 ? `: ${summary.error.message}`
-                : failed.error instanceof Error
-                  ? `: ${failed.error.message}`
-                  : "."}
+                : activeCampaigns.error instanceof Error
+                  ? `: ${activeCampaigns.error.message}`
+                  : failed.error instanceof Error
+                    ? `: ${failed.error.message}`
+                    : "."}
             </span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
                 void summary.refetch();
+                void activeCampaigns.refetch();
                 void failed.refetch();
               }}
             >
@@ -95,11 +122,13 @@ function AdminFilasPage() {
 
       <SummaryGrid data={summary.data} loading={summary.isLoading} />
 
+      <CampaignQueueBoard data={activeCampaigns.data} loading={activeCampaigns.isLoading} />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="h-4 w-4 text-warning" />
-            Mensagens com falha ou pendentes (últimas 50)
+            Contatos de campanha com falha ou pendentes (últimas 50)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -111,7 +140,7 @@ function AdminFilasPage() {
 }
 
 function SummaryGrid({ data, loading }: { data: QueueSummary | undefined; loading: boolean }) {
-  if (loading || !data || !data.dispatch || !data.followUps || !data.workflows || !data.webhooks) {
+  if (loading || !data || !data.campaignDispatch || !data.followUps || !data.sources || !data.webhooks) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -124,15 +153,19 @@ function SummaryGrid({ data, loading }: { data: QueueSummary | undefined; loadin
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <QueueCard
-        icon={<Mail className="h-4 w-4" />}
-        title="Envio de mensagens"
-        primary={data.dispatch.pending}
+        icon={<Phone className="h-4 w-4" />}
+        title="Discagem de campanha"
+        primary={data.campaignDispatch.pending}
         primaryLabel="pendentes"
         rows={[
-          { label: "Em execução", value: data.dispatch.inFlight },
-          { label: "Falhas", value: data.dispatch.failed, danger: data.dispatch.failed > 0 },
-          { label: "Mais antiga", value: formatRelative(data.dispatch.oldestPendingAt) },
-          { label: "Tentativas médias", value: data.dispatch.avgAttempts.toFixed(1) },
+          { label: "Em execução", value: data.campaignDispatch.inFlight },
+          {
+            label: "Falhas",
+            value: data.campaignDispatch.failed,
+            danger: data.campaignDispatch.failed > 0,
+          },
+          { label: "Mais antiga", value: formatRelative(data.campaignDispatch.oldestPendingAt) },
+          { label: "Tentativas médias", value: data.campaignDispatch.avgAttempts.toFixed(1) },
         ]}
       />
       <QueueCard
@@ -147,17 +180,18 @@ function SummaryGrid({ data, loading }: { data: QueueSummary | undefined; loadin
         ]}
       />
       <QueueCard
-        icon={<Workflow className="h-4 w-4" />}
-        title="Workflows"
-        primary={data.workflows.pending}
-        primaryLabel="pendentes"
+        icon={<ListChecks className="h-4 w-4" />}
+        title="Listas operacionais"
+        primary={data.sources.due}
+        primaryLabel="vencidas"
         rows={[
-          { label: "Concluídos 24h", value: data.workflows.succeeded24h },
-          { label: "Falhas 24h", value: data.workflows.failed24h, danger: data.workflows.failed24h > 0 },
+          { label: "Fontes ativas", value: data.sources.active },
           {
-            label: "Duração média",
-            value: data.workflows.avgDurationMs == null ? "—" : `${data.workflows.avgDurationMs} ms`,
+            label: "Falhas (última execução)",
+            value: data.sources.failedLastRun,
+            danger: data.sources.failedLastRun > 0,
           },
+          { label: "Última sincronização", value: formatRelative(data.sources.lastSyncAt) },
         ]}
       />
       <QueueCard
@@ -231,7 +265,213 @@ function QueueCard({
   );
 }
 
-function FailedDispatchTable({ data, loading }: { data: DispatchQueueRow[]; loading: boolean }) {
+const STATUS_PILL_CLASS: Record<string, string> = {
+  running: "bg-emerald-500/15 text-emerald-600 ring-emerald-500/30 dark:text-emerald-400",
+  paused: "bg-amber-500/15 text-amber-600 ring-amber-500/30 dark:text-amber-400",
+  scheduled: "bg-sky-500/15 text-sky-600 ring-sky-500/30 dark:text-sky-400",
+};
+
+/** Segmentos do ribbon, na ordem em que a fila realmente flui. */
+const RIBBON_SEGMENTS: Array<{
+  key: keyof Pick<
+    CampaignQueueRow,
+    "queued" | "inFlight" | "connected" | "voicemail" | "failed" | "canceled"
+  >;
+  label: string;
+  className: string;
+}> = [
+  { key: "queued", label: "Na fila", className: "bg-muted-foreground/25" },
+  { key: "inFlight", label: "Ligando agora", className: "bg-sky-500" },
+  { key: "connected", label: "Atendeu", className: "bg-emerald-500" },
+  { key: "voicemail", label: "Caixa postal", className: "bg-amber-500" },
+  { key: "failed", label: "Não atendeu / falhou", className: "bg-rose-500" },
+  { key: "canceled", label: "Cancelado", className: "bg-muted-foreground/50" },
+];
+
+function LiveDot() {
+  return (
+    <span className="relative flex h-1.5 w-1.5">
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-60" />
+      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
+    </span>
+  );
+}
+
+/**
+ * Painel ao vivo: uma campanha por card, com o ribbon de fila (para onde
+ * cada contato foi) e o par que a operação realmente acompanha —
+ * atendeu vs. resposta positiva — em destaque.
+ */
+function CampaignQueueBoard({
+  data,
+  loading,
+}: {
+  data: CampaignQueueRow[] | undefined;
+  loading: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Radar className="h-4 w-4 text-primary" />
+        <h2 className="text-base font-semibold">Campanhas em execução</h2>
+        {!loading && data && data.length > 0 && (
+          <Badge variant="secondary" className="tabular-nums">
+            {data.length}
+          </Badge>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-48 rounded-xl" />
+          ))}
+        </div>
+      ) : !data || data.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-sm text-muted-foreground">
+            Nenhuma campanha em execução, pausada ou agendada no momento.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {data.map((c) => (
+            <CampaignQueueCard key={c.id} data={c} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CampaignQueueCard({ data: c }: { data: CampaignQueueRow }) {
+  const total = Math.max(c.totalContacts, 1);
+  const positiveRate = c.connected > 0 ? Math.round((c.positive / c.connected) * 100) : null;
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="space-y-4 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              {c.status === "running" && <span className="text-emerald-500"><LiveDot /></span>}
+              <h3 className="truncate text-sm font-semibold">{c.name}</h3>
+            </div>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+              <Users className="h-3 w-3" />
+              {c.totalContacts.toLocaleString("pt-BR")} na lista
+              {c.kind && (
+                <>
+                  <span>·</span>
+                  <span>{CAMPAIGN_KIND_LABEL[c.kind as keyof typeof CAMPAIGN_KIND_LABEL] ?? c.kind}</span>
+                </>
+              )}
+            </p>
+          </div>
+          <span
+            className={cn(
+              "shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
+              STATUS_PILL_CLASS[c.status] ?? "bg-muted text-muted-foreground ring-border",
+            )}
+          >
+            {CAMPAIGN_STATUS_LABEL[c.status] ?? c.status}
+          </span>
+        </div>
+
+        <div
+          className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+          title={RIBBON_SEGMENTS.map((s) => `${s.label}: ${c[s.key]}`).join(" · ")}
+        >
+          {RIBBON_SEGMENTS.map((s) => {
+            const value = c[s.key];
+            if (value <= 0) return null;
+            return (
+              <div
+                key={s.key}
+                className={s.className}
+                style={{ width: `${(value / total) * 100}%` }}
+              />
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-4 gap-2">
+          <Stat icon={PhoneOff} label="Restam" value={c.queued} />
+          <Stat icon={PhoneCall} label="Ligando" value={c.inFlight} live={c.inFlight > 0} />
+          <Stat icon={Phone} label="Atendeu" value={c.connected} />
+          <Stat
+            icon={TrendingUp}
+            label="Positivas"
+            value={c.positive}
+            sub={positiveRate !== null ? `${positiveRate}% das atendidas` : undefined}
+            accent
+          />
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>{c.startedAt ? `Iniciada ${formatRelative(c.startedAt)}` : "Aguardando início"}</span>
+          {c.nextAttemptAt && <span>Próxima tentativa {formatRelative(c.nextAttemptAt)}</span>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Stat({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  accent,
+  live,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  sub?: string;
+  accent?: boolean;
+  live?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg px-1.5 py-2 text-center",
+        accent ? "bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/25" : "bg-muted/40",
+      )}
+    >
+      <div className="flex items-center justify-center gap-1">
+        <Icon className={cn("h-3 w-3", accent ? "text-emerald-600" : "text-muted-foreground")} />
+        {live && (
+          <span className="text-sky-500">
+            <LiveDot />
+          </span>
+        )}
+      </div>
+      <div
+        className={cn(
+          "text-lg font-semibold tabular-nums",
+          accent ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
+        )}
+      >
+        {value.toLocaleString("pt-BR")}
+      </div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      {sub && (
+        <div className="truncate text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+          {sub}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FailedDispatchTable({
+  data,
+  loading,
+}: {
+  data: FailedCampaignContactRow[];
+  loading: boolean;
+}) {
   if (loading) {
     return (
       <div className="space-y-2 p-4">
@@ -244,7 +484,7 @@ function FailedDispatchTable({ data, loading }: { data: DispatchQueueRow[]; load
   if (data.length === 0) {
     return (
       <div className="p-8 text-center text-sm text-muted-foreground">
-        Nenhuma mensagem com falha ou pendente. ✨
+        Nenhum contato de campanha com falha ou pendente. ✨
       </div>
     );
   }
@@ -253,7 +493,8 @@ function FailedDispatchTable({ data, loading }: { data: DispatchQueueRow[]; load
       <table className="w-full text-sm">
         <thead className="border-b bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
-            <th className="p-3 font-medium">Canal</th>
+            <th className="p-3 font-medium">Campanha</th>
+            <th className="p-3 font-medium">Telefone</th>
             <th className="p-3 font-medium">Status</th>
             <th className="p-3 font-medium">Tentativas</th>
             <th className="p-3 font-medium">Próx. tentativa</th>
@@ -266,17 +507,16 @@ function FailedDispatchTable({ data, loading }: { data: DispatchQueueRow[]; load
             <tr key={row.id} className="border-b last:border-0">
               <td className="p-3">
                 <Badge variant="outline" className="font-mono text-[10px] uppercase">
-                  {row.channelType}
+                  {row.campaignName}
                 </Badge>
               </td>
+              <td className="p-3 tabular-nums">{row.phoneNumber}</td>
               <td className="p-3">
                 <Badge variant={row.status === "failed" ? "destructive" : "secondary"}>
                   {row.status}
                 </Badge>
               </td>
-              <td className="p-3 tabular-nums">
-                {row.attempts}/{row.maxAttempts}
-              </td>
+              <td className="p-3 tabular-nums">{row.attempts}</td>
               <td className="p-3 text-xs text-muted-foreground">
                 {formatRelative(row.nextAttemptAt)}
               </td>

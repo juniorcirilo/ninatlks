@@ -1,4 +1,6 @@
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -7,8 +9,27 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+
+/** Um campo de dado esperado deste agente (ex.: dias_em_atraso, numero_orcamento). */
+export class PersonaVariableFieldDto {
+  @IsString()
+  @MaxLength(64)
+  field!: string;
+
+  @IsString()
+  @MaxLength(255)
+  desc!: string;
+
+  @IsBoolean()
+  required!: boolean;
+
+  @IsOptional()
+  example?: unknown;
+}
 
 export class UpdatePersonaDto {
   @IsOptional()
@@ -74,6 +95,20 @@ export class UpdatePersonaDto {
   llmModel?: string;
 
   @IsOptional()
+  @IsString()
+  llmCustomUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  llmCustomModelId?: string | null;
+
+  @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PersonaVariableFieldDto)
+  variableSchema?: PersonaVariableFieldDto[];
 }

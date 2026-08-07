@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -334,17 +335,21 @@ function DoctorDialog({
               <div className="space-y-2">
                 {slots.map((s, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <select
-                      className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                      value={s.weekday}
-                      onChange={(e) => updateSlot(i, { weekday: parseInt(e.target.value) })}
+                    <Select
+                      value={String(s.weekday)}
+                      onValueChange={(v) => updateSlot(i, { weekday: parseInt(v) })}
                     >
-                      {WEEKDAY_LABEL.map((lbl, idx) => (
-                        <option key={idx} value={idx}>
-                          {lbl}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="w-auto gap-1.5 bg-background text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WEEKDAY_LABEL.map((lbl, idx) => (
+                          <SelectItem key={idx} value={String(idx)}>
+                            {lbl}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Input
                       type="time"
                       value={s.start_time.slice(0, 5)}

@@ -16,6 +16,7 @@ import type { RequestUser } from '../../common/types/authenticated-request';
 import { CampaignsService } from './campaigns.service';
 import { CallOpsService } from '../voice/call-ops.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
+import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
 import { UpsertRetentionRuleDto } from './dto/upsert-retention-rule.dto';
 
@@ -38,6 +39,69 @@ export class CampaignsController {
     @Body() dto: CreateCampaignDto,
   ) {
     return this.campaignsService.create(accountId, dto);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('accountId') accountId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateCampaignDto,
+  ) {
+    return this.campaignsService.update(accountId, id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('accountId') accountId: string, @Param('id') id: string) {
+    return this.campaignsService.remove(accountId, id);
+  }
+
+  /**
+   * Fila de aprovação de uma campanha viva: os lotes que a carga do ERP
+   * enfileirou e ainda esperam decisão, mais o histórico dos já decididos.
+   */
+  @Get(':id/batches')
+  batches(@Param('accountId') accountId: string, @Param('id') id: string) {
+    return this.campaignsService.listEnrollmentBatches(accountId, id);
+  }
+
+  @Get(':id/batches/:batchId/preview')
+  batchPreview(
+    @Param('accountId') accountId: string,
+    @Param('batchId') batchId: string,
+  ) {
+    return this.campaignsService.previewEnrollmentBatch(accountId, batchId);
+  }
+
+  @Post(':id/batches/:batchId/approve')
+  approveBatch(
+    @Param('accountId') accountId: string,
+    @Param('id') id: string,
+    @Param('batchId') batchId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.campaignsService.decideEnrollmentBatch(
+      accountId,
+      id,
+      batchId,
+      user.id,
+      'approve',
+    );
+  }
+
+  @Post(':id/batches/:batchId/reject')
+  rejectBatch(
+    @Param('accountId') accountId: string,
+    @Param('id') id: string,
+    @Param('batchId') batchId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.campaignsService.decideEnrollmentBatch(
+      accountId,
+      id,
+      batchId,
+      user.id,
+      'reject',
+    );
   }
 
   @Get('personas')

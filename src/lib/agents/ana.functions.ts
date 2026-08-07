@@ -252,6 +252,7 @@ export const askAna = createServerFn({ method: "POST" })
     const personaId = await ensureAnaPersona(data.accountId);
 
     const result = await runAgentLoop({
+      accountId: data.accountId,
       system: ANA_SYSTEM,
       history: data.history,
       userMessage: data.userMessage,

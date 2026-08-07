@@ -29,6 +29,7 @@ import {
 } from "@/lib/team";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
   head: () => ({
@@ -167,15 +168,19 @@ function MembersCard({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <select
+                  <Select
                     value={m.role}
                     disabled={busy || isSelf}
-                    onChange={(e) => handleRoleChange(m, e.target.value as MemberRole)}
-                    className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground disabled:opacity-50"
+                    onValueChange={(v) => handleRoleChange(m, v as MemberRole)}
                   >
-                    <option value="admin">admin</option>
-                    <option value="agent">agent</option>
-                  </select>
+                    <SelectTrigger className="h-8 w-auto gap-1.5 bg-background px-2 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">admin</SelectItem>
+                      <SelectItem value="agent">agent</SelectItem>
+                    </SelectContent>
+                  </Select>
 
                   <button
                     type="button"
@@ -294,14 +299,15 @@ function InvitesCard({ accountId }: { accountId: string }) {
           className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         />
         <div className="flex gap-2">
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as MemberRole)}
-            className="h-10 rounded-md border border-border bg-background px-2 text-sm text-foreground"
-          >
-            <option value="agent">agent (padrão)</option>
-            <option value="admin">admin</option>
-          </select>
+          <Select value={role} onValueChange={(v) => setRole(v as MemberRole)}>
+            <SelectTrigger className="h-10 w-auto gap-1.5 bg-background px-2 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="agent">agent (padrão)</SelectItem>
+              <SelectItem value="admin">admin</SelectItem>
+            </SelectContent>
+          </Select>
           <button
             type="button"
             onClick={handleCreate}

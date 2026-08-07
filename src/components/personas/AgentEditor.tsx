@@ -26,6 +26,7 @@ import {
   FileText,
   Link2,
   Webhook,
+  Database,
 } from "lucide-react";
 import {
   updatePersona,
@@ -34,6 +35,7 @@ import {
   addKnowledgeBaseText,
   addKnowledgeBaseUrl,
   type Persona,
+  type PersonaVariableField,
 } from "@/lib/personas";
 import { VoicePicker } from "@/components/personas/VoicePicker";
 import { AgentWebhooksTab } from "@/components/personas/AgentWebhooksTab";
@@ -46,6 +48,7 @@ type Tab =
   | "voz"
   | "modelo"
   | "comportamento"
+  | "dados"
   | "conhecimento"
   | "webhooks"
   | "sync";
@@ -60,6 +63,7 @@ const TABS: {
   { id: "voz", label: "Voz", icon: Mic, desc: "Voz, estabilidade, velocidade" },
   { id: "modelo", label: "Modelo", icon: Cpu, desc: "LLM, temperatura, tokens" },
   { id: "comportamento", label: "Comportamento", icon: Settings2, desc: "Pausas, timeout, ASR" },
+  { id: "dados", label: "Dados", icon: Database, desc: "Campos de contato deste agente" },
   { id: "conhecimento", label: "Conhecimento", icon: BookOpen, desc: "RAG: docs e URLs" },
   { id: "webhooks", label: "Webhooks", icon: Webhook, desc: "Destinos de eventos (n8n, CRM…)" },
   { id: "sync", label: "Sincronização", icon: Cloud, desc: "ElevenLabs + status" },
@@ -71,6 +75,7 @@ const LLM_MODELS = [
   { value: "claude-3-5-sonnet", label: "Claude 3.5 Sonnet", hint: "alta qualidade conversacional" },
   { value: "claude-3-5-haiku", label: "Claude 3.5 Haiku", hint: "velocidade alta" },
   { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", hint: "muito rápido, multimodal" },
+  { value: "custom-llm", label: "IA própria (conta)", hint: "usa o Provedor de IA do Agente configurado em Integrações — OpenAI, Gemini, Groq, LM Studio etc." },
 ];
 
 export function AgentEditor({
@@ -121,8 +126,13 @@ export function AgentEditor({
         llm_temperature: draft.llm_temperature,
         llm_max_tokens: draft.llm_max_tokens,
         llm_model: draft.llm_model,
+        llm_custom_url: draft.llm_custom_url,
+        llm_custom_model_id: draft.llm_custom_model_id,
         status: draft.status,
         enabled: draft.enabled,
+        variable_schema: (draft.variable_schema ?? [])
+          .map((f) => ({ ...f, field: f.field.trim() }))
+          .filter((f) => f.field),
       });
       // Auto-sync com ElevenLabs após salvar — evita que o agente continue
       // rodando com prompt/voz/modelo antigos no EL.
@@ -213,6 +223,7 @@ export function AgentEditor({
             {tab === "voz" && <VozTab draft={draft} update={update} accountId={accountId} />}
             {tab === "modelo" && <ModeloTab draft={draft} update={update} />}
             {tab === "comportamento" && <ComportamentoTab draft={draft} update={update} />}
+            {tab === "dados" && <DadosTab draft={draft} update={update} />}
             {tab === "conhecimento" && (
               <ConhecimentoTab draft={draft} accountId={accountId} onChanged={onSaved} />
             )}
@@ -434,6 +445,19 @@ function ModeloTab({
   draft: Persona;
   update: <K extends keyof Persona>(k: K, v: Persona[K]) => void;
 }) {
+  // Trocar pra um modelo que não seja "IA própria" tem que esvaziar a
+  // URL/model_id customizados — senão o valor fica órfão salvo no banco
+  // (não afeta a chamada, já que só é lido quando llm_model === "custom-llm",
+  // mas confunde quem olha os dados achando que agentes estão compartilhando
+  // configuração).
+  const selectModel = (value: string) => {
+    update("llm_model", value);
+    if (value !== "custom-llm") {
+      update("llm_custom_url", null);
+      update("llm_custom_model_id", null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Section
@@ -447,7 +471,7 @@ function ModeloTab({
               <button
                 key={m.value}
                 type="button"
-                onClick={() => update("llm_model", m.value)}
+                onClick={() => selectModel(m.value)}
                 className={cn(
                   "flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
                   active
@@ -475,6 +499,34 @@ function ModeloTab({
           })}
         </div>
       </Section>
+
+      {draft.llm_model === "custom-llm" && (
+        <Section
+          title="Servidor da IA própria"
+          desc='Em branco, usa o padrão da conta (Configurações → Integrações → "Provedor de IA do Agente"). Preencha aqui só se este agente precisar de uma URL ou modelo diferente — atenção: esse override só funciona com endpoints no formato OpenAI (não com Anthropic/Claude).'
+        >
+          <FieldRow label="URL do servidor (opcional — substitui o padrão)">
+            <Input
+              value={draft.llm_custom_url ?? ""}
+              onChange={(e) => update("llm_custom_url", e.target.value || null)}
+              placeholder="http://seu-host:1234/v1"
+              className="font-mono text-[12px]"
+            />
+          </FieldRow>
+          <FieldRow label="Model ID (opcional — substitui o padrão)">
+            <Input
+              value={draft.llm_custom_model_id ?? ""}
+              onChange={(e) => update("llm_custom_model_id", e.target.value || null)}
+              placeholder="nome-do-modelo-carregado"
+              className="font-mono text-[12px]"
+            />
+          </FieldRow>
+          <p className="text-[10px] text-muted-foreground">
+            A API key é sempre a da conta (não dá pra ter uma por agente) — configure em
+            Configurações → Integrações → Provedor de IA do Agente.
+          </p>
+        </Section>
+      )}
 
       <Section
         title="Temperatura"
@@ -666,6 +718,117 @@ function ComportamentoTab({
             Adicionar
           </Button>
         </div>
+      </Section>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Tab: Dados (campos de contato deste agente)
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * O que a lista operacional precisa saber sobre um contato pra este agente
+ * ligar (ex.: Diego/cobrança quer dias_em_atraso e valor_devedor_saldo;
+ * Sofia/orçamentos quer numero_orcamento e status_orcamento). Cadastrado uma
+ * vez aqui, reaproveitado no formulário de "adicionar contato específico" em
+ * Listas e no template de webhook/n8n deste agente — sem isso, toda lista
+ * mostrava o mesmo conjunto genérico de campos.
+ */
+function DadosTab({
+  draft,
+  update,
+}: {
+  draft: Persona;
+  update: <K extends keyof Persona>(k: K, v: Persona[K]) => void;
+}) {
+  const fields = draft.variable_schema ?? [];
+
+  const setFields = (next: PersonaVariableField[]) => update("variable_schema", next);
+  const updateField = (i: number, patch: Partial<PersonaVariableField>) => {
+    setFields(fields.map((f, j) => (j === i ? { ...f, ...patch } : f)));
+  };
+
+  return (
+    <div className="space-y-6">
+      <Section
+        title="Campos de contato"
+        desc={
+          'Definem o formulário de "adicionar contato específico" ao criar uma lista para este ' +
+          "agente, e o template de webhook/n8n baixado em Configurações → Integrações."
+        }
+      >
+        {fields.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-muted/40 px-4 py-6 text-center text-[11px] text-muted-foreground">
+            Nenhum campo cadastrado ainda — a lista vai usar um conjunto genérico por tipo de
+            operação até você adicionar os campos deste agente aqui.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {fields.map((f, i) => (
+              <li key={i} className="rounded-lg border border-border bg-muted/40 p-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <FieldRow label="Chave">
+                    <Input
+                      value={f.field}
+                      onChange={(e) => updateField(i, { field: e.target.value })}
+                      placeholder="dias_em_atraso"
+                      className="font-mono text-[12px]"
+                    />
+                  </FieldRow>
+                  <FieldRow label="Rótulo (o que é)">
+                    <Input
+                      value={f.desc}
+                      onChange={(e) => updateField(i, { desc: e.target.value })}
+                      placeholder="Dias corridos desde o vencimento"
+                    />
+                  </FieldRow>
+                </div>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <FieldRow label="Exemplo (opcional)">
+                      <Input
+                        value={f.example != null ? String(f.example) : ""}
+                        onChange={(e) => updateField(i, { example: e.target.value })}
+                        placeholder="20"
+                      />
+                    </FieldRow>
+                  </div>
+                  <label className="mb-3 flex shrink-0 items-center gap-1.5 text-[11px]">
+                    <input
+                      type="checkbox"
+                      checked={f.required}
+                      onChange={(e) => updateField(i, { required: e.target.checked })}
+                      className="h-3.5 w-3.5"
+                    />
+                    Obrigatório
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setFields(fields.filter((_, j) => j !== i))}
+                    className="mb-3 shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-background hover:text-rose-400"
+                    aria-label="Remover campo"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            setFields([...fields, { field: "", desc: "", required: false, example: "" }])
+          }
+          className="mt-3 gap-1.5"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Adicionar campo
+        </Button>
       </Section>
     </div>
   );

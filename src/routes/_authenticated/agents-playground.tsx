@@ -15,6 +15,7 @@ import { useAccount } from "@/lib/account-context";
 import { askBruno } from "@/lib/agents/bruno.functions";
 import { askAna } from "@/lib/agents/ana.functions";
 import { askCarla } from "@/lib/agents/carla.functions";
+import { askPersona } from "@/lib/agents/ask-persona.functions";
 import { listAgents, type AgentKind } from "@/lib/agents/registry.functions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ function PlaygroundPage() {
   const fnBruno = useServerFn(askBruno);
   const fnAna = useServerFn(askAna);
   const fnCarla = useServerFn(askCarla);
+  const fnPersona = useServerFn(askPersona);
 
   const [agents, setAgents] = useState<Array<{ key: AgentKind; name: string; description: string; first_message: string; installed: boolean }>>([]);
   const [active, setActive] = useState<AgentKind>("bruno");
@@ -69,7 +71,8 @@ function PlaygroundPage() {
       const payload = { data: { accountId, userMessage: userText, history } };
       const r = active === "bruno" ? await fnBruno(payload)
         : active === "ana" ? await fnAna(payload)
-        : await fnCarla(payload);
+        : active === "carla" ? await fnCarla(payload)
+        : await fnPersona({ data: { accountId, personaId: active, userMessage: userText, history } });
       setMessages((prev) => [...prev, { role: "assistant", content: r?.reply ?? "", trace: Array.isArray(r?.trace) ? r.trace : [] }]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao chamar o agente");

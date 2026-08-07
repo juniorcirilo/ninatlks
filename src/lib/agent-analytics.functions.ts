@@ -11,10 +11,13 @@ export interface PersonaKpi {
   kind: string;
   status: string;
   handoffs_out: number; // quantas vezes essa persona pediu handoff
-  meetings_scheduled: number; // somente Ana / SDRs
+  meetings_scheduled: number; // reuniões originadas por ligações desta persona
   csat_avg: number | null;
   csat_count: number;
   csat_low_pct: number; // % de notas <= 2
+  calls_total: number; // ligações de campanha/voz desta persona no período
+  calls_completed: number; // ligações atendidas (status completed)
+  calls_avg_duration_sec: number; // duração média das ligações atendidas
 }
 
 export interface AnalyticsResult {
@@ -22,6 +25,8 @@ export interface AnalyticsResult {
   total_personas: number;
   total_handoffs: number;
   total_meetings: number;
+  total_calls: number;
+  total_calls_completed: number;
   csat_avg_global: number | null;
   per_persona: PersonaKpi[];
 }

@@ -86,4 +86,24 @@ export class AgentPersonas {
 
   @Column('text', { name: 'llm_model', default: 'gemini-2.5-flash' })
   llmModel!: string;
+
+  @Column('text', { name: 'llm_custom_url', nullable: true })
+  llmCustomUrl?: string | null;
+
+  @Column('text', { name: 'llm_custom_model_id', nullable: true })
+  llmCustomModelId?: string | null;
+
+  /**
+   * Campos de dados esperados por este agente (ex.: dias_em_atraso,
+   * numero_orcamento) — array de {field, desc, required, example}. Alimenta
+   * o formulário de "adicionar contato específico" na criação de lista e o
+   * template de webhook/n8n gerado para este agente.
+   */
+  @Column('jsonb', { name: 'variable_schema', default: '[]' })
+  variableSchema!: Array<{
+    field: string;
+    desc: string;
+    required: boolean;
+    example?: unknown;
+  }>;
 }

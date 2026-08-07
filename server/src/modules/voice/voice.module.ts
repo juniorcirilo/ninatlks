@@ -19,9 +19,10 @@ import { CallTranscriptionService } from './call-transcription.service';
 import { CallSummaryService } from './call-summary.service';
 import { CallPersonalizationService } from './call-personalization.service';
 import { CallOpsService } from './call-ops.service';
+import { WebhookEndpointsModule } from '../webhook-endpoints/webhook-endpoints.module';
 
 @Module({
-  imports: [TwilioModule, ElevenLabsModule],
+  imports: [TwilioModule, ElevenLabsModule, WebhookEndpointsModule],
   controllers: [
     PhoneNumbersController,
     VoiceOutboundController,

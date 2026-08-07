@@ -3,7 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { DataSource } from 'typeorm';
-import { WEBHOOK_EVENTS, type WebhookEvent } from './webhook-endpoints.service';
+import { WEBHOOK_EVENTS, type WebhookEvent, type WebhookMethod } from './webhook-endpoints.service';
 
 export interface WebhookDeliveryJob {
   deliveryId: string;
@@ -11,6 +11,7 @@ export interface WebhookDeliveryJob {
   endpointId: string;
   endpointName: string;
   url: string;
+  method: WebhookMethod;
   secret: string;
   event: WebhookEvent;
   body: string;
@@ -61,13 +62,13 @@ export class WebhookDispatchService {
       }
 
       const endpoints = await this.dataSource.query<
-        { id: string; name: string; url: string; secret: string }[]
+        { id: string; name: string; url: string; method: WebhookMethod; secret: string }[]
       >(
         // `events = '{}'` é "assina tudo" — o default de quem cadastrou sem
         // querer entender o catálogo antes de testar. `agent_id is null`
         // sempre entra (destino global); `agent_id = $3` só entra quando o
         // evento veio de um agente identificado.
-        `SELECT id, name, url, secret
+        `SELECT id, name, url, method, secret
            FROM public.account_webhook_endpoints
           WHERE account_id = $1
             AND active
@@ -98,6 +99,7 @@ export class WebhookDispatchService {
             endpointId: endpoint.id,
             endpointName: endpoint.name,
             url: endpoint.url,
+            method: endpoint.method,
             secret: endpoint.secret,
             event,
             body,

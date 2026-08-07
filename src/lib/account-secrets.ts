@@ -17,7 +17,11 @@ export type SecretProvider =
   | "deepgram"
   | "evolution"
   | "zernio"
-  | "meta";
+  | "meta"
+  | "n8n"
+  | "custom-llm"
+  | "agent-llm"
+  | "resend";
 
 export interface AccountSecretEntry {
   provider: SecretProvider;

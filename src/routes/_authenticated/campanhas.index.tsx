@@ -1,17 +1,60 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Rocket, PhoneCall, PhoneOff, ArrowRightLeft, Activity } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Rocket,
+  PhoneCall,
+  PhoneOff,
+  ArrowRightLeft,
+  Activity,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
+import { useRealtimeRefresh } from "@/lib/realtime-client";
 import {
   fetchCampaigns,
   aggregateCampaigns,
+  updateCampaign,
+  deleteCampaign,
+  MIN_INTERVAL_OPTIONS,
+  MAX_ATTEMPTS_OPTIONS,
   CAMPAIGN_KIND_LABEL,
   CAMPAIGN_STATUS_LABEL,
   type CampaignRow,
   type CampaignKind,
 } from "@/lib/campaigns";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+/** datetime-local exige hora local sem zona. */
+function localDateTimeValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
 
 export const Route = createFileRoute("/_authenticated/campanhas/")({
   head: () => ({
@@ -27,6 +70,8 @@ function CampaignsPage() {
   const { accountId } = useAccount();
   const [rows, setRows] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<CampaignRow | null>(null);
+  const [deleting, setDeleting] = useState<CampaignRow | null>(null);
 
   const refresh = useCallback(async () => {
     if (!accountId) return;
@@ -41,9 +86,11 @@ function CampaignsPage() {
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 15000);
-    return () => clearInterval(t);
   }, [refresh]);
+
+  // Substitui o polling de 15s: contadores de funil mudam a cada ligação
+  // discada, e voice_campaign_contacts emite em toda transição de status.
+  useRealtimeRefresh(["voice_campaigns", "voice_campaign_contacts"], accountId, refresh);
 
   const agg = useMemo(() => aggregateCampaigns(rows), [rows]);
   const connRate =
@@ -143,6 +190,7 @@ function CampaignsPage() {
                 <th className="px-4 py-2 font-medium">Status</th>
                 <th className="px-4 py-2 font-medium">Funil</th>
                 <th className="px-4 py-2 font-medium">Criada em</th>
+                <th className="px-4 py-2 text-right font-medium">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -201,6 +249,41 @@ function CampaignsPage() {
                     </td>
                     <td className="px-4 py-2 text-xs text-muted-foreground">
                       {new Date(r.created_at).toLocaleString("pt-BR")}
+                      {r.scheduled_at && (
+                        <div className="text-[11px] text-primary">
+                          dispara {new Date(r.scheduled_at).toLocaleString("pt-BR", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditing(r)}
+                          title="Editar nome e agendamento"
+                          aria-label={`Editar ${r.name}`}
+                          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => r.status !== "running" && setDeleting(r)}
+                          disabled={r.status === "running"}
+                          title={
+                            r.status === "running"
+                              ? "Pause a campanha antes de excluir"
+                              : "Excluir campanha"
+                          }
+                          aria-label={`Excluir ${r.name}`}
+                          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -209,7 +292,249 @@ function CampaignsPage() {
           </table>
         )}
       </div>
+
+      <EditCampaignDialog
+        campaign={editing}
+        accountId={accountId ?? ""}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
+          refresh();
+        }}
+      />
+
+      <DeleteCampaignDialog
+        campaign={deleting}
+        accountId={accountId ?? ""}
+        onClose={() => setDeleting(null)}
+        onDeleted={() => {
+          setDeleting(null);
+          refresh();
+        }}
+      />
     </div>
+  );
+}
+
+function EditCampaignDialog({
+  campaign,
+  accountId,
+  onClose,
+  onSaved,
+}: {
+  campaign: CampaignRow | null;
+  accountId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [minInterval, setMinInterval] = useState<number>(5);
+  const [maxPerDay, setMaxPerDay] = useState<number>(1000);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!campaign) return;
+    setName(campaign.name);
+    setScheduledAt(
+      campaign.scheduled_at ? localDateTimeValue(new Date(campaign.scheduled_at)) : "",
+    );
+    setMinInterval(campaign.min_minutes_between_attempts ?? 5);
+    setMaxPerDay(campaign.max_attempts_per_day ?? 1000);
+  }, [campaign?.id]);
+
+  const save = async () => {
+    if (!campaign || saving) return;
+    if (!name.trim()) return toast.error("Informe um nome");
+
+    const had = Boolean(campaign.scheduled_at);
+    let nextScheduled: string | null | undefined;
+    if (scheduledAt) {
+      const when = new Date(scheduledAt);
+      if (Number.isNaN(when.getTime())) return toast.error("Data de disparo inválida");
+      if (when.getTime() <= Date.now())
+        return toast.error("A data de disparo precisa estar no futuro");
+      nextScheduled = when.toISOString();
+    } else if (had) {
+      // limpou o campo de uma campanha agendada = desagendar
+      nextScheduled = null;
+    }
+
+    setSaving(true);
+    try {
+      const r = await updateCampaign(accountId, campaign.id, {
+        name: name.trim(),
+        minMinutesBetweenAttempts: minInterval,
+        maxAttemptsPerDay: maxPerDay,
+        ...(nextScheduled !== undefined ? { scheduledAt: nextScheduled } : {}),
+      });
+      toast.success(
+        r.scheduledAt
+          ? `Campanha salva — dispara ${new Date(r.scheduledAt).toLocaleString("pt-BR", {
+              dateStyle: "short",
+              timeStyle: "short",
+            })}`
+          : "Campanha salva — sem agendamento, inicie manualmente",
+      );
+      onSaved();
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao salvar campanha");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={Boolean(campaign)} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar campanha</DialogTitle>
+          <DialogDescription>
+            Nome e agendamento. Lista, agente, número e parâmetros de discagem ficam na
+            página da campanha.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Nome</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Máximo de tentativas por dia
+            </label>
+            <Select value={String(maxPerDay)} onValueChange={(v) => setMaxPerDay(Number(v))}>
+              <SelectTrigger className="w-full bg-background text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MAX_ATTEMPTS_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n === 1000 ? "1000 (sem limite prático)" : n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Intervalo mínimo entre tentativas
+            </label>
+            <Select value={String(minInterval)} onValueChange={(v) => setMinInterval(Number(v))}>
+              <SelectTrigger className="w-full bg-background text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MIN_INTERVAL_OPTIONS.map((m) => (
+                  <SelectItem key={m} value={String(m)}>
+                    {m} {m === 1 ? "minuto" : "minutos"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Tempo mínimo antes de rediscar o mesmo número nesta campanha.
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Disparar em
+            </label>
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              min={localDateTimeValue(new Date(Date.now() + 60_000))}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {campaign && campaign.status !== "draft" && campaign.status !== "scheduled"
+                ? `Campanha ${CAMPAIGN_STATUS_LABEL[campaign.status] ?? campaign.status} — mudar a data não a reagenda.`
+                : scheduledAt
+                  ? "Começa sozinha nesse horário."
+                  : "Em branco: rascunho, iniciado manualmente."}
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteCampaignDialog({
+  campaign,
+  accountId,
+  onClose,
+  onDeleted,
+}: {
+  campaign: CampaignRow | null;
+  accountId: string;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [deletingNow, setDeletingNow] = useState(false);
+  const isRunning = campaign?.status === "running";
+
+  const confirm = async () => {
+    if (!campaign || deletingNow || isRunning) return;
+    setDeletingNow(true);
+    try {
+      const r = await deleteCampaign(accountId, campaign.id);
+      toast.success(
+        `Campanha "${campaign.name}" excluída — ${r.deletedContacts} contato(s) saíram da fila`,
+      );
+      onDeleted();
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao excluir campanha");
+    } finally {
+      setDeletingNow(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={Boolean(campaign)} onOpenChange={(o) => !o && onClose()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Excluir “{campaign?.name}”?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {isRunning
+              ? "Esta campanha está em execução. Pause ou cancele antes de excluir — apagar no meio da discagem deixaria ligações em andamento sem campanha de destino."
+              : "A fila de contatos desta campanha é removida junto e não dá pra desfazer. As ligações já feitas continuam no histórico em Ligações."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deletingNow}>
+            {isRunning ? "Entendi" : "Cancelar"}
+          </AlertDialogCancel>
+          {!isRunning && (
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirm();
+              }}
+              disabled={deletingNow}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingNow && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

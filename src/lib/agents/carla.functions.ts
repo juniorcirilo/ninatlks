@@ -176,6 +176,7 @@ export const askCarla = createServerFn({ method: "POST" })
     const ctxNote = data.contactId ? `\n\n[contexto: contact_id=${data.contactId}]` : "";
 
     const result = await runAgentLoop({
+      accountId: data.accountId,
       system: CARLA_SYSTEM + ctxNote,
       history: data.history,
       userMessage: data.userMessage,

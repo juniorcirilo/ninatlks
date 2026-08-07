@@ -4,10 +4,9 @@ services:
   # Postgres/Redis/MinIO NÃO são criados aqui: o app usa a stack compartilhada
   # ubva (containers "postgresql", "redis", "minio" na rede srv_default), com
   # usuário/database/bucket dedicados — ver .env.
-  ninatlks:
-    build:
-      context: .
-    container_name: ninatlks
+  utalks:
+    image: ubvabrasil/utalks
+    container_name: utalks
     env_file:
       - .env
     environment:
@@ -19,6 +18,12 @@ services:
     networks:
       - srv_default
     restart: unless-stopped
+    # O host não suporta NAT hairpin: o container não alcança o próprio IP
+    # público (evolution.ubva.com.br resolve pra ele via DNS externo), então
+    # a chamada de provisionamento do Evolution trava/expira. Aponta o
+    # domínio direto pro host (nginx local já faz o proxy certo por SNI).
+    extra_hosts:
+      - "evolution.ubva.com.br:host-gateway"
 
 networks:
   srv_default:

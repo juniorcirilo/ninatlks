@@ -1,11 +1,15 @@
 import { Injectable, Scope } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { TenantTxHost } from '../../common/tenant-tx.host';
 import { ElevenLabsConfigService } from './elevenlabs-config.service';
 import {
   ElevenLabsClientService,
+  ElevenLabsCredentials,
   ElevenLabsError,
 } from './elevenlabs-client.service';
 import { buildSystemPromptWithGuardrails } from '../voice/sdr-guardrails.util';
+import { SecretsService } from '../secrets/secrets.service';
+import { agentLlmProviderMeta } from '../agent-llm-provider/providers';
 
 const PT_LANGUAGE = 'pt';
 const PT_BR_LANGUAGE_INSTRUCTION =
@@ -15,6 +19,7 @@ interface PersonaRow {
   id: string;
   account_id: string;
   name: string;
+  config: Record<string, unknown> | null;
   system_prompt: string | null;
   voice_clone_id: string | null;
   first_message: string | null;
@@ -22,6 +27,8 @@ interface PersonaRow {
   tts_config: Record<string, unknown> | null;
   asr_keywords: string[] | null;
   llm_model: string | null;
+  llm_custom_url: string | null;
+  llm_custom_model_id: string | null;
   llm_temperature: number | null;
   llm_max_tokens: number | null;
   elevenlabs_agent_id: string | null;
@@ -48,6 +55,7 @@ export class ElevenLabsAgentService {
     private readonly tx: TenantTxHost,
     private readonly config: ElevenLabsConfigService,
     private readonly client: ElevenLabsClientService,
+    private readonly secrets: SecretsService,
   ) {}
 
   async syncPersona(
@@ -55,8 +63,9 @@ export class ElevenLabsAgentService {
     personaId: string,
   ): Promise<{ ok: true; elevenlabs_agent_id: string; persona_id: string }> {
     const rows = await this.tx.manager.query<PersonaRow[]>(
-      `SELECT id, account_id, name, system_prompt, voice_clone_id, first_message,
-              turn_config, tts_config, asr_keywords, llm_model, llm_temperature,
+      `SELECT id, account_id, name, config, system_prompt, voice_clone_id, first_message,
+              turn_config, tts_config, asr_keywords, llm_model, llm_custom_url,
+              llm_custom_model_id, llm_temperature,
               llm_max_tokens, elevenlabs_agent_id, elevenlabs_knowledge_base_ids
        FROM agent_personas WHERE id = $1 AND account_id = $2 LIMIT 1`,
       [personaId, accountId],
@@ -83,6 +92,10 @@ export class ElevenLabsAgentService {
       ? persona.asr_keywords
       : [];
     const llmModel = persona.llm_model ?? 'gemini-2.5-flash';
+    const customLlm =
+      llmModel === 'custom-llm'
+        ? await this.resolveCustomLlm(accountId, persona, creds)
+        : null;
     const llmTemperature =
       typeof persona.llm_temperature === 'number'
         ? persona.llm_temperature
@@ -149,10 +162,82 @@ export class ElevenLabsAgentService {
       ? { 'x-el-webhook-secret': elWebhookSecret }
       : {};
 
+    // persona.config.kind é o sinal canônico, mas personas mais antigas (ex.:
+    // "Diego Cobrança" seedado antes do config.kind existir) ficam com
+    // config={}. Mesmo fallback por nome usado em inferAgentKind()
+    // (src/lib/webhook-inbound-templates.ts) evita que a persona real fique
+    // sem a tool de cobrança só porque o campo nunca foi preenchido.
+    const isCobranca =
+      (persona.config as Record<string, unknown> | null)?.kind === 'cobranca' ||
+      /cobran|inadimpl|d[ií]vida|cart[eé]ira/i.test(persona.name ?? '');
+    const cobrancaTool = {
+      type: 'webhook',
+      name: 'registrar_desfecho_cobranca',
+      description:
+        "OBRIGATÓRIO antes de despedir em toda call de cobrança (call_purpose=cobranca). Registra o resultado da negociação do título. Use desfecho='wrong_number' se a pessoa negar ser o titular (e não mencione o débito). Preencha valor_prometido/data_prometida SOMENTE se o lead realmente prometeu pagar — NUNCA invente.",
+      api_schema: {
+        url: `${base}/agent-tools/registrar-desfecho-cobranca`,
+        method: 'POST',
+        request_headers: {
+          ...toolHeaders,
+          'x-conversation-id': '{{system__conversation_id}}',
+        },
+        request_body_schema: {
+          type: 'object',
+          required: ['desfecho'],
+          properties: {
+            desfecho: {
+              type: 'string',
+              enum: [
+                'quitou',
+                'prometeu_pagar',
+                'negociou_parcelas',
+                'pediu_boleto',
+                'contestou_divida',
+                'sem_condicoes',
+                'recusou_pagar',
+                'no_answer',
+                'wrong_number',
+              ],
+              description: 'Resultado da negociação nesta ligação.',
+            },
+            valor_prometido: {
+              type: 'string',
+              description:
+                'Valor que o lead prometeu pagar, como falado (ex.: "1240,55"). Só se houve promessa real.',
+            },
+            data_prometida: {
+              type: 'string',
+              description:
+                'Data prometida para pagamento, formato ISO 8601 (ex.: 2026-08-15). Só se houve promessa real.',
+            },
+            forma_pagamento: {
+              type: 'string',
+              description: "Forma combinada, ex.: 'pix', 'boleto', 'cartao', 'parcelado'.",
+            },
+            observacao: {
+              type: 'string',
+              description: 'Anotação livre pro time financeiro (objeções, contexto).',
+            },
+          },
+        },
+      },
+      dynamic_variables: {
+        conversation_id: '{{system__conversation_id}}',
+      },
+    };
+
     const agentBody = {
       name: `Nexus: ${persona.name}`,
       conversation_config: {
-        asr: { quality: 'high', provider: 'elevenlabs', keywords: asrKeywords },
+        // 'elevenlabs' (Original ASR) foi removido pela ElevenLabs e os agentes
+        // existentes migrados para Scribe v2 Realtime; mandar o valor antigo
+        // agora é 400 na criação e no PATCH do agente.
+        asr: {
+          quality: 'high',
+          provider: 'scribe_realtime',
+          keywords: asrKeywords,
+        },
         turn: {
           turn_timeout:
             typeof turnCfg.turn_timeout === 'number' ? turnCfg.turn_timeout : 3,
@@ -183,6 +268,7 @@ export class ElevenLabsAgentService {
           prompt: {
             prompt: systemPrompt,
             llm: llmModel,
+            custom_llm: customLlm,
             temperature: llmTemperature,
             max_tokens: llmMaxTokens,
             tools: [
@@ -484,6 +570,7 @@ export class ElevenLabsAgentService {
                   conversation_id: '{{system__conversation_id}}',
                 },
               },
+              ...(isCobranca ? [cobrancaTool] : []),
             ],
             tool_ids: [],
             knowledge_base: persona.elevenlabs_knowledge_base_ids ?? [],
@@ -565,6 +652,146 @@ export class ElevenLabsAgentService {
     );
 
     return { ok: true, elevenlabs_agent_id: elAgentId, persona_id: persona.id };
+  }
+
+  /**
+   * Resolve a config de LLM próprio pra este agente: URL/model_id do próprio
+   * agente quando preenchidos, senão o "Provedor de IA do Agente" da conta
+   * (vault, provider 'agent-llm' — mesmo seletor usado pelos Funcionários IA
+   * de texto em Configurações → Integrações), com fallback pro 'custom-llm'
+   * legado (contas que configuraram antes do seletor existir). A API key não
+   * pode ir em texto claro para a ElevenLabs — ela exige uma referência a um
+   * "workspace secret" dela; por isso criamos/reaproveitamos esse secret via
+   * API antes de montar o payload.
+   *
+   * Anthropic não entra aqui: o custom_llm da ElevenLabs assume um endpoint
+   * OpenAI-compatible (POST {url}/chat/completions) — a Messages API da
+   * Anthropic tem formato próprio que a ElevenLabs não fala. Falha cedo, na
+   * sincronização, em vez de quebrar silenciosamente numa ligação real (foi
+   * exatamente esse tipo de falha silenciosa — custom-llm apontando pra um IP
+   * inalcançável — que derrubou a campanha original).
+   */
+  private async resolveCustomLlm(
+    accountId: string,
+    persona: PersonaRow,
+    creds: ElevenLabsCredentials,
+  ): Promise<{
+    url: string;
+    model_id?: string;
+    api_key?: { secret_id: string };
+  }> {
+    const agentLlm = await this.secrets.getInternalBulk(accountId, 'agent-llm');
+    const providerId = (agentLlm.provider ?? '').trim();
+
+    let defaultUrl = '';
+    let defaultModelId = '';
+    let defaultApiKey = '';
+
+    if (providerId) {
+      const meta = agentLlmProviderMeta(providerId);
+      if (meta.kind === 'anthropic') {
+        throw new ElevenLabsError(
+          400,
+          `O "Provedor de IA do Agente" da conta está em Anthropic (Claude), que não é compatível com agentes de voz — a ElevenLabs só integra com endpoints no formato OpenAI. Escolha outro provedor (OpenAI, Gemini, Groq, DeepSeek, Mistral, Ollama ou LM Studio) em Configurações → Integrações, ou defina uma URL própria na aba Modelo do agente "${persona.name}".`,
+        );
+      }
+      defaultUrl = (agentLlm.base_url || meta.defaultBaseUrl || '').trim();
+      defaultModelId = (agentLlm.model_id ?? '').trim();
+      defaultApiKey = (agentLlm.api_key ?? '').trim();
+    } else {
+      const legacy = await this.secrets.getInternalBulk(accountId, 'custom-llm');
+      defaultUrl = (legacy.api_url ?? '').trim();
+      defaultModelId = (legacy.model_id ?? '').trim();
+      defaultApiKey = (legacy.api_key ?? '').trim();
+    }
+
+    const url = (persona.llm_custom_url || defaultUrl || '').trim();
+    if (!url) {
+      throw new ElevenLabsError(
+        400,
+        `Agente "${persona.name}" está configurado para IA própria (custom-llm), mas não há URL definida — configure em Configurações → Integrações → Provedor de IA do Agente, ou na aba Modelo deste agente.`,
+      );
+    }
+    const modelId = (persona.llm_custom_model_id || defaultModelId || '').trim();
+
+    if (!defaultApiKey) {
+      return { url, ...(modelId ? { model_id: modelId } : {}) };
+    }
+
+    const secretId = await this.ensureElevenLabsSecret(
+      accountId,
+      defaultApiKey,
+      creds,
+    );
+    return {
+      url,
+      ...(modelId ? { model_id: modelId } : {}),
+      api_key: { secret_id: secretId },
+    };
+  }
+
+  /**
+   * Cria (ou atualiza, se o valor mudou) o secret de workspace na ElevenLabs
+   * que guarda a API key do LLM próprio, e devolve o `secret_id`. O hash fica
+   * nos metadados do vault local só para saber "já criei esse valor exato lá
+   * fora?" sem reenviar a chave à toa a cada sincronização — criar um secret
+   * novo por sync acumularia lixo no workspace do cliente.
+   */
+  private async ensureElevenLabsSecret(
+    accountId: string,
+    apiKey: string,
+    creds: ElevenLabsCredentials,
+  ): Promise<string> {
+    const hash = createHash('sha256').update(apiKey).digest('hex');
+    const existing = await this.secrets.list(accountId);
+    const entry = existing.find(
+      (e) => e.provider === 'custom-llm' && e.key_name === 'api_key',
+    );
+    const cachedSecretId = entry?.metadata?.elevenlabs_secret_id as
+      | string
+      | undefined;
+    const cachedHash = entry?.metadata?.value_hash as string | undefined;
+
+    if (cachedSecretId && cachedHash === hash) {
+      return cachedSecretId;
+    }
+
+    const name = `nina-talks-custom-llm-${accountId}`;
+    let secretId: string | undefined;
+    if (cachedSecretId) {
+      // Valor mudou: atualiza o secret existente em vez de criar outro.
+      try {
+        await this.client.request({
+          method: 'PATCH',
+          path: `/v1/convai/secrets/${cachedSecretId}`,
+          credentials: creds,
+          json: { type: 'update', name, value: apiKey },
+        });
+        secretId = cachedSecretId;
+      } catch (err) {
+        // Secret cacheado pertence a outro workspace ElevenLabs (chave da
+        // conta foi trocada) — não existe mais lá, cria um novo.
+        if (!(err instanceof ElevenLabsError && err.status === 404)) throw err;
+      }
+    }
+    if (!secretId) {
+      const created = await this.client.request<{ secret_id: string }>({
+        method: 'POST',
+        path: '/v1/convai/secrets',
+        credentials: creds,
+        json: { type: 'new', name, value: apiKey },
+      });
+      secretId = created.secret_id;
+    }
+
+    // Reescreve o mesmo valor só para carimbar o hash/secret_id novos nos
+    // metadados — é o registro de "já sincronizei isso com a ElevenLabs".
+    await this.secrets.set(accountId, 'custom-llm', 'api_key', apiKey, {
+      elevenlabs_secret_id: secretId,
+      value_hash: hash,
+    });
+
+    return secretId;
   }
 
   async getAgentInfo(

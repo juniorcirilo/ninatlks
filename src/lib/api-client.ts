@@ -6,7 +6,18 @@
  * "include"` instead of an Authorization header.
  */
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+/**
+ * No servidor (SSR / server functions), chamar o domínio público faz o
+ * container tentar se alcançar por fora — hairpin NAT que trava (visto em
+ * produção: `fetch failed`/timeout no middleware de sessão). Web e API rodam
+ * juntos no mesmo container (ver docker-compose.yml), então o servidor fala
+ * direto com `localhost`; só o navegador precisa do domínio público, porque
+ * ele está fora do container.
+ */
+const API_URL =
+  typeof window === "undefined"
+    ? `http://localhost:${process.env.API_PORT ?? 3001}`
+    : import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 export class ApiError extends Error {
   status: number;

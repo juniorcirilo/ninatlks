@@ -61,19 +61,57 @@ export function toE164(
   return E164_RE.test(candidate) ? candidate : null;
 }
 
+/**
+ * Janela de discagem padrão. Exportada porque o dispatcher de campanha precisa
+ * do mesmo default: sem ela ele caía em `null`, e `JSON.stringify(null)` chega
+ * no Postgres como jsonb 'null' — que *não* é SQL NULL, então
+ * is_phone_allowed_to_call entrava na checagem de janela e bloqueava todo dia
+ * como 'outside_allowed_day'. Campanha nenhuma discava.
+ */
+export const DEFAULT_ALLOWED_HOURS_LOCAL: Record<
+  string,
+  [number, number] | null
+> = {
+  mon: [8, 21],
+  tue: [8, 21],
+  wed: [8, 21],
+  thu: [8, 21],
+  fri: [8, 21],
+  sat: [9, 18],
+  sun: null,
+};
+
+/**
+ * Limites padrão de tentativas. Também exportados: o dispatcher de campanha
+ * usava 2/dia e 120min contra os 3/60 daqui, sem nada que justificasse a
+ * divergência — só herança de portes diferentes. O efeito prático era um
+ * número ficar bloqueado pra campanha por 2h depois de qualquer ligação
+ * avulsa, com o motivo escondido em call_attempts_log.
+ */
+/**
+ * 3 tentativas/dia é o padrão de quem não configurou nada. Esteve em 1000
+ * ("sem limite prático") enquanto se validava o pipeline; com base real de ERP
+ * entrando por carga automática, esse valor deixa de ser um default frouxo e
+ * vira risco jurídico — em cobrança, insistência sem teto é assédio sob o CDC
+ * e a Lei do Superendividamento. Campanha e conta continuam podendo subir o
+ * teto explicitamente (MAX_ATTEMPTS_PER_DAY_OPTIONS vai de 1 a 1000); o que
+ * muda é que agora isso é uma decisão registrada, não o comportamento
+ * silencioso de quem não mexeu em nada.
+ */
+export const DEFAULT_MAX_ATTEMPTS_PER_DAY = 3;
+/**
+ * 60 min entre tentativas para o mesmo número. Esteve em 5 min pela mesma razão
+ * (rediscar rápido durante a validação do pipeline) e volta ao valor de
+ * operação junto com o teto diário acima.
+ */
+export const DEFAULT_MIN_MINUTES_BETWEEN_ATTEMPTS = 60;
+
 const DEFAULT_DIALING = {
   timezone: 'America/Sao_Paulo',
-  allowed_hours_local: {
-    mon: [8, 21],
-    tue: [8, 21],
-    wed: [8, 21],
-    thu: [8, 21],
-    fri: [8, 21],
-    sat: [9, 18],
-    sun: null,
-  } as Record<string, [number, number] | null>,
-  max_attempts_per_day: 3,
-  min_minutes_between_attempts: 60,
+  allowed_hours_local: DEFAULT_ALLOWED_HOURS_LOCAL,
+  max_attempts_per_day: DEFAULT_MAX_ATTEMPTS_PER_DAY,
+  min_minutes_between_attempts: DEFAULT_MIN_MINUTES_BETWEEN_ATTEMPTS,
+  test_numbers: [] as string[],
 };
 
 function messageForReason(
@@ -186,6 +224,16 @@ export class VoiceGuardService {
 
     if (!res.allowed) {
       const reason = (res.reason ?? 'rpc_error') as GuardReason;
+      // Números de teste pulam janela/limite/intervalo — nunca DNC. Existe
+      // pra permitir testar campanhas sem esperar o teto diário do próprio
+      // número de quem está validando, sem afrouxar a proteção pros números
+      // de clientes de verdade (que continuam sob a política normal da conta).
+      const testNumbers = Array.isArray(settings.test_numbers)
+        ? (settings.test_numbers as string[])
+        : [];
+      if (reason !== 'dnc' && testNumbers.includes(e164)) {
+        return { allowed: true, e164 };
+      }
       return {
         allowed: false,
         reason,

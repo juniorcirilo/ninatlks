@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { syncElevenLabsAgent } from "@/lib/personas";
 import type { OnboardingState } from "@/lib/onboarding";
@@ -121,19 +122,24 @@ export function AgenteStep({
         try {
           await syncElevenLabsAgent(accountId, personaId);
           setSyncStatus("ok");
+          toast.success(`Agente "${name.trim()}" criado e sincronizado com a ElevenLabs`);
           onCreated({ personaId, synced: true });
         } catch (e) {
           const msg = e instanceof Error ? e.message : "Falha no sync";
           setSyncStatus("error");
           setSyncError(msg);
+          toast.warning(`Agente criado, mas o sync falhou: ${msg.slice(0, 140)}`);
           onCreated({ personaId, synced: false, syncError: msg });
         }
       } else {
         setSyncStatus("idle");
+        toast.success(`Agente "${name.trim()}" criado — sincronize quando a ElevenLabs estiver configurada`);
         onCreated({ personaId, synced: false });
       }
     } catch (e) {
-      setSyncError(e instanceof Error ? e.message : "Falha ao criar agente");
+      const msg = e instanceof Error ? e.message : "Falha ao criar agente";
+      setSyncError(msg);
+      toast.error(`Falha ao criar agente: ${msg.slice(0, 160)}`);
     } finally {
       setCreating(false);
     }
@@ -144,13 +150,15 @@ export function AgenteStep({
     setSyncStatus("syncing");
     setSyncError(null);
     try {
-        await syncElevenLabsAgent(accountId, createdPersonaId);
+      const r = await syncElevenLabsAgent(accountId, createdPersonaId);
       setSyncStatus("ok");
+      toast.success(`Sincronizado — agente ${r.elevenlabs_agent_id.slice(0, 12)}…`);
       onCreated({ personaId: createdPersonaId, synced: true });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Falha no sync";
       setSyncStatus("error");
       setSyncError(msg);
+      toast.error(`Falha ao sincronizar: ${msg.slice(0, 160)}`);
     }
   };
 

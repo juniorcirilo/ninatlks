@@ -19,6 +19,6 @@ export class PipelineController {
     @Param('contactId') contactId: string,
     @Body() dto: MoveLeadDto,
   ) {
-    return this.pipelineService.moveToStage(contactId, dto.stageId);
+    return this.pipelineService.moveToStage(contactId, dto.stageId, dto.reason);
   }
 }

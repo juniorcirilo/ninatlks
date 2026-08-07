@@ -44,6 +44,8 @@ export interface DialingSettings {
   allowed_hours_local: Record<DayKey, HourRange>;
   max_attempts_per_day: number;
   min_minutes_between_attempts: number;
+  /** Números (E.164) isentos de janela/limite/intervalo nas ligações avulsas — só pra teste, nunca pula DNC. */
+  test_numbers: string[];
 }
 
 export const DEFAULT_DIALING_SETTINGS: DialingSettings = {
@@ -59,6 +61,7 @@ export const DEFAULT_DIALING_SETTINGS: DialingSettings = {
   },
   max_attempts_per_day: 3,
   min_minutes_between_attempts: 60,
+  test_numbers: [],
 };
 
 export async function fetchDialingSettings(accountId: string): Promise<DialingSettings> {

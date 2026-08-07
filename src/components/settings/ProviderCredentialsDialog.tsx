@@ -29,8 +29,16 @@ import {
   type SecretProvider,
 } from "@/lib/account-secrets";
 import { testEvolution, provisionEvolution } from "@/lib/evolution";
+import { syncAgentSourcesToN8n, describeN8nSync } from "@/lib/n8n";
 
-export type CredentialProviderKey = "twilio" | "elevenlabs" | "deepgram" | "evolution";
+export type CredentialProviderKey =
+  | "twilio"
+  | "elevenlabs"
+  | "deepgram"
+  | "evolution"
+  | "n8n"
+  | "custom-llm"
+  | "resend";
 
 interface FieldDef {
   keyName: string;
@@ -89,6 +97,40 @@ const PROVIDER_FIELDS: Record<CredentialProviderKey, {
     fields: [
       { keyName: "evolution_url", label: "URL do servidor", type: "text", placeholder: "https://evo.exemplo.com", required: true },
       { keyName: "evolution_api_key", label: "API Key", type: "password", placeholder: "••••••••", required: true },
+    ],
+  },
+  n8n: {
+    label: "n8n",
+    docsUrl: "https://docs.n8n.io/api/authentication/",
+    docsLabel: "Como gerar a API Key no n8n",
+    helper:
+      "URL da sua instância n8n e uma API Key gerada em Settings → n8n API. Ao salvar, criamos automaticamente o workflow \"Utalks\" e sincronizamos as fontes de dados já configuradas.",
+    fields: [
+      { keyName: "api_url", label: "URL da instância", type: "text", placeholder: "https://n8n.suaempresa.com", required: true },
+      { keyName: "api_key", label: "API Key", type: "password", placeholder: "n8n_api_…", required: true },
+    ],
+  },
+  "custom-llm": {
+    label: "IA própria (LM Studio ou compatível)",
+    docsUrl: "https://lmstudio.ai/docs/local-server",
+    docsLabel: "Como ligar o servidor local do LM Studio",
+    helper:
+      "Padrão da conta para agentes com Modelo = \"IA própria\". Endpoint compatível com a API de Chat Completions da OpenAI (é o que o LM Studio expõe). Cada agente pode substituir a URL/modelo na aba Modelo dele — a API key é sempre a da conta.",
+    fields: [
+      { keyName: "api_url", label: "URL do servidor", type: "text", placeholder: "http://seu-host:1234/v1", required: true },
+      { keyName: "model_id", label: "Model ID", type: "text", placeholder: "nome-do-modelo-carregado" },
+      { keyName: "api_key", label: "API Key", type: "password", placeholder: "••••••••", required: true,
+        hint: "Guardada com segurança; ao sincronizar um agente, criamos uma referência protegida dela dentro da ElevenLabs (nunca em texto puro)." },
+    ],
+  },
+  resend: {
+    label: "Resend",
+    docsUrl: "https://resend.com/api-keys",
+    docsLabel: "Painel Resend",
+    helper:
+      "Usada para enviar o e-mail de confirmação (com o link do Google Meet) para o convidado e para quem conduz a reunião. Sem isso, as notificações ficam só no sininho.",
+    fields: [
+      { keyName: "api_key", label: "API Key", type: "password", placeholder: "re_…", required: true },
     ],
   },
 };
@@ -191,6 +233,23 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
       } else {
         await setAccountSecretsBulk(accountId, provider as SecretProvider, toSave);
         toast.success(`${def.label}: credenciais salvas no vault`);
+
+        // n8n: cria o workflow "Utalks" (se ainda não existir), garante o nó de
+        // cada agente e já cria a fonte de dados de quem ainda não tinha
+        // nenhuma — "conectar" o n8n é o próprio gatilho da sincronização,
+        // sem passo manual extra.
+        if (provider === "n8n") {
+          try {
+            const sync = await syncAgentSourcesToN8n(accountId);
+            for (const m of describeN8nSync(sync)) {
+              toast[m.level](m.message);
+            }
+          } catch (e: any) {
+            toast.warning(
+              `Credenciais salvas, mas não foi possível sincronizar o n8n agora: ${e?.body?.message ?? e?.message ?? "erro"}`,
+            );
+          }
+        }
       }
       onSaved?.();
       onOpenChange(false);

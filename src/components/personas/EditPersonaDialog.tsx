@@ -42,6 +42,7 @@ import {
 } from "@/lib/personas";
 import { VoicePicker } from "./VoicePicker";
 import { PersonaDeploymentsPanel } from "./PersonaDeploymentsPanel";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type TabKey = "brain" | "voice" | "knowledge" | "advanced" | "channels";
 
@@ -956,17 +957,18 @@ function AdvancedTab(p: {
         </div>
         <div>
           <Label className="text-[11px]">Modelo</Label>
-          <select
-            value={p.llmModel}
-            onChange={(e) => p.setLlmModel(e.target.value)}
-            className="mt-1 h-8 w-full rounded-md border border-border bg-background px-2 text-[12px]"
-          >
-            <option value="gemini-2.5-flash">Gemini 2.5 Flash (rápido, barato, pt-BR bom)</option>
-            <option value="gpt-4o-mini">GPT-4o Mini (consistente)</option>
-            <option value="gpt-4o">GPT-4o (melhor qualidade, caro)</option>
-            <option value="claude-haiku-4-5">Claude Haiku 4.5 (rápido, nuance)</option>
-            <option value="claude-sonnet-4-5">Claude Sonnet 4.5 (raciocínio)</option>
-          </select>
+          <Select value={p.llmModel} onValueChange={p.setLlmModel}>
+            <SelectTrigger className="mt-1 h-8 w-full bg-background text-[12px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (rápido, barato, pt-BR bom)</SelectItem>
+              <SelectItem value="gpt-4o-mini">GPT-4o Mini (consistente)</SelectItem>
+              <SelectItem value="gpt-4o">GPT-4o (melhor qualidade, caro)</SelectItem>
+              <SelectItem value="claude-haiku-4-5">Claude Haiku 4.5 (rápido, nuance)</SelectItem>
+              <SelectItem value="claude-sonnet-4-5">Claude Sonnet 4.5 (raciocínio)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label className="text-[11px]">

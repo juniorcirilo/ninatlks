@@ -18,6 +18,7 @@ import {
 } from "@/lib/personas";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Inbox = { id: string; name: string; channel_type: string | null };
 
@@ -175,33 +176,41 @@ function DeploymentRow({
             <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
               Modo
             </label>
-            <select
+            <Select
               value={deployment.mode}
-              onChange={(e) => upsert({ mode: e.target.value as DeploymentMode })}
-              className="mt-0.5 w-full rounded-md border border-border bg-background px-2 py-1 text-[11px]"
+              onValueChange={(v) => upsert({ mode: v as DeploymentMode })}
             >
-              {Object.entries(MODE_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="mt-0.5 h-7 w-full bg-background text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(MODE_LABELS).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div>
             <label className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
               Autonomia
             </label>
-            <select
+            <Select
               value={deployment.autonomy}
-              onChange={(e) => upsert({ autonomy: e.target.value as DeploymentAutonomy })}
-              className="mt-0.5 w-full rounded-md border border-border bg-background px-2 py-1 text-[11px]"
+              onValueChange={(v) => upsert({ autonomy: v as DeploymentAutonomy })}
             >
-              {Object.entries(AUTONOMY_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="mt-0.5 h-7 w-full bg-background text-[11px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(AUTONOMY_LABELS).map(([k, v]) => (
+                  <SelectItem key={k} value={k}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="sm:col-span-2">
             <div className="flex items-center justify-between">

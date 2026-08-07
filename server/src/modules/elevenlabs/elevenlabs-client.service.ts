@@ -68,16 +68,25 @@ export class ElevenLabsClientService {
     }
     if (!res.ok) {
       const detail = parsed?.detail as
-        { message?: string } | string | undefined;
-      const msg =
-        (typeof detail === 'object' ? detail?.message : detail) ??
-        (parsed?.message as string) ??
-        `ElevenLabs ${res.status}`;
-      throw new ElevenLabsError(
-        res.status,
-        typeof msg === 'string' ? msg : JSON.stringify(msg),
-        parsed,
-      );
+        | { message?: string }
+        | Array<{ loc?: unknown[]; msg?: string }>
+        | string
+        | undefined;
+      let msg: string | undefined;
+      if (typeof detail === 'string') {
+        msg = detail;
+      } else if (Array.isArray(detail)) {
+        msg = detail
+          .map((d) => {
+            const loc = Array.isArray(d?.loc) ? d.loc.join('.') : undefined;
+            return loc ? `${loc}: ${d?.msg ?? 'invalid'}` : (d?.msg ?? 'invalid');
+          })
+          .join('; ');
+      } else if (detail && typeof detail === 'object') {
+        msg = detail.message;
+      }
+      msg ??= (parsed?.message as string) ?? `ElevenLabs ${res.status}`;
+      throw new ElevenLabsError(res.status, msg, parsed);
     }
     return parsed as T;
   }

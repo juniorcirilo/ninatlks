@@ -8,6 +8,8 @@ import {
   fetchCampaignPersonas,
   fetchCampaignPhoneNumbers,
   createCampaign,
+  MIN_INTERVAL_OPTIONS,
+  MAX_ATTEMPTS_OPTIONS,
   CAMPAIGN_KIND_LABEL,
   CAMPAIGN_KIND_DESC,
   type ContactListRow,
@@ -16,6 +18,7 @@ import {
   type PhoneNumberLite,
 } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type Search = { listId?: string };
 
@@ -52,6 +55,10 @@ function NewCampaignPage() {
   const [maxConcurrent, setMaxConcurrent] = useState(3);
   const [retryAttempts, setRetryAttempts] = useState(1);
   const [recordCall, setRecordCall] = useState(true);
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [minInterval, setMinInterval] = useState<number>(5);
+  const [maxPerDay, setMaxPerDay] = useState<number>(1000);
+  const [autoEnroll, setAutoEnroll] = useState<"off" | "approval">("off");
 
   useEffect(() => {
     if (!accountId) return;
@@ -75,12 +82,32 @@ function NewCampaignPage() {
 
   const selectedList = useMemo(() => lists.find((l) => l.id === listId) ?? null, [lists, listId]);
 
+  /** Formata pro value de um input datetime-local, que exige hora local sem zona. */
+  const localDateTimeValue = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+      d.getHours(),
+    )}:${pad(d.getMinutes())}`;
+  };
+
   const onSubmit = async () => {
     if (!accountId) return;
     if (!name.trim()) return toast.error("Informe um nome");
     if (!listId) return toast.error("Selecione uma lista");
     if (!personaId) return toast.error("Selecione um agente");
     if (!phoneId) return toast.error("Selecione um número");
+
+    // datetime-local devolve hora local sem offset ("2026-07-28T09:30"); o
+    // backend espera ISO com offset, e `new Date` de uma string sem zona é
+    // interpretada como local — que é justamente o que o usuário digitou.
+    let scheduledAtIso: string | undefined;
+    if (scheduledAt) {
+      const when = new Date(scheduledAt);
+      if (Number.isNaN(when.getTime())) return toast.error("Data de disparo inválida");
+      if (when.getTime() <= Date.now())
+        return toast.error("A data de disparo precisa estar no futuro");
+      scheduledAtIso = when.toISOString();
+    }
 
     setSubmitting(true);
     try {
@@ -94,9 +121,27 @@ function NewCampaignPage() {
         maxConcurrent,
         retryAttempts,
         recordCall,
+        scheduledAt: scheduledAtIso,
+        minMinutesBetweenAttempts: minInterval,
+        maxAttemptsPerDay: maxPerDay,
+        // Só faz sentido em lista sincronizada: numa lista manual não existe
+        // "carga nova" para oferecer, e deixar 'approval' aqui daria a
+        // impressão de que a campanha se alimenta sozinha.
+        autoEnrollMode: selectedList?.external_key ? autoEnroll : "off",
       });
 
-      toast.success(`Campanha criada com ${campaign.contactCount} contatos`);
+      if (campaign.scheduledAt) {
+        toast.success(
+          `Campanha agendada para ${new Date(campaign.scheduledAt).toLocaleString("pt-BR", {
+            dateStyle: "short",
+            timeStyle: "short",
+          })} — ${campaign.contactCount} contatos na fila`,
+        );
+      } else {
+        toast.success(
+          `Campanha criada como rascunho com ${campaign.contactCount} contatos — inicie manualmente quando quiser`,
+        );
+      }
       navigate({ to: "/campanhas/$campaignId", params: { campaignId: campaign.id } });
     } catch (e: any) {
       toast.error(e?.message ?? "falha ao criar campanha");
@@ -164,18 +209,23 @@ function NewCampaignPage() {
         <section className="space-y-4 rounded-xl border border-border bg-card p-5">
           <h2 className="text-sm font-semibold">2. Lista, agente e número</h2>
           <Field label="Lista de contatos">
-            <select
-              value={listId}
-              onChange={(e) => setListId(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            <Select
+              value={listId || "__none__"}
+              onValueChange={(v) => setListId(v === "__none__" ? "" : v)}
             >
-              <option value="">— selecionar —</option>
-              {lists.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name} ({l.member_count} contatos)
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full bg-background text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— selecionar —</SelectItem>
+                {lists.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.name} ({l.member_count} contatos)
+                    {l.external_key ? " · sincronizada" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {lists.length === 0 && (
               <p className="mt-1 text-xs text-amber-600">
                 Nenhuma lista cadastrada. Crie uma em{" "}
@@ -187,23 +237,74 @@ function NewCampaignPage() {
             )}
           </Field>
           {selectedList && (
-            <p className="text-xs text-muted-foreground">
-              {selectedList.member_count} contatos serão enfileirados.
-            </p>
+            <div className="space-y-1 text-xs text-muted-foreground">
+              <p>
+                {selectedList.valid_phone_count} de {selectedList.member_count} contatos
+                serão enfileirados (o resto está sem telefone ou bloqueado).
+              </p>
+              {selectedList.external_key && (
+                <p>
+                  Lista sincronizada do sistema externo pela chave{" "}
+                  <code className="rounded bg-muted px-1">{selectedList.external_key}</code>.
+                </p>
+              )}
+            </div>
+          )}
+          {selectedList?.external_key && (
+            <div>
+              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                O que fazer quando a lista receber uma carga nova
+              </div>
+              <div className="grid gap-2">
+                {(
+                  [
+                    {
+                      v: "off" as const,
+                      t: "Nada — campanha fechada",
+                      d: "Os contatos são congelados agora. Cargas seguintes não mexem nesta campanha.",
+                    },
+                    {
+                      v: "approval" as const,
+                      t: "Oferecer em lote, com aprovação",
+                      d: "Cada carga junta os contatos novos num lote pendente. Nada disca antes de alguém aprovar aqui na plataforma.",
+                    },
+                  ]
+                ).map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => setAutoEnroll(o.v)}
+                    className={cn(
+                      "rounded-lg border p-3 text-left transition-colors",
+                      autoEnroll === o.v
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-background hover:border-primary/40",
+                    )}
+                  >
+                    <div className="text-sm font-medium">{o.t}</div>
+                    <div className="text-xs text-muted-foreground">{o.d}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           <Field label="Agente IA">
-            <select
-              value={personaId}
-              onChange={(e) => setPersonaId(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            <Select
+              value={personaId || "__none__"}
+              onValueChange={(v) => setPersonaId(v === "__none__" ? "" : v)}
             >
-              <option value="">— selecionar —</option>
-              {personas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full bg-background text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— selecionar —</SelectItem>
+                {personas.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {personas.length === 0 && (
               <p className="mt-1 text-xs text-amber-600">
                 Nenhum agente ativo. Ative ou crie um em{" "}
@@ -215,18 +316,22 @@ function NewCampaignPage() {
             )}
           </Field>
           <Field label="Número de origem">
-            <select
-              value={phoneId}
-              onChange={(e) => setPhoneId(e.target.value)}
-              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            <Select
+              value={phoneId || "__none__"}
+              onValueChange={(v) => setPhoneId(v === "__none__" ? "" : v)}
             >
-              <option value="">— selecionar —</option>
-              {phones.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.friendly_name ?? p.e164} ({p.e164})
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-full bg-background text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— selecionar —</SelectItem>
+                {phones.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.friendly_name ?? p.e164} ({p.e164})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
           <NavRow
             onBack={() => setStep(1)}
@@ -248,6 +353,11 @@ function NewCampaignPage() {
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </Field>
+          <VariablePalette
+            keys={selectedList?.variable_keys ?? []}
+            listIsExternal={!!selectedList?.external_key}
+            onInsert={(token) => setOpeningScript((s) => (s ? `${s} ${token}` : token))}
+          />
           <div className="grid grid-cols-2 gap-3">
             <Field label="Ligações simultâneas">
               <input
@@ -270,6 +380,62 @@ function NewCampaignPage() {
               />
             </Field>
           </div>
+          <Field label="Máximo de tentativas por dia ao mesmo número">
+            <Select
+              value={String(maxPerDay)}
+              onValueChange={(v) => setMaxPerDay(Number(v))}
+            >
+              <SelectTrigger className="w-full bg-background text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MAX_ATTEMPTS_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n === 1000 ? "1000 (sem limite prático)" : n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Teto diário por número, contado sobre tentativas reais. É a última trava
+              contra insistir com o mesmo contato.
+            </p>
+          </Field>
+          <Field label="Intervalo mínimo entre tentativas ao mesmo número">
+            <Select
+              value={String(minInterval)}
+              onValueChange={(v) => setMinInterval(Number(v))}
+            >
+              <SelectTrigger className="w-full bg-background text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MIN_INTERVAL_OPTIONS.map((m) => (
+                  <SelectItem key={m} value={String(m)}>
+                    {m} {m === 1 ? "minuto" : "minutos"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Um número só volta a ser discado depois desse tempo. Vale para esta campanha;
+              o teto de tentativas por dia continua valendo por cima.
+            </p>
+          </Field>
+          <Field label="Disparar em (opcional)">
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              min={localDateTimeValue(new Date(Date.now() + 60_000))}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {scheduledAt
+                ? "A campanha fica agendada e começa sozinha nesse horário (fuso deste navegador)."
+                : "Em branco: a campanha nasce como rascunho e só disca quando você iniciar na mão."}
+            </p>
+          </Field>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -300,6 +466,55 @@ function NewCampaignPage() {
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * Variáveis que os contatos da lista trazem do sistema de origem. Sem isto a
+ * pessoa que escreve a abertura não tem como saber que existe {{valor_titulo}}
+ * naquela carga do ERP — o dado chega até a ligação, mas ninguém o usa porque
+ * ninguém sabe o nome dele.
+ */
+function VariablePalette({
+  keys,
+  listIsExternal,
+  onInsert,
+}: {
+  keys: string[];
+  listIsExternal: boolean;
+  onInsert: (token: string) => void;
+}) {
+  if (keys.length === 0) {
+    if (!listIsExternal) return null;
+    return (
+      <p className="text-[11px] text-muted-foreground">
+        Esta lista veio de integração externa, mas os contatos não trazem variáveis —
+        a carga foi enviada sem o campo <code className="rounded bg-muted px-1">variables</code>.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs font-medium text-muted-foreground">
+        Variáveis disponíveis nesta lista
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {keys.map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => onInsert(`{{${k}}}`)}
+            className="rounded-md border border-input bg-background px-2 py-1 font-mono text-[11px] hover:border-primary/50 hover:bg-primary/5"
+          >
+            {`{{${k}}}`}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Clique para inserir na abertura. O valor é substituído por contato no momento da
+        ligação, e a agente também recebe todos eles como contexto da conversa.
+      </p>
     </div>
   );
 }

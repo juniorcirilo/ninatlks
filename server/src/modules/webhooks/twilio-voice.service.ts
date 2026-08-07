@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CONVERSATION_RELAY_PATH } from '../voice/conversation-relay.service';
+import {
+  applyCampaignDisposition,
+  dispositionFromTwilioStatus,
+} from '../voice/campaign-disposition.util';
 
 const VOICEMAIL_TWIML = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -302,6 +306,25 @@ export class TwilioVoiceService {
       terminal,
     ]);
     const updated = updatedRows[0];
+
+    // Propaga o desfecho para o contato de campanha. Sem isto o status parava
+    // em voice_calls e a campanha nunca sabia se o cliente atendeu, recusou ou
+    // não completou — o contato ficava em 'placed' indefinidamente.
+    if (updated && terminal) {
+      const linkRows = await this.dataSource.query<
+        { campaign_contact_id: string | null }[]
+      >(
+        `SELECT metadata->>'campaign_contact_id' AS campaign_contact_id
+           FROM voice_calls WHERE id = $1 LIMIT 1`,
+        [updated.id],
+      );
+      await applyCampaignDisposition(
+        this.dataSource,
+        linkRows[0]?.campaign_contact_id,
+        dispositionFromTwilioStatus(mapped, duration, form.AnsweredBy),
+        duration,
+      );
+    }
 
     if (
       updated &&

@@ -24,10 +24,18 @@ interface CadenceDueItem {
   } | null;
 }
 
+const STALE_RUNNING_MINUTES = 20;
+
 /**
  * Ported from supabase/functions/cadence-tick/index.ts. Only channel=voice
  * is implemented (matches the original — WhatsApp/email steps are marked
  * skipped-but-advanced so they don't block the cadence, same as upstream).
+ *
+ * A execução de um step de voz NÃO avança aqui mais — só marca
+ * `waiting_call_id`/status='running' e some da fila do cadence_due até
+ * `call-finalize.service.ts` (que sabe se a ligação foi atendida) chamar
+ * `cadence_advance` com o desfecho real. O `sweepStaleRunning` abaixo é a
+ * rede de segurança caso essa ligação nunca finalize.
  */
 @Processor('cadence-tick')
 export class CadenceTickProcessor extends WorkerHost {
@@ -40,8 +48,10 @@ export class CadenceTickProcessor extends WorkerHost {
   async process(job: Job): Promise<{
     checked: number;
     advanced: number;
+    waiting: number;
     failed: number;
     skipped: number;
+    staleRecovered: number;
   }> {
     this.logger.log(`running cadence-tick (job ${job.id})`);
     const items = await this.dataSource.query<CadenceDueItem[]>(
@@ -51,6 +61,7 @@ export class CadenceTickProcessor extends WorkerHost {
     );
 
     let advanced = 0;
+    let waiting = 0;
     let failed = 0;
     let skipped = 0;
 
@@ -66,10 +77,15 @@ export class CadenceTickProcessor extends WorkerHost {
       const channel = it.step_definition.channel ?? 'voice';
       try {
         if (channel === 'voice') {
-          await dispatchVoiceFollowup(this.dataSource, it);
-        } else {
-          skipped++;
+          const callId = await dispatchVoiceFollowup(this.dataSource, it);
+          await this.dataSource.query(
+            `SELECT public.cadence_mark_waiting_call($1, $2)`,
+            [it.execution_id, callId],
+          );
+          waiting++;
+          continue;
         }
+        skipped++;
         await this.dataSource.query(
           `SELECT public.cadence_advance($1, true, NULL)`,
           [it.execution_id],
@@ -84,17 +100,40 @@ export class CadenceTickProcessor extends WorkerHost {
       }
     }
 
+    const staleRecovered = await this.sweepStaleRunning();
+
     this.logger.log(
-      `cadence-tick complete: checked=${items.length} advanced=${advanced} failed=${failed} skipped=${skipped}`,
+      `cadence-tick complete: checked=${items.length} advanced=${advanced} waiting=${waiting} failed=${failed} skipped=${skipped} staleRecovered=${staleRecovered}`,
     );
-    return { checked: items.length, advanced, failed, skipped };
+    return { checked: items.length, advanced, waiting, failed, skipped, staleRecovered };
+  }
+
+  /**
+   * Execuções presas em 'running' por mais de STALE_RUNNING_MINUTES: a
+   * ligação nunca finalizou (webhook da EL perdido e o retry de
+   * voice-call-finalize-pending — a cada 2min, calls presas há >90s —
+   * também não pegou). Força o avanço como falha em vez de deixar a
+   * cadência parada pra sempre.
+   */
+  private async sweepStaleRunning(): Promise<number> {
+    const stale = await this.dataSource.query<{ id: string }[]>(
+      `SELECT id FROM public.follow_up_executions WHERE status = 'running' AND updated_at < now() - ($1 || ' minutes')::interval`,
+      [String(STALE_RUNNING_MINUTES)],
+    );
+    for (const row of stale) {
+      await this.dataSource.query(
+        `SELECT public.cadence_advance($1, false, $2)`,
+        [row.id, 'call result timeout'],
+      );
+    }
+    return stale.length;
   }
 }
 
 async function dispatchVoiceFollowup(
   dataSource: DataSource,
   it: CadenceDueItem,
-): Promise<void> {
+): Promise<string> {
   const contactRows = await dataSource.query<
     {
       id: string;
@@ -151,4 +190,5 @@ async function dispatchVoiceFollowup(
     dynamicVariables,
   });
   await finalizeOutboundVoiceCall(dataSource, callId, el);
+  return callId;
 }

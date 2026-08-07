@@ -19,7 +19,9 @@ export type Cadence = {
   enabled: boolean;
   steps: CadenceStep[];
   pending_count: number;
+  waiting_count: number;
   completed_count: number;
+  failed_count: number;
 };
 
 export const TRIGGER_LABEL: Record<CadenceTriggerEvent, string> = {

@@ -7,6 +7,9 @@ const PROVIDERS = [
   'evolution',
   'zernio',
   'meta',
+  'n8n',
+  'custom-llm',
+  'agent-llm',
 ];
 
 export class SetSecretDto {

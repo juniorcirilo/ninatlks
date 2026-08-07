@@ -1,13 +1,6 @@
 import { apiClient } from "@/lib/api-client";
 
-export type StageColor =
-  | "slate"
-  | "sky"
-  | "violet"
-  | "amber"
-  | "cyan"
-  | "emerald"
-  | "rose";
+export type StageColor = "slate" | "sky" | "violet" | "amber" | "cyan" | "emerald" | "rose";
 
 export type Sentiment = "positive" | "neutral" | "negative";
 
@@ -29,6 +22,13 @@ export type LeadCard = {
   last_sentiment: Sentiment | null;
   last_sentiment_score: number | null;
   auto_moved_at: string | null;
+  stage_source: "classification" | "sentiment" | "agent_tool" | "manual" | null;
+  stage_change_reason: string | null;
+  last_call_id: string | null;
+  last_call_direction: "inbound" | "outbound" | null;
+  last_call_outcome_category: string | null;
+  last_call_outcome_summary: string | null;
+  last_call_started_at: string | null;
 };
 
 export type Stage = {
@@ -49,18 +49,60 @@ export type Pipeline = {
 /**
  * Tons semânticos por stage — usa tokens HSL do Viver de IA.
  * `dot` é a cor sólida (text-*); `bg` é o chip leve; `text` é o texto do chip.
+ *
+ * O app não tem alternância de tema (sem `.dark`/toggle — `:root` já é o
+ * tema escuro por padrão, ver styles.css), então variantes `dark:` aqui
+ * nunca ativavam: o texto ficava sempre na cor "clara" (ex.: `text-sky-700`),
+ * baixo contraste sobre o fundo escuro real. `slate`/`violet`/`emerald`/`rose`
+ * já usavam tokens semânticos (sempre corretos); `sky`/`amber`/`cyan` agora
+ * usam só o tom que de fato renderiza, sem a variante morta.
  */
 const COLOR_TONE: Record<
   StageColor,
   { dot: string; chipBg: string; chipText: string; ring: string }
 > = {
-  slate:   { dot: "bg-muted-foreground",       chipBg: "bg-muted",                     chipText: "text-foreground",          ring: "ring-border" },
-  sky:     { dot: "bg-sky-500",                chipBg: "bg-sky-500/10",                chipText: "text-sky-700 dark:text-sky-300",          ring: "ring-sky-500/30" },
-  violet:  { dot: "bg-accent",                 chipBg: "bg-accent/10",                 chipText: "text-accent",              ring: "ring-accent/30" },
-  amber:   { dot: "bg-amber-500",              chipBg: "bg-amber-500/10",              chipText: "text-amber-700 dark:text-amber-300",      ring: "ring-amber-500/30" },
-  cyan:    { dot: "bg-cyan-500",               chipBg: "bg-cyan-500/10",               chipText: "text-cyan-700 dark:text-cyan-300",        ring: "ring-cyan-500/30" },
-  emerald: { dot: "bg-success",                chipBg: "bg-success/10",                chipText: "text-success",             ring: "ring-success/30" },
-  rose:    { dot: "bg-destructive",            chipBg: "bg-destructive/10",            chipText: "text-destructive",         ring: "ring-destructive/30" },
+  slate: {
+    dot: "bg-muted-foreground",
+    chipBg: "bg-muted",
+    chipText: "text-foreground",
+    ring: "ring-border",
+  },
+  sky: {
+    dot: "bg-sky-500",
+    chipBg: "bg-sky-500/10",
+    chipText: "text-sky-300",
+    ring: "ring-sky-500/30",
+  },
+  violet: {
+    dot: "bg-accent",
+    chipBg: "bg-accent/10",
+    chipText: "text-accent",
+    ring: "ring-accent/30",
+  },
+  amber: {
+    dot: "bg-amber-500",
+    chipBg: "bg-amber-500/10",
+    chipText: "text-amber-300",
+    ring: "ring-amber-500/30",
+  },
+  cyan: {
+    dot: "bg-cyan-500",
+    chipBg: "bg-cyan-500/10",
+    chipText: "text-cyan-300",
+    ring: "ring-cyan-500/30",
+  },
+  emerald: {
+    dot: "bg-success",
+    chipBg: "bg-success/10",
+    chipText: "text-success",
+    ring: "ring-success/30",
+  },
+  rose: {
+    dot: "bg-destructive",
+    chipBg: "bg-destructive/10",
+    chipText: "text-destructive",
+    ring: "ring-destructive/30",
+  },
 };
 
 export function stageTone(color: string) {
@@ -81,15 +123,34 @@ export async function moveLeadToStage(
   accountId: string,
   contactId: string,
   stageId: string,
+  reason?: string,
 ): Promise<void> {
-  await apiClient.post(`/accounts/${accountId}/pipeline/leads/${contactId}/move`, { stageId });
+  await apiClient.post(`/accounts/${accountId}/pipeline/leads/${contactId}/move`, {
+    stageId,
+    reason,
+  });
+}
+
+/** Origem legível do último movimento de estágio, para tooltip do badge "IA". */
+export function stageSourceLabel(source: LeadCard["stage_source"]): string | null {
+  switch (source) {
+    case "classification":
+      return "Movido pela IA · classificação da ligação";
+    case "sentiment":
+      return "Movido pela IA · análise de sentimento";
+    case "agent_tool":
+      return "Movido pela IA · durante a ligação";
+    default:
+      return null;
+  }
 }
 
 export function scoreTone(score: number): { label: string; cls: string } {
   if (score >= 75) return { label: "Quente", cls: "bg-success/10 text-success ring-success/30" };
-  if (score >= 40) return { label: "Morno", cls: "bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/30" };
-  if (score > 0)   return { label: "Frio",  cls: "bg-sky-500/10 text-sky-700 dark:text-sky-300 ring-sky-500/30" };
-  return              { label: "—",      cls: "bg-muted text-muted-foreground ring-border" };
+  if (score >= 40)
+    return { label: "Morno", cls: "bg-amber-500/10 text-amber-300 ring-amber-500/30" };
+  if (score > 0) return { label: "Frio", cls: "bg-sky-500/10 text-sky-300 ring-sky-500/30" };
+  return { label: "—", cls: "bg-muted text-muted-foreground ring-border" };
 }
 
 export function sentimentTone(s: Sentiment | null): {
@@ -98,8 +159,14 @@ export function sentimentTone(s: Sentiment | null): {
   cls: string;
 } | null {
   if (!s) return null;
-  if (s === "positive") return { label: "Positivo", emoji: "😊", cls: "bg-success/10 text-success ring-success/30" };
-  if (s === "negative") return { label: "Negativo", emoji: "😞", cls: "bg-destructive/10 text-destructive ring-destructive/30" };
+  if (s === "positive")
+    return { label: "Positivo", emoji: "😊", cls: "bg-success/10 text-success ring-success/30" };
+  if (s === "negative")
+    return {
+      label: "Negativo",
+      emoji: "😞",
+      cls: "bg-destructive/10 text-destructive ring-destructive/30",
+    };
   return { label: "Neutro", emoji: "😐", cls: "bg-muted text-muted-foreground ring-border" };
 }
 
@@ -115,12 +182,6 @@ export function timeAgo(iso: string | null): string {
   if (d < 30) return `${d}d`;
   const mo = Math.floor(d / 30);
   return `${mo}mo`;
-}
-
-/** Cards auto-movidos pela IA nos últimos 5min ganham o badge "IA". */
-export function isRecentAutoMove(iso: string | null): boolean {
-  if (!iso) return false;
-  return Date.now() - new Date(iso).getTime() < 5 * 60_000;
 }
 
 export function leadInitials(name: string | null, phone: string | null): string {

@@ -133,6 +133,41 @@ export class RescheduleMeetingDto {
   reason?: string;
 }
 
+export class RegistrarDesfechoCobrancaDto {
+  @IsOptional()
+  @IsString()
+  conversation_id?: string;
+
+  @IsIn([
+    'quitou',
+    'prometeu_pagar',
+    'negociou_parcelas',
+    'pediu_boleto',
+    'contestou_divida',
+    'sem_condicoes',
+    'recusou_pagar',
+    'no_answer',
+    'wrong_number',
+  ])
+  desfecho!: string;
+
+  @IsOptional()
+  @IsString()
+  valor_prometido?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  data_prometida?: string;
+
+  @IsOptional()
+  @IsString()
+  forma_pagamento?: string;
+
+  @IsOptional()
+  @IsString()
+  observacao?: string;
+}
+
 export class ScheduleMeetingDto {
   @IsString()
   conversation_id!: string;

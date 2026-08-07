@@ -70,6 +70,8 @@ export type CentralContact = {
 
 export type QuickFilter =
   | "all"
+  | "new"
+  | "lead"
   | "sdr"
   | "qualifying"
   | "negotiating"
@@ -80,10 +82,14 @@ export type QuickFilter =
   | "no_response"
   | "inactive"
   | "delinquent"
+  | "closed_lost"
+  | "do_not_contact"
   | "customers";
 
 export const QUICK_FILTERS: { id: QuickFilter; label: string }[] = [
   { id: "all", label: "Todos" },
+  { id: "new", label: "Novos" },
+  { id: "lead", label: "Leads" },
   { id: "hot", label: "🔥 Leads quentes" },
   { id: "sdr", label: "SDR" },
   { id: "qualifying", label: "Qualificando" },
@@ -94,6 +100,8 @@ export const QUICK_FILTERS: { id: QuickFilter; label: string }[] = [
   { id: "collections", label: "Cobrança" },
   { id: "delinquent", label: "Inadimplentes" },
   { id: "no_response", label: "Sem retorno" },
+  { id: "closed_lost", label: "Perdidos" },
+  { id: "do_not_contact", label: "Não contatar" },
   { id: "inactive", label: "Inativos" },
 ];
 
@@ -107,6 +115,7 @@ export function applyQuickFilter(rows: CentralContact[], q: QuickFilter): Centra
       return rows;
     case "hot":
       return rows.filter((r) => (r.score ?? 0) >= 75);
+    case "new":
     case "sdr":
     case "qualifying":
     case "negotiating":
@@ -114,7 +123,11 @@ export function applyQuickFilter(rows: CentralContact[], q: QuickFilter): Centra
     case "post_sale":
     case "retention":
     case "no_response":
+    case "closed_lost":
+    case "do_not_contact":
       return rows.filter((r) => r.operational_status === q);
+    case "lead":
+      return rows.filter((r) => r.lifecycle_stage === "lead");
     case "customers":
       return rows.filter((r) => r.lifecycle_stage === "customer");
     case "inactive":
@@ -199,12 +212,9 @@ export function parseCsv(text: string): { headers: string[]; rows: string[][] } 
   return { headers, rows };
 }
 
-export async function importContactsCsv(
-  accountId: string,
-  text: string,
-): Promise<{ created: number; skipped: number }> {
-  const { headers, rows } = parseCsv(text);
-  if (!headers.length) return { created: 0, skipped: 0 };
+export type ContactColumnMap = { iName: number; iPhone: number; iEmail: number };
+
+export function detectContactColumns(headers: string[]): ContactColumnMap {
   const idx = (names: string[]) => {
     for (const n of names) {
       const i = headers.indexOf(n);
@@ -212,16 +222,27 @@ export async function importContactsCsv(
     }
     return -1;
   };
-  const iName = idx(["nome", "name", "contato"]);
-  const iPhone = idx(["telefone", "phone", "phone_number", "celular", "whatsapp"]);
-  const iEmail = idx(["email", "e-mail", "mail"]);
+  return {
+    iName: idx(["nome", "name", "contato"]),
+    iPhone: idx(["telefone", "phone", "phone_number", "celular", "whatsapp"]),
+    iEmail: idx(["email", "e-mail", "mail"]),
+  };
+}
+
+export async function importContactsCsv(
+  accountId: string,
+  text: string,
+): Promise<{ created: number; updated: number; skipped: number }> {
+  const { headers, rows } = parseCsv(text);
+  if (!headers.length) return { created: 0, updated: 0, skipped: 0 };
+  const { iName, iPhone, iEmail } = detectContactColumns(headers);
   const payload = rows.map((r) => ({
     name: iName >= 0 ? r[iName] || null : null,
     phoneNumber: iPhone >= 0 ? r[iPhone] || null : null,
     email: iEmail >= 0 ? r[iEmail] || null : null,
   }));
-  if (!payload.length) return { created: 0, skipped: 0 };
-  return apiClient.post<{ created: number; skipped: number }>(
+  if (!payload.length) return { created: 0, updated: 0, skipped: 0 };
+  return apiClient.post<{ created: number; updated: number; skipped: number }>(
     `/accounts/${accountId}/contacts/import`,
     { rows: payload },
   );

@@ -14,8 +14,10 @@ import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
 import { query, getOne, insert } from "@/lib/db";
 import { generateQuotePdfBuffer, uploadQuotePdf, validateNbr, type GlassUsage } from "./bruno-pdf.server";
+import { resolveLlmConfig } from "./llm-config";
+import { callChatCompletion } from "./providers";
+import type { ToolDef } from "./runner";
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash";
 const MAX_STEPS = 6;
 
@@ -204,7 +206,7 @@ async function execRequestHandoff(
 
 // ===================== TOOL SCHEMAS (OpenAI-compatible) =====================
 
-const TOOLS = [
+const TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
@@ -353,8 +355,7 @@ export const askBruno = createServerFn({ method: "POST" })
     // Acha persona "Bruno" (cria sob demanda na primeira chamada).
     const personaId = await ensureBrunoPersona(data.accountId, userId);
 
-    const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("LOVABLE_API_KEY não configurado");
+    const llm = await resolveLlmConfig(data.accountId, MODEL);
 
     const messages: AgentMessage[] = [
       { role: "system", content: BRUNO_SYSTEM },
@@ -366,31 +367,20 @@ export const askBruno = createServerFn({ method: "POST" })
     const trace: Array<{ tool: string; args: string; result: string }> = [];
 
     for (let step = 0; step < MAX_STEPS; step++) {
-      const res = await fetch(GATEWAY, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: MODEL,
-          temperature: 0.4,
-          messages,
-          tools: TOOLS,
-          tool_choice: "auto",
-        }),
+      const msg = await callChatCompletion({
+        provider: llm.provider,
+        baseUrl: llm.baseUrl,
+        apiKey: llm.apiKey,
+        model: llm.model,
+        temperature: 0.4,
+        messages,
+        tools: TOOLS,
       });
-
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        throw new Error(`Gateway ${res.status}: ${body.slice(0, 200)}`);
-      }
-      const json = await res.json();
-      const choice = json.choices?.[0];
-      const msg = choice?.message;
-      if (!msg) throw new Error("Resposta inválida do gateway");
 
       // Sem tool calls → resposta final.
       if (!msg.tool_calls || msg.tool_calls.length === 0) {
         return {
-          reply: (msg.content as string) ?? "",
+          reply: msg.content ?? "",
           trace,
           personaId,
           steps: step + 1,

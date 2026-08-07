@@ -8,8 +8,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
+import { resolveLlmConfig } from "./llm-config";
+import { callChatCompletion } from "./providers";
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-2.5-flash-lite";
 
 const ROUTE_VALUES = ["bruno", "ana", "carla", "clara", "diego", "elena", "felipe", "human"] as const;
@@ -43,37 +44,29 @@ export const routeMessage = createServerFn({ method: "POST" })
       }).optional(),
     }).parse(d),
   )
-  .handler(async ({ data }) => {
-    const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) throw new Error("LOVABLE_API_KEY não configurado");
+  .handler(async ({ data, context }) => {
+    if (!context.accountId) throw new Error("Sem conta ativa na sessão.");
+    const llm = await resolveLlmConfig(context.accountId, MODEL);
 
     const hints = data.contextHints
       ? `\n[contexto: ${JSON.stringify(data.contextHints)}]`
       : "";
 
-    const res = await fetch(GATEWAY, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL,
-        temperature: 0,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM },
-          { role: "user", content: data.userMessage + hints },
-        ],
-      }),
+    const msg = await callChatCompletion({
+      provider: llm.provider,
+      baseUrl: llm.baseUrl,
+      apiKey: llm.apiKey,
+      model: llm.model,
+      temperature: 0,
+      jsonMode: true,
+      tools: [],
+      messages: [
+        { role: "system", content: SYSTEM },
+        { role: "user", content: data.userMessage + hints },
+      ],
     });
 
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      if (res.status === 429) throw new Error("Limite de uso do gateway atingido.");
-      if (res.status === 402) throw new Error("Créditos do Lovable AI esgotados.");
-      throw new Error(`Gateway ${res.status}: ${body.slice(0, 200)}`);
-    }
-
-    const json = await res.json();
-    const raw = json.choices?.[0]?.message?.content ?? "{}";
+    const raw = msg.content || "{}";
     let parsed: { route?: string; confidence?: number; reason?: string } = {};
     try { parsed = JSON.parse(raw); } catch { /* fallback abaixo */ }
 

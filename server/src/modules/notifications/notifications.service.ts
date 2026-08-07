@@ -7,6 +7,32 @@ import { Notifications } from '../../database/entities/notifications/notificatio
 export class NotificationsService {
   constructor(private readonly tx: TenantTxHost) {}
 
+  async create(
+    accountId: string,
+    userId: string,
+    input: {
+      kind: string;
+      title: string;
+      body?: string | null;
+      linkTo?: string | null;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    await this.tx.manager.query(
+      `INSERT INTO public.notifications (account_id, user_id, kind, title, body, link_to, metadata, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, now())`,
+      [
+        accountId,
+        userId,
+        input.kind,
+        input.title,
+        input.body ?? null,
+        input.linkTo ?? null,
+        JSON.stringify(input.metadata ?? {}),
+      ],
+    );
+  }
+
   async list(accountId: string, userId: string, limit = 30) {
     return this.tx.manager.find(Notifications, {
       where: { accountId, userId },

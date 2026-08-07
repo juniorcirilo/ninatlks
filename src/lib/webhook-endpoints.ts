@@ -5,6 +5,8 @@ export interface WebhookEndpoint {
   id: string;
   name: string;
   url: string;
+  /** POST manda o JSON no corpo. GET manda o mesmo JSON em ?payload= (útil pra reaproveitar webhook do n8n criado em GET). */
+  method: "GET" | "POST";
   /** Vazio = todos os eventos. */
   events: string[];
   secret: string;
@@ -18,6 +20,7 @@ export interface WebhookEndpoint {
 export interface WebhookEndpointInput {
   name: string;
   url: string;
+  method?: "GET" | "POST";
   events?: string[];
   active?: boolean;
   agent_id?: string | null;

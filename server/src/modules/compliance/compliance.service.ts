@@ -32,9 +32,16 @@ export class ComplianceService {
     reason?: string,
     notes?: string,
   ): Promise<void> {
+    // (account_id, phone_number) is unique, so re-blocking a number already on
+    // the list raised a 23505 and surfaced as "Internal server error" — a
+    // trivially reachable path, since the UI offers no hint that a number is
+    // already blocked. Blocking twice is the same intent as blocking once:
+    // treat it as an update of the stated reason/notes.
     await this.tx.manager.query(
       `INSERT INTO public.dnc_list (account_id, phone_number, reason, notes)
-       VALUES ($1, $2, $3, $4)`,
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (account_id, phone_number)
+       DO UPDATE SET reason = excluded.reason, notes = excluded.notes`,
       [accountId, phoneNumber, reason ?? 'manual', notes ?? null],
     );
   }

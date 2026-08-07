@@ -7,6 +7,38 @@ import {
   callElevenLabsOutbound,
   buildFollowupSystemPrompt,
 } from './el-outbound-cron.util';
+import {
+  DEFAULT_ALLOWED_HOURS_LOCAL,
+  DEFAULT_MAX_ATTEMPTS_PER_DAY,
+  DEFAULT_MIN_MINUTES_BETWEEN_ATTEMPTS,
+} from '../../voice/voice-guard.service';
+import {
+  applyCampaignDisposition,
+  dispositionFromTwilioStatus,
+} from '../../voice/campaign-disposition.util';
+
+/**
+ * Motivo do adiamento em português, pra aparecer na tela da campanha. Sem
+ * isto o contato bloqueado é indistinguível de um que ainda não chegou a vez.
+ */
+function blockReasonMessage(reason?: string): string {
+  switch (reason) {
+    case 'max_attempts_today':
+      return 'Limite de tentativas por dia atingido para este número';
+    case 'too_soon':
+      return 'Aguardando o intervalo mínimo desde a última tentativa';
+    case 'outside_allowed_hours':
+      return 'Fora da janela de horário permitida para discagem';
+    case 'outside_allowed_day':
+      return 'Hoje não é um dia permitido para discagem';
+    case 'rpc_error':
+      return 'Falha ao checar as regras de compliance';
+    default:
+      return reason
+        ? `Bloqueado pelas regras de compliance (${reason})`
+        : 'Bloqueado pelas regras de compliance';
+  }
+}
 
 const DISPATCH_BATCH = 20;
 const DEFAULT_CONCURRENT_PER_CAMPAIGN = 5;
@@ -20,7 +52,9 @@ interface PendingRow {
   phone_number: string;
   variables: Record<string, unknown>;
   attempts: number;
+  contact_name: string | null;
   contact_timezone: string | null;
+  company_display_name: string | null;
   campaign_status: string;
   campaign_persona_id: string | null;
   campaign_voice_id: string | null;
@@ -67,10 +101,41 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
   ): Promise<{ dispatched: number; skipped: number; scanned: number }> {
     this.logger.log(`running voice-campaign-dispatch (job ${job.id})`);
 
+    // Promove campanhas agendadas cuja hora chegou. Sem isto, 'scheduled' era
+    // um status que existia no check constraint mas nada produzia nem
+    // consumia, e o filtro de status='running' logo abaixo ignorava a
+    // campanha pra sempre — agendar não disparava nunca.
+    // SELECT antes do UPDATE em vez de UPDATE ... RETURNING: o retorno de
+    // query() para UPDATE com RETURNING não é a lista de linhas (vinha
+    // `[linhas, afetadas]`), então `.length` dava 2 e `.id` undefined — o log
+    // anunciava "promoveu 2 campanhas: , " a cada minuto sem promover nada.
+    const due = await this.dataSource.query<{ id: string; name: string }[]>(
+      `SELECT id, name FROM voice_campaigns
+        WHERE status = 'scheduled' AND scheduled_at IS NOT NULL
+          AND scheduled_at <= now()`,
+    );
+    if (due.length > 0) {
+      await this.dataSource.query(
+        `UPDATE voice_campaigns
+            SET status = 'running', started_at = coalesce(started_at, now())
+          WHERE id = ANY($1)`,
+        [due.map((c) => c.id)],
+      );
+      this.logger.log(
+        `promoveu ${due.length} campanha(s) agendada(s) para running: ${due
+          .map((c) => `${c.name} (${c.id})`)
+          .join(', ')}`,
+      );
+    }
+
+    await this.reconcileStuckContacts();
+
     const pending = await this.dataSource.query<PendingRow[]>(
       `SELECT vcc.id, vcc.campaign_id, vcc.account_id, vcc.contact_id, vcc.phone_number,
               vcc.variables, vcc.attempts,
+              c.name AS contact_name,
               c.timezone AS contact_timezone,
+              cs.company_name AS company_display_name,
               vc.status AS campaign_status, vc.persona_id AS campaign_persona_id,
               vc.voice_id AS campaign_voice_id, vc.phone_number_id AS campaign_phone_number_id,
               vc.script_mode AS campaign_script_mode, vc.opening_script AS campaign_opening_script,
@@ -86,17 +151,25 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
          FROM voice_campaign_contacts vcc
          JOIN voice_campaigns vc ON vc.id = vcc.campaign_id
          LEFT JOIN contacts c ON c.id = vcc.contact_id
+         LEFT JOIN company_settings cs ON cs.account_id = vcc.account_id
         WHERE vcc.status = 'queued' AND vcc.dispatch_after <= now()
+          -- No WHERE, não em memória depois do LIMIT: criar campanha já insere
+          -- todo mundo 'queued' com dispatch_after = now() antes de alguém
+          -- apertar "iniciar" (campaigns.service.ts), e a ordem é
+          -- dispatch_after ASC. Filtrando só em JS, um rascunho antigo com 20+
+          -- contatos ocupava a janela inteira pra sempre — e nada reescreve o
+          -- dispatch_after deles, porque são descartados antes de qualquer
+          -- update. Efeito: nenhuma campanha em execução voltava a discar.
+          AND vc.status = 'running'
         ORDER BY vcc.dispatch_after ASC
         LIMIT $1`,
       [DISPATCH_BATCH],
     );
 
-    const ready = pending.filter((r) => r.campaign_status === 'running');
-    if (ready.length === 0) return { dispatched: 0, skipped: 0, scanned: 0 };
+    if (pending.length === 0) return { dispatched: 0, skipped: 0, scanned: 0 };
 
     const byCampaign = new Map<string, PendingRow[]>();
-    for (const r of ready) {
+    for (const r of pending) {
       const list = byCampaign.get(r.campaign_id) ?? [];
       list.push(r);
       byCampaign.set(r.campaign_id, list);
@@ -131,8 +204,10 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
         for (const row of take) {
           await this.logAttempt(row, `blocked_${quota.reason}`);
           await this.dataSource.query(
-            `UPDATE voice_campaign_contacts SET dispatch_after = $2 WHERE id = $1`,
-            [row.id, nextTry],
+            `UPDATE voice_campaign_contacts
+                SET dispatch_after = $2, last_error = $3
+              WHERE id = $1`,
+            [row.id, nextTry, `Cota da campanha atingida (${quota.reason})`],
           );
         }
         skipped += take.length;
@@ -159,9 +234,20 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
 
           const delayMs =
             compliance.reason === 'too_soon' ? 15 * 60 * 1000 : 30 * 60 * 1000;
+          // Grava também o motivo. O original (e este port até aqui) só
+          // reescrevia dispatch_after, então o contato voltava pra fila em
+          // silêncio: na tela ele aparecia "Na fila" indefinidamente, sem
+          // nada que explicasse por que não discava. O motivo do bloqueio só
+          // existia em call_attempts_log, que a UI não lê.
           await this.dataSource.query(
-            `UPDATE voice_campaign_contacts SET dispatch_after = $2 WHERE id = $1`,
-            [row.id, new Date(Date.now() + delayMs)],
+            `UPDATE voice_campaign_contacts
+                SET dispatch_after = $2, last_error = $3
+              WHERE id = $1`,
+            [
+              row.id,
+              new Date(Date.now() + delayMs),
+              blockReasonMessage(compliance.reason),
+            ],
           );
           skipped++;
           continue;
@@ -205,9 +291,9 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
     }
 
     this.logger.log(
-      `voice-campaign-dispatch complete: scanned=${ready.length} dispatched=${dispatched} skipped=${skipped}`,
+      `voice-campaign-dispatch complete: scanned=${pending.length} dispatched=${dispatched} skipped=${skipped}`,
     );
-    return { dispatched, skipped, scanned: ready.length };
+    return { dispatched, skipped, scanned: pending.length };
   }
 
   private async checkCompliance(
@@ -222,18 +308,23 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
     const accCompliance = (accRows[0]?.internal_attributes?.compliance ??
       {}) as Record<string, unknown>;
 
+    // Sem janela na campanha nem na conta, herda o mesmo padrão do caminho de
+    // ligação avulsa (seg-sex 8-21, sáb 9-18, dom não disca). Antes caía em
+    // `null`, que virava jsonb 'null' e bloqueava tudo — ver
+    // DEFAULT_ALLOWED_HOURS_LOCAL. "Sem restrição" seria pior que o bug:
+    // campanha discando de madrugada.
     const allowedHoursLocal =
       row.campaign_allowed_hours_local ??
       accCompliance.allowed_hours_local ??
-      null;
+      DEFAULT_ALLOWED_HOURS_LOCAL;
     const maxAttempts =
       row.campaign_max_attempts_per_day ??
       accCompliance.max_attempts_per_day_per_contact ??
-      2;
+      DEFAULT_MAX_ATTEMPTS_PER_DAY;
     const minMinutes =
       row.campaign_min_minutes_between_attempts ??
       accCompliance.min_minutes_between_attempts ??
-      120;
+      DEFAULT_MIN_MINUTES_BETWEEN_ATTEMPTS;
 
     try {
       const rows = await this.dataSource.query<
@@ -249,12 +340,21 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
           minMinutes,
         ],
       );
-      return (
-        rows[0]?.is_phone_allowed_to_call ?? {
-          allowed: false,
-          reason: 'rpc_error',
-        }
-      );
+      const result = rows[0]?.is_phone_allowed_to_call ?? {
+        allowed: false,
+        reason: 'rpc_error',
+      };
+      // Números de teste pulam janela/limite/intervalo — nunca DNC. Sem isso,
+      // validar uma campanha exige esperar o próprio teto diário do número de
+      // quem está testando; os contatos reais da campanha continuam sob a
+      // política normal da conta.
+      const testNumbers = Array.isArray(accCompliance.test_numbers)
+        ? (accCompliance.test_numbers as string[])
+        : [];
+      if (!result.allowed && result.reason !== 'dnc' && testNumbers.includes(row.phone_number)) {
+        return { allowed: true };
+      }
+      return result;
     } catch {
       return { allowed: false, reason: 'rpc_error' };
     }
@@ -288,6 +388,66 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
         row.campaign_id,
         outcome,
       ],
+    );
+  }
+
+  /**
+   * Fecha contatos que ficaram em voo sem nunca receber desfecho.
+   *
+   * O desfecho normal chega por evento — webhook de status da Twilio ou
+   * finalização da conversa na ElevenLabs. Evento se perde: provedor não
+   * chama, o processo reinicia no meio, ou (como aconteceu aqui) a ligação foi
+   * finalizada por uma versão do código que ainda não sabia propagar para a
+   * campanha. Sem esta varredura o contato fica 'placed' pra sempre: o
+   * dispatcher só olha 'queued', então ele nunca mais é tocado nem redisca.
+   *
+   * Duas fontes de verdade, nesta ordem:
+   *  1. a voice_call ligada já está em estado terminal → deriva dela;
+   *  2. não há ligação terminal mas o disparo foi há muito tempo → considera
+   *     que não completou. STUCK_TIMEOUT_MIN é folgado de propósito, bem acima
+   *     de max_call_duration_sec, pra nunca cortar ligação em andamento.
+   */
+  private async reconcileStuckContacts(): Promise<void> {
+    const STUCK_TIMEOUT_MIN = 30;
+    const stuck = await this.dataSource.query<
+      {
+        id: string;
+        call_status: string | null;
+        duration_seconds: number | null;
+        minutes_in_flight: number;
+      }[]
+    >(
+      `SELECT vcc.id,
+              vc.status AS call_status,
+              vc.duration_seconds,
+              extract(epoch from (now() - coalesce(vcc.dispatched_at, vcc.updated_at))) / 60
+                AS minutes_in_flight
+         FROM voice_campaign_contacts vcc
+         LEFT JOIN voice_calls vc ON vc.id = vcc.voice_call_id
+        WHERE vcc.status IN ('placed','ringing','connected')
+          AND (
+            vc.status IN ('completed','failed','busy','no_answer','canceled')
+            OR coalesce(vcc.dispatched_at, vcc.updated_at) < now() - ($1 || ' minutes')::interval
+          )
+        LIMIT 200`,
+      [STUCK_TIMEOUT_MIN],
+    );
+    if (stuck.length === 0) return;
+
+    for (const row of stuck) {
+      const duration = row.duration_seconds ?? 0;
+      const disposition = row.call_status
+        ? dispositionFromTwilioStatus(row.call_status, duration)
+        : 'nao_completou';
+      await applyCampaignDisposition(
+        this.dataSource,
+        row.id,
+        disposition ?? 'nao_completou',
+        duration,
+      );
+    }
+    this.logger.log(
+      `reconciliou ${stuck.length} contato(s) parado(s) em voo sem desfecho`,
     );
   }
 
@@ -385,8 +545,15 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       ),
       campaign_id: row.campaign_id,
       campaign_contact_id: row.id,
-      call_purpose: 'followup',
+      call_purpose:
+        row.campaign_campaign_kind === 'cobranca' ? 'cobranca' : 'followup',
       agent_name: persona.name ?? 'Nina',
+      // Sem isso, {{lead_name}}/{{company_name}} nunca resolviam em ligação de
+      // campanha (só no caminho de ligação avulsa, voice-el-outbound.service.ts)
+      // — o agente falava o texto cru do prompt ("Posso falar com o(a) Lead?")
+      // em vez do nome do contato.
+      lead_name: (row.contact_name ?? '').split(' ')[0] || '',
+      company_name: row.company_display_name ?? 'nossa empresa',
       voice_call_id: voiceCallId,
     };
     const outcomesBlock = await this.buildOutcomesPromptBlock(
@@ -408,8 +575,11 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
     await finalizeOutboundVoiceCall(this.dataSource, voiceCallId, el);
 
     await this.dataSource.query(
+      // last_error = null: se o contato estava adiado por compliance, o motivo
+      // gravado lá vira mentira no instante em que ele finalmente disca.
       `UPDATE voice_campaign_contacts
-         SET status = 'placed', attempts = $2, last_attempt_at = now(), voice_call_id = $3, dispatched_at = now()
+         SET status = 'placed', attempts = $2, last_attempt_at = now(), voice_call_id = $3,
+             dispatched_at = now(), last_error = null
        WHERE id = $1`,
       [row.id, row.attempts + 1, voiceCallId],
     );

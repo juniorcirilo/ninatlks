@@ -19,10 +19,12 @@ export class CallsController {
     @Param('accountId') accountId: string,
     @Query('direction') direction?: 'inbound' | 'outbound' | 'all',
     @Query('limit') limit?: string,
+    @Query('contactId') contactId?: string,
   ) {
     return this.service.list(accountId, {
       direction,
       limit: limit ? parseInt(limit, 10) : undefined,
+      contactId,
     });
   }
 

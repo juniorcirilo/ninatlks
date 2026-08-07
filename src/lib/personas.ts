@@ -2,8 +2,11 @@
  * Agent Personas — style cloning, deployment, compose reply
  */
 import { apiClient } from "@/lib/api-client";
+import type { TemplateField } from "@/lib/webhook-inbound-templates";
 
 export type PersonaStatus = "draft" | "training" | "active" | "retired" | "archived";
+/** Um campo de dado esperado deste agente (ex.: dias_em_atraso, numero_orcamento). */
+export type PersonaVariableField = TemplateField;
 export type DeploymentMode = "always" | "after_hours" | "overflow" | "shadow" | "cron";
 export type DeploymentAutonomy = "auto" | "suggest" | "shadow";
 
@@ -39,6 +42,11 @@ export interface Persona {
   llm_temperature: number;
   llm_max_tokens: number;
   llm_model: string;
+  /** URL/model_id do LLM próprio deste agente. null = usa o padrão da conta. */
+  llm_custom_url: string | null;
+  llm_custom_model_id: string | null;
+  /** Campos de dados esperados deste agente — formulário manual e template de webhook usam este conjunto. */
+  variable_schema: PersonaVariableField[];
   created_at: string;
   updated_at: string;
 }
@@ -112,6 +120,9 @@ type ApiPersona = {
   llmTemperature: number;
   llmMaxTokens: number;
   llmModel: string;
+  llmCustomUrl: string | null;
+  llmCustomModelId: string | null;
+  variableSchema: PersonaVariableField[];
   createdAt: string;
   updatedAt: string;
 };
@@ -141,6 +152,9 @@ function toPersona(p: ApiPersona): Persona {
     llm_temperature: p.llmTemperature,
     llm_max_tokens: p.llmMaxTokens,
     llm_model: p.llmModel,
+    llm_custom_url: p.llmCustomUrl ?? null,
+    llm_custom_model_id: p.llmCustomModelId ?? null,
+    variable_schema: p.variableSchema ?? [],
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
@@ -211,6 +225,9 @@ export async function updatePersona(accountId: string, id: string, updates: Part
   if (updates.llm_temperature !== undefined) body.llmTemperature = updates.llm_temperature;
   if (updates.llm_max_tokens !== undefined) body.llmMaxTokens = updates.llm_max_tokens;
   if (updates.llm_model !== undefined) body.llmModel = updates.llm_model;
+  if (updates.llm_custom_url !== undefined) body.llmCustomUrl = updates.llm_custom_url;
+  if (updates.llm_custom_model_id !== undefined) body.llmCustomModelId = updates.llm_custom_model_id;
+  if (updates.variable_schema !== undefined) body.variableSchema = updates.variable_schema;
 
   const row = await apiClient.patch<ApiPersona>(`/accounts/${accountId}/personas/${id}`, body);
   return toPersona(row);

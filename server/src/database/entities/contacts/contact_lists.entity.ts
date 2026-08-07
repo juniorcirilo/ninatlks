@@ -17,8 +17,19 @@ export class ContactLists {
   @Column('text', { name: 'campaign_kind', nullable: true })
   campaignKind?: string | null;
 
+  /** Agente escolhido ao criar a lista — decide os campos do formulário manual. */
+  @Column('uuid', { name: 'persona_id', nullable: true })
+  personaId?: string | null;
+
   @Column('jsonb', { name: 'filters', default: '{}' })
   filters!: Record<string, unknown>;
+
+  /**
+   * Chave da lista no sistema de origem. É o `listKey` que o recebimento por
+   * webhook usa para achar esta lista em vez de criar outra — única por conta.
+   */
+  @Column('text', { name: 'external_key', nullable: true })
+  externalKey?: string | null;
 
   @Column('boolean', { name: 'is_dynamic', default: false })
   isDynamic!: boolean;

@@ -15,6 +15,8 @@ export interface CompliancePolicy {
   max_attempts_per_day_per_contact?: number;
   min_minutes_between_attempts?: number;
   recording_disclaimer?: string;
+  /** Números (E.164) isentos de janela/limite/intervalo nas campanhas — só pra teste, nunca pula DNC. */
+  test_numbers?: string[];
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -68,4 +70,5 @@ export const DEFAULT_COMPLIANCE_POLICY: CompliancePolicy = {
   min_minutes_between_attempts: 120,
   recording_disclaimer:
     "Esta ligação está sendo gravada para fins de qualidade e auditoria. Ao permanecer na chamada, você concorda com a gravação.",
+  test_numbers: [],
 };

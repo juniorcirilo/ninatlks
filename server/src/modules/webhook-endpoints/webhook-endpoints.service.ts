@@ -23,6 +23,9 @@ export const WEBHOOK_EVENTS = [
 
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
+export const WEBHOOK_METHODS = ['POST', 'GET'] as const;
+export type WebhookMethod = (typeof WEBHOOK_METHODS)[number];
+
 /** Quantos destinos uma conta pode manter. Teto de sanidade, não de plano. */
 const MAX_ENDPOINTS_PER_ACCOUNT = 20;
 
@@ -30,6 +33,7 @@ export interface WebhookEndpointRow {
   id: string;
   name: string;
   url: string;
+  method: WebhookMethod;
   events: string[];
   secret: string;
   active: boolean;
@@ -46,7 +50,7 @@ export class WebhookEndpointsService {
   async list(accountId: string, agentId?: string): Promise<WebhookEndpointRow[]> {
     if (agentId) {
       return this.tx.manager.query<WebhookEndpointRow[]>(
-        `SELECT id, name, url, events, secret, active, agent_id, created_at, updated_at
+        `SELECT id, name, url, method, events, secret, active, agent_id, created_at, updated_at
            FROM public.account_webhook_endpoints
           WHERE account_id = $1 AND (agent_id = $2 OR agent_id IS NULL)
           ORDER BY created_at ASC`,
@@ -54,7 +58,7 @@ export class WebhookEndpointsService {
       );
     }
     return this.tx.manager.query<WebhookEndpointRow[]>(
-      `SELECT id, name, url, events, secret, active, agent_id, created_at, updated_at
+      `SELECT id, name, url, method, events, secret, active, agent_id, created_at, updated_at
          FROM public.account_webhook_endpoints
         WHERE account_id = $1
         ORDER BY created_at ASC`,
@@ -68,6 +72,7 @@ export class WebhookEndpointsService {
     input: {
       name: string;
       url: string;
+      method?: string;
       events?: string[];
       active?: boolean;
       agent_id?: string | null;
@@ -84,6 +89,7 @@ export class WebhookEndpointsService {
     }
 
     const url = normalizeUrl(input.url);
+    const method = normalizeMethod(input.method);
     const events = normalizeEvents(input.events);
     const agentId = await this.normalizeAgentId(accountId, input.agent_id);
     const secret = randomBytes(32).toString('hex');
@@ -91,13 +97,14 @@ export class WebhookEndpointsService {
     try {
       const rows = await this.tx.manager.query<WebhookEndpointRow[]>(
         `INSERT INTO public.account_webhook_endpoints
-           (account_id, name, url, events, secret, active, created_by_id, agent_id)
-         VALUES ($1, $2, $3, $4::text[], $5, $6, $7, $8)
-         RETURNING id, name, url, events, secret, active, agent_id, created_at, updated_at`,
+           (account_id, name, url, method, events, secret, active, created_by_id, agent_id)
+         VALUES ($1, $2, $3, $4, $5::text[], $6, $7, $8, $9)
+         RETURNING id, name, url, method, events, secret, active, agent_id, created_at, updated_at`,
         [
           accountId,
           input.name.trim(),
           url,
+          method,
           events,
           secret,
           input.active ?? true,
@@ -133,6 +140,7 @@ export class WebhookEndpointsService {
     patch: {
       name?: string;
       url?: string;
+      method?: string;
       events?: string[];
       active?: boolean;
       agent_id?: string | null;
@@ -149,6 +157,7 @@ export class WebhookEndpointsService {
 
     if (patch.name !== undefined) push('name', patch.name.trim());
     if (patch.url !== undefined) push('url', normalizeUrl(patch.url));
+    if (patch.method !== undefined) push('method', normalizeMethod(patch.method));
     if (patch.events !== undefined) {
       params.push(normalizeEvents(patch.events));
       sets.push(`events = $${params.length}::text[]`);
@@ -177,7 +186,7 @@ export class WebhookEndpointsService {
     }
 
     const [row] = await this.tx.manager.query<WebhookEndpointRow[]>(
-      `SELECT id, name, url, events, secret, active, agent_id, created_at, updated_at
+      `SELECT id, name, url, method, events, secret, active, agent_id, created_at, updated_at
          FROM public.account_webhook_endpoints WHERE id = $1`,
       [id],
     );
@@ -210,7 +219,7 @@ export class WebhookEndpointsService {
       [secret, id],
     );
     const [row] = await this.tx.manager.query<WebhookEndpointRow[]>(
-      `SELECT id, name, url, events, secret, active, agent_id, created_at, updated_at
+      `SELECT id, name, url, method, events, secret, active, agent_id, created_at, updated_at
          FROM public.account_webhook_endpoints WHERE id = $1`,
       [id],
     );
@@ -249,6 +258,15 @@ function normalizeUrl(raw: string): string {
     parsed.pathname = parsed.pathname.replace(/\/+$/, '');
   }
   return parsed.toString();
+}
+
+function normalizeMethod(method?: string): WebhookMethod {
+  if (!method) return 'POST';
+  const upper = method.trim().toUpperCase();
+  if (!WEBHOOK_METHODS.includes(upper as WebhookMethod)) {
+    throw new BadRequestException(`Método inválido: ${method}. Use GET ou POST.`);
+  }
+  return upper as WebhookMethod;
 }
 
 function normalizeEvents(events?: string[]): string[] {

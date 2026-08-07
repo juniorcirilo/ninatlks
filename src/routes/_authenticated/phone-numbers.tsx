@@ -1130,15 +1130,16 @@ function NumberBuyWizard({
             </div>
             <div>
               <Label className="text-xs">Tipo</Label>
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as any)}
-                className="w-full rounded-md border border-white/[0.08] bg-transparent px-2 py-1.5 text-xs"
-              >
-                <option value="Local">Local</option>
-                <option value="TollFree">Toll-Free</option>
-                <option value="Mobile">Mobile</option>
-              </select>
+              <Select value={type} onValueChange={(v) => setType(v as any)}>
+                <SelectTrigger className="h-8 w-full bg-transparent text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Local">Local</SelectItem>
+                  <SelectItem value="TollFree">Toll-Free</SelectItem>
+                  <SelectItem value="Mobile">Mobile</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-xs">Area code</Label>
@@ -1167,33 +1168,41 @@ function NumberBuyWizard({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs">Inbox para receber</Label>
-                  <select
-                    value={pickedInboxId}
-                    onChange={(e) => setPickedInboxId(e.target.value)}
-                    className="w-full rounded-md border border-white/[0.08] bg-transparent px-2 py-1.5 text-xs"
+                  <Select
+                    value={pickedInboxId || "__none__"}
+                    onValueChange={(v) => setPickedInboxId(v === "__none__" ? "" : v)}
                   >
-                    <option value="">— nenhuma —</option>
-                    {inboxes.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-8 w-full bg-transparent text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— nenhuma —</SelectItem>
+                      {inboxes.map((i) => (
+                        <SelectItem key={i.id} value={i.id}>
+                          {i.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-xs">Persona pinada</Label>
-                  <select
-                    value={pickedPersonaId}
-                    onChange={(e) => setPickedPersonaId(e.target.value)}
-                    className="w-full rounded-md border border-white/[0.08] bg-transparent px-2 py-1.5 text-xs"
+                  <Select
+                    value={pickedPersonaId || "__none__"}
+                    onValueChange={(v) => setPickedPersonaId(v === "__none__" ? "" : v)}
                   >
-                    <option value="">— nenhuma —</option>
-                    {personas.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-8 w-full bg-transparent text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— nenhuma —</SelectItem>
+                      {personas.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -1483,20 +1492,23 @@ function ImportNumberDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="imp-persona">Agente que atende</Label>
-            <select
-              id="imp-persona"
-              value={personaId}
-              onChange={(e) => setPersonaId(e.target.value)}
-              className="h-9 w-full rounded-md border border-white/[0.08] bg-background px-2 text-sm"
+            <Select
+              value={personaId || "__none__"}
+              onValueChange={(v) => setPersonaId(v === "__none__" ? "" : v)}
             >
-              <option value="">— Nenhum (voicemail) —</option>
-              {personas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.voice_clone_id ? " (voz configurada)" : " (voz padrão)"}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="imp-persona" className="h-9 w-full bg-background text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Nenhum (voicemail) —</SelectItem>
+                {personas.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                    {p.voice_clone_id ? " (voz configurada)" : " (voz padrão)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-1.5">
             <Label>Comportamento de entrada</Label>

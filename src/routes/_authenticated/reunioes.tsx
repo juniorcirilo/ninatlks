@@ -14,8 +14,14 @@ import {
   List,
   CalendarDays,
   Stethoscope,
+  Plus,
+  Video,
+  Copy,
+  Search,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
+import { useAuth } from "@/lib/auth-context";
+import { useRealtimeRefresh } from "@/lib/realtime-client";
 import {
   fetchMeetings,
   formatMeetingTime,
@@ -25,6 +31,7 @@ import {
   type MeetingStatus,
 } from "@/lib/meetings";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -34,6 +41,8 @@ import { MeetingsKanban } from "@/components/meetings/MeetingsKanban";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DoctorsManager } from "@/components/meetings/DoctorsManager";
 import { StatCard } from "@/components/layout/StatCard";
+import { GoogleCalendarBanner } from "@/components/meetings/GoogleCalendarBanner";
+import { NewMeetingDialog } from "@/components/meetings/NewMeetingDialog";
 
 export const Route = createFileRoute("/_authenticated/reunioes")({
   head: () => ({
@@ -50,13 +59,28 @@ export const Route = createFileRoute("/_authenticated/reunioes")({
 
 type ViewMode = "calendar" | "kanban" | "list" | "doctors";
 
+const STATUS_FILTERS: MeetingStatus[] = [
+  "scheduled",
+  "attended",
+  "no_show",
+  "rescheduled",
+  "canceled",
+];
+
 function MeetingsPage() {
-  const { accountId } = useAccount();
+  const { accountId, role } = useAccount();
+  const { user } = useAuth();
+  const isAdmin = role === "admin";
+
   const [data, setData] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>("calendar");
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()));
   const [selected, setSelected] = useState<Meeting | null>(null);
+  const [newMeetingOpen, setNewMeetingOpen] = useState(false);
+  const [googleRefreshKey, setGoogleRefreshKey] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<Set<MeetingStatus>>(new Set());
+  const [query, setQuery] = useState("");
 
   const refresh = useCallback(async () => {
     if (!accountId) {
@@ -83,6 +107,37 @@ function MeetingsPage() {
     refresh();
   }, [refresh]);
 
+  useRealtimeRefresh(["scheduled_meetings"], accountId, refresh);
+
+  // Toast de retorno do fluxo OAuth do Google (?google_calendar=connected|error).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("google_calendar");
+    if (!result) return;
+    if (result === "connected") {
+      toast.success("Google Meet conectado");
+      setGoogleRefreshKey((k) => k + 1);
+    } else if (result === "error") {
+      toast.error("Não foi possível conectar o Google Meet — tente novamente.");
+    }
+    params.delete("google_calendar");
+    const qs = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, []);
+
+  // Abre direto a reunião linkada por uma notificação (?meeting=<id>).
+  useEffect(() => {
+    if (data.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const meetingId = params.get("meeting");
+    if (!meetingId) return;
+    const found = data.find((m) => m.id === meetingId);
+    if (found) setSelected(found);
+    params.delete("meeting");
+    const qs = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+  }, [data]);
+
   const stats = useMemo(() => {
     const now = Date.now();
     let upcoming = 0,
@@ -103,19 +158,48 @@ function MeetingsPage() {
     return { upcoming, attended, no_show, thisWeek, showRate };
   }, [data]);
 
+  const filteredData = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return data.filter((m) => {
+      if (statusFilter.size > 0 && !statusFilter.has(m.status)) return false;
+      if (!q) return true;
+      return (
+        (m.invitee_name ?? "").toLowerCase().includes(q) ||
+        (m.invitee_email ?? "").toLowerCase().includes(q) ||
+        (m.invitee_phone ?? "").toLowerCase().includes(q) ||
+        (m.attendee_name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [data, statusFilter, query]);
+
   const weekMeetings = useMemo(() => {
     const wkEnd = new Date(weekStart);
     wkEnd.setDate(wkEnd.getDate() + 7);
-    return data.filter((m) => {
+    return filteredData.filter((m) => {
       const ts = new Date(m.starts_at).getTime();
       return ts >= weekStart.getTime() && ts < wkEnd.getTime();
     });
-  }, [data, weekStart]);
+  }, [filteredData, weekStart]);
+
+  function toggleStatus(s: MeetingStatus) {
+    setStatusFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  }
 
   if (loading) {
     return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="mx-auto w-full max-w-7xl px-6 py-6">
+        <div className="mb-4 h-16 animate-pulse rounded-xl bg-muted/40" />
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-20 animate-pulse rounded-xl bg-muted/40" />
+          ))}
+        </div>
+        <div className="h-96 animate-pulse rounded-xl bg-muted/40" />
       </div>
     );
   }
@@ -127,7 +211,21 @@ function MeetingsPage() {
         title="Reuniões"
         description="Calendário das reuniões agendadas pela Nina via round-robin com a equipe."
         className="mb-4 border-0 px-0 py-0"
+        actions={
+          isAdmin ? (
+            <Button size="sm" onClick={() => setNewMeetingOpen(true)} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Nova reunião
+            </Button>
+          ) : undefined
+        }
       />
+
+      {accountId && (
+        <div className="mb-4">
+          <GoogleCalendarBanner accountId={accountId} isAdmin={isAdmin} refreshKey={googleRefreshKey} />
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -140,6 +238,47 @@ function MeetingsPage() {
           delta={`${stats.no_show} no-show${stats.no_show === 1 ? "" : "s"}`}
         />
       </div>
+
+      {/* Filtros */}
+      {view !== "doctors" && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar convidado ou host…"
+              className="h-8 w-56 pl-8 text-xs"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_FILTERS.map((s) => {
+              const tone = MEETING_STATUS_LABEL[s];
+              const active = statusFilter.has(s);
+              return (
+                <button
+                  key={s}
+                  onClick={() => toggleStatus(s)}
+                  className={cn(
+                    "rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition",
+                    active ? tone.cls : "text-muted-foreground ring-border hover:bg-muted/50",
+                  )}
+                >
+                  {tone.label}
+                </button>
+              );
+            })}
+            {statusFilter.size > 0 && (
+              <button
+                onClick={() => setStatusFilter(new Set())}
+                className="rounded-md px-2 py-1 text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+              >
+                limpar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* View switcher */}
       <div className="mb-4 flex items-center justify-between gap-2">
@@ -172,7 +311,7 @@ function MeetingsPage() {
         <div className="text-[11px] text-muted-foreground">
           {view === "doctors"
             ? "Configure quem a Nina pode marcar"
-            : `${data.length} ${data.length === 1 ? "reunião" : "reuniões"} no período`}
+            : `${filteredData.length} ${filteredData.length === 1 ? "reunião" : "reuniões"} no período`}
         </div>
       </div>
 
@@ -187,9 +326,9 @@ function MeetingsPage() {
         />
       )}
 
-      {view === "kanban" && <MeetingsKanban meetings={data} onCardClick={setSelected} />}
+      {view === "kanban" && <MeetingsKanban meetings={filteredData} onCardClick={setSelected} />}
 
-      {view === "list" && <ListView meetings={data} onSelect={setSelected} />}
+      {view === "list" && <ListView meetings={filteredData} onSelect={setSelected} />}
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <SheetContent className="w-[480px] sm:max-w-[480px]">
@@ -204,6 +343,19 @@ function MeetingsPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {accountId && (
+        <NewMeetingDialog
+          open={newMeetingOpen}
+          accountId={accountId}
+          currentUserId={user?.id ?? null}
+          onClose={() => setNewMeetingOpen(false)}
+          onCreated={() => {
+            setNewMeetingOpen(false);
+            refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -247,7 +399,7 @@ function ListView({ meetings, onSelect }: { meetings: Meeting[]; onSelect: (m: M
         <CalendarIcon className="mb-2 h-5 w-5 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Nenhuma reunião no período.</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Reuniões aparecem aqui após a Nina agendar com um lead.
+          Crie uma reunião ou aguarde a Nina agendar com um lead.
         </p>
       </div>
     );
@@ -319,6 +471,9 @@ function MeetingRow({ meeting, onClick }: { meeting: Meeting; onClick: () => voi
           <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-medium ring-1", tone.cls)}>
             {tone.label}
           </span>
+          {meeting.meeting_url && (
+            <Video className="h-3 w-3 shrink-0 text-primary" aria-label="Tem link de vídeo" />
+          )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
           <span>
@@ -369,6 +524,12 @@ function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: ()
     }
   }
 
+  function copyLink() {
+    if (!meeting.meeting_url) return;
+    navigator.clipboard.writeText(meeting.meeting_url);
+    toast.success("Link copiado");
+  }
+
   return (
     <>
       <SheetHeader>
@@ -387,6 +548,23 @@ function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: ()
             </span>
           )}
         </div>
+
+        {meeting.meeting_url && (
+          <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
+            <Video className="h-4 w-4 shrink-0 text-primary" />
+            <a
+              href={meeting.meeting_url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 truncate text-xs font-medium text-primary hover:underline"
+            >
+              Entrar na reunião (Google Meet)
+            </a>
+            <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={copyLink}>
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
 
         <div className="space-y-2 rounded-xl border border-border bg-card p-3 text-xs">
           {meeting.invitee_phone && (

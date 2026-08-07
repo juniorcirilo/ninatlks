@@ -1,3 +1,4 @@
+import { createFileRoute } from '@tanstack/react-router'
 // Webhook público para emails inbound (Resend → Nexus, Fase 2C).
 //
 // O Resend pode encaminhar emails recebidos no domínio configurado via webhook.

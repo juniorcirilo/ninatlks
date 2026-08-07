@@ -12,13 +12,18 @@ import {
   CircleDashed,
   KeyRound,
   Loader2,
+  Lock,
+  Mail,
   MessageCircle,
   Phone,
   RefreshCw,
   Sparkles,
+  Video,
   Volume2,
+  Workflow,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAccount } from "@/lib/account-context";
 import { cn } from "@/lib/utils";
@@ -28,6 +33,8 @@ import {
   type CredentialProviderKey,
 } from "@/components/settings/ProviderCredentialsDialog";
 import { EvolutionQuickConnect } from "@/components/onboarding/EvolutionQuickConnect";
+import { syncAgentSourcesToN8n, describeN8nSync } from "@/lib/n8n";
+import { AgentLlmProviderCard } from "@/components/settings/AgentLlmProviderCard";
 
 type Status = "ok" | "fail" | "missing" | "unknown";
 
@@ -59,11 +66,30 @@ const PROVIDER_META: Record<
     setupHref: "/phone-numbers",
     credentialKey: "twilio",
   },
+  n8n: {
+    icon: Workflow,
+    setupHint:
+      "URL da instância + API Key (gerada em Settings → n8n API). Ao conectar, criamos o workflow \"Utalks\" e um nó por agente com fonte de dados — ver Webhooks → Recebimento.",
+    setupHref: "/settings",
+    credentialKey: "n8n",
+  },
   evolution: {
     icon: MessageCircle,
     setupHint: "URL + API key do seu servidor Evolution self-hosted. Conecte WhatsApp pelo assistente de onboarding ou aqui em Integrações.",
     setupHref: "/settings",
     credentialKey: null,
+  },
+  google_calendar: {
+    icon: Video,
+    setupHint: "Conecte sua conta Google em Reuniões para gerar automaticamente o link do Meet em cada reunião criada por um admin.",
+    setupHref: "/reunioes",
+    credentialKey: null,
+  },
+  resend: {
+    icon: Mail,
+    setupHint: "API key da Resend, usada para enviar o e-mail de confirmação de reunião (convidado + host).",
+    setupHref: "/settings",
+    credentialKey: "resend",
   },
 };
 
@@ -83,6 +109,26 @@ export function IntegrationsTab() {
   const [nexus, setNexus] = useState<NexusReport | null>(null);
   const [credDialogFor, setCredDialogFor] = useState<CredentialProviderKey | null>(null);
   const [evolutionOpen, setEvolutionOpen] = useState(false);
+  const [syncingN8n, setSyncingN8n] = useState(false);
+
+  /**
+   * Botão "Sincronizar" do card n8n: garante o nó de cada agente no workflow
+   * Utalks e já cria fonte de dados para quem não tinha nenhuma. Mesma
+   * chamada que roda sozinha ao salvar as credenciais — este botão é para
+   * rodar de novo depois, ex.: quando um agente novo é cadastrado.
+   */
+  const handleSyncN8n = async () => {
+    if (!accountId) return;
+    setSyncingN8n(true);
+    try {
+      const sync = await syncAgentSourcesToN8n(accountId);
+      for (const m of describeN8nSync(sync)) toast[m.level](m.message);
+    } catch (e: any) {
+      toast.error(`Falha ao sincronizar com o n8n: ${e?.body?.message ?? e?.message ?? "erro"}`);
+    } finally {
+      setSyncingN8n(false);
+    }
+  };
 
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
@@ -98,16 +144,41 @@ export function IntegrationsTab() {
           ttlMs: 2 * 60_000,
           force: opts.silent,
         });
-        setProviders(d.providers ?? []);
+        const list = d.providers ?? [];
+        setProviders(list);
         setNexus(d.nexus ?? null);
         setLoadError(null);
+        // `silent` marca o clique manual em "Revalidar" — o carregamento
+        // automático da aba não deve disparar toast. Sem isso o botão só
+        // rodava o spinner e não dizia nada quando o resultado não mudava.
+        if (opts.silent) {
+          const failing = list.filter((p) => statusOf(p) === "fail");
+          const missing = list.filter((p) => statusOf(p) === "missing");
+          const okCount = list.filter((p) => statusOf(p) === "ok").length;
+          if (failing.length > 0) {
+            toast.error(
+              `${failing.map((p) => p.label).join(", ")} com falha: ${
+                failing[0].detail ?? "verifique as credenciais"
+              }`,
+            );
+          } else if (missing.length > 0) {
+            toast.warning(
+              `${okCount} de ${list.length} integrações OK — falta configurar ${missing
+                .map((p) => p.label)
+                .join(", ")}`,
+            );
+          } else {
+            toast.success(`Todas as ${list.length} integrações responderam OK`);
+          }
+        }
       } catch (e) {
         console.error("[integrations-status] failed", e);
-        setLoadError(
+        const msg =
           e instanceof Error && e.message === "timeout"
             ? "A checagem de integrações demorou demais para responder."
-            : "Não foi possível carregar o status das integrações.",
-        );
+            : "Não foi possível carregar o status das integrações.";
+        setLoadError(msg);
+        if (opts.silent) toast.error(msg);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -197,10 +268,25 @@ export function IntegrationsTab() {
               report={p}
               onConfigure={(k) => setCredDialogFor(k)}
               onEvolutionConnect={() => setEvolutionOpen(true)}
+              onSyncN8n={handleSyncN8n}
+              syncingN8n={syncingN8n}
             />
           ))}
         </div>
       </div>
+
+      {/* Provedor de IA — vale tanto pros agentes de voz (ElevenLabs, quando
+          Modelo = "IA própria") quanto pros Funcionários IA de texto (Bruno,
+          Ana, Carla...), a menos que um agente defina sua própria URL/modelo
+          na aba Modelo dele. */}
+      {accountId && (
+        <div>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Provedor de IA padrão da conta
+          </h3>
+          <AgentLlmProviderCard accountId={accountId} />
+        </div>
+      )}
 
       {/* Nina Talks readiness */}
       {nexus && (
@@ -270,15 +356,21 @@ function ProviderCard({
   report,
   onConfigure,
   onEvolutionConnect,
+  onSyncN8n,
+  syncingN8n,
 }: {
   report: ProviderReport;
   onConfigure: (k: CredentialProviderKey) => void;
   onEvolutionConnect: () => void;
+  onSyncN8n: () => void;
+  syncingN8n: boolean;
 }) {
   const meta = PROVIDER_META[report.key];
   const Icon = meta.icon;
   const status = statusOf(report);
+  const isN8n = report.key === "n8n";
   const isEvolution = report.key === "evolution";
+  const isGoogleCalendar = report.key === "google_calendar";
 
   return (
     <div className="glass flex flex-col gap-3 rounded-lg p-4">
@@ -338,16 +430,42 @@ function ProviderCard({
 
       <div className="mt-auto flex items-center justify-between gap-2 pt-1">
         {meta.credentialKey ? (
-          <Button
-            type="button"
-            size="sm"
-            variant={status === "missing" || status === "fail" ? "default" : "outline"}
-            onClick={() => onConfigure(meta.credentialKey!)}
-            className="h-7 text-[11px]"
-          >
-            <KeyRound className="h-3 w-3" />
-            {status === "missing" ? "Conectar" : "Atualizar credenciais"}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {report.locked ? (
+              <span
+                title="N8N_URL/N8N_API_KEY definidas no ambiente do servidor — não é possível alterar por aqui."
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground"
+              >
+                <Lock className="h-3 w-3" />
+                Fixado pelo servidor
+              </span>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant={status === "missing" || status === "fail" ? "default" : "outline"}
+                onClick={() => onConfigure(meta.credentialKey!)}
+                className="h-7 text-[11px]"
+              >
+                <KeyRound className="h-3 w-3" />
+                {status === "missing" ? "Conectar" : "Atualizar credenciais"}
+              </Button>
+            )}
+            {isN8n && status === "ok" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onSyncN8n}
+                disabled={syncingN8n}
+                title='Garante o nó de cada agente no workflow "Utalks" e cria fonte de dados para quem ainda não tem'
+                className="h-7 text-[11px]"
+              >
+                <RefreshCw className={cn("h-3 w-3", syncingN8n && "animate-spin")} />
+                {syncingN8n ? "Sincronizando…" : "Sincronizar"}
+              </Button>
+            )}
+          </div>
         ) : isEvolution ? (
           <Button
             type="button"
@@ -358,6 +476,13 @@ function ProviderCard({
           >
             <MessageCircle className="h-3 w-3" />
             {status === "ok" ? "Gerenciar canais" : "Conectar WhatsApp"}
+          </Button>
+        ) : isGoogleCalendar ? (
+          <Button type="button" size="sm" variant={status === "ok" ? "outline" : "default"} asChild className="h-7 text-[11px]">
+            <Link to="/reunioes">
+              <Video className="h-3 w-3" />
+              {status === "ok" ? "Gerenciar em Reuniões" : "Conectar em Reuniões"}
+            </Link>
           </Button>
         ) : (
           <span className="text-[10px] text-muted-foreground">Configurado por canal</span>

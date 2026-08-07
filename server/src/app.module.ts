@@ -43,6 +43,10 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { AgentToolsModule } from './modules/agent-tools/agent-tools.module';
 import { IngestModule } from './modules/ingest/ingest.module';
+import { AgentLlmProviderModule } from './modules/agent-llm-provider/agent-llm-provider.module';
+import { GoogleCalendarModule } from './modules/google-calendar/google-calendar.module';
+import { EmailModule } from './modules/email/email.module';
+import { MeetingNotificationsModule } from './modules/meeting-notifications/meeting-notifications.module';
 
 @Module({
   imports: [
@@ -85,6 +89,10 @@ import { IngestModule } from './modules/ingest/ingest.module';
     DashboardsModule,
     AgentToolsModule,
     IngestModule,
+    AgentLlmProviderModule,
+    GoogleCalendarModule,
+    EmailModule,
+    MeetingNotificationsModule,
   ],
   controllers: [AppController],
   providers: [

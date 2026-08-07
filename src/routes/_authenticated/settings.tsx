@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Copy, Check, Loader2, KeyRound, PhoneCall, UserPlus, Lock, Mail } from "lucide-react";
+import { Copy, Check, Clock, Loader2, KeyRound, PhoneCall, UserPlus, Lock, Mail } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,9 +17,13 @@ import {
 } from "@/lib/settings";
 import { advanceOnboardingStep, reopenOnboarding } from "@/lib/onboarding";
 import { WebhookDeliveriesPanel } from "@/components/settings/WebhookDeliveriesPanel";
+import { WebhookEndpointsPanel } from "@/components/settings/WebhookEndpointsPanel";
+import { WebhookInboundTemplatesPanel } from "@/components/settings/WebhookInboundTemplatesPanel";
+import { OperationalListsPanel } from "@/components/settings/OperationalListsPanel";
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -531,6 +535,31 @@ function DialingTab() {
             </div>
           </div>
 
+          <div>
+            <label className="mb-1.5 block text-[11px] font-medium text-muted-foreground">
+              Números de teste (sem restrição de janela/limite/intervalo)
+            </label>
+            <textarea
+              rows={2}
+              value={settings.test_numbers.join("\n")}
+              onChange={(e) =>
+                setSettings((p) => ({
+                  ...p,
+                  test_numbers: e.target.value
+                    .split(/[\n,]/)
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                }))
+              }
+              placeholder={"+5511999999999\n+5511888888888"}
+              className="w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-primary/40"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Um número por linha, em E.164. Pula janela de horário, limite diário e intervalo
+              mínimo — DNC continua valendo mesmo pra esses números.
+            </p>
+          </div>
+
           <div className="flex items-center gap-3 pt-2">
             <button
               onClick={save}
@@ -559,17 +588,18 @@ function DialingTab() {
 
 function HourInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
-    >
-      {Array.from({ length: 25 }, (_, i) => i).map((h) => (
-        <option key={h} value={h}>
-          {String(h).padStart(2, "0")}:00
-        </option>
-      ))}
-    </select>
+    <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
+      <SelectTrigger className="h-8 w-auto gap-1.5 bg-white/[0.02] text-[12px]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {Array.from({ length: 25 }, (_, i) => i).map((h) => (
+          <SelectItem key={h} value={String(h)}>
+            {String(h).padStart(2, "0")}:00
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -898,22 +928,85 @@ function WebhooksTab() {
   }
 
   return (
-    <div className="space-y-4">
-      <Card title="Webhook secret" desc="HMAC SHA-256 para assinar payloads enviados ao Nina Talks.">
-        {secret && (
-          <UrlField
-            label="Webhook secret"
-            value={secret}
-            onCopy={() => copy(secret, "secret")}
-            copied={copied === "secret"}
-            mono
-          />
-        )}
-      </Card>
-      <Card title="Recebimentos recentes" desc="Histórico das últimas chamadas recebidas.">
-        <WebhookDeliveriesPanel />
-      </Card>
-    </div>
+    <Tabs defaultValue="envio" className="w-full">
+      <TabsList className="mb-4 bg-white/[0.04]">
+        <TabsTrigger value="envio">Envio</TabsTrigger>
+        <TabsTrigger value="recebimento">Recebimento</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="envio">
+        <div className="space-y-4">
+          <Card
+            title="Destinos de envio"
+            desc="Para onde o Nina Talks manda os eventos. Cadastre quantos precisar — um por sistema."
+          >
+            <WebhookEndpointsPanel />
+          </Card>
+          <Card
+            title="Webhook secret da conta"
+            desc="HMAC SHA-256 usado pelas integrações que ainda não têm destino próprio."
+          >
+            {secret && (
+              <UrlField
+                label="Webhook secret"
+                value={secret}
+                onCopy={() => copy(secret, "secret")}
+                copied={copied === "secret"}
+                mono
+              />
+            )}
+          </Card>
+          <Card title="Entregas recentes" desc="Histórico das últimas entregas registradas.">
+            <WebhookDeliveriesPanel />
+          </Card>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="recebimento">
+        <Tabs defaultValue="templates" className="w-full">
+          <TabsList className="mb-4 bg-white/[0.04]">
+            <TabsTrigger value="templates">Templates por agente</TabsTrigger>
+            <TabsTrigger value="listas">Listas operacionais</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="templates">
+            <div className="space-y-4">
+              <Card
+                title="Templates por agente"
+                desc="O que o seu sistema manda para automatizar cada agente. Baixe o JSON e cole no n8n."
+              >
+                <WebhookInboundTemplatesPanel />
+              </Card>
+              <Card
+                title="Endpoints de recebimento personalizados"
+                desc="Rotas próprias, com transformação de payload por integração."
+              >
+                <div className="flex items-start gap-3 rounded-lg border border-dashed border-white/[0.08] bg-white/[0.02] p-4">
+                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                  <div>
+                    <p className="text-[12px] font-semibold text-amber-300">Em breve</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      Cadastrar endpoints próprios de recebimento ainda não está disponível. Use
+                      os templates por agente acima — eles já cobrem criação e atualização de
+                      contato.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="listas">
+            <Card
+              title="Listas operacionais"
+              desc="Onde os contatos recebidos caem. A campanha de voz aponta para a lista, e as variáveis do payload chegam na fala da agente."
+            >
+              <OperationalListsPanel />
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </TabsContent>
+    </Tabs>
   );
 }
 

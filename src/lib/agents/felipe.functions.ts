@@ -140,6 +140,7 @@ export const askFelipe = createServerFn({ method: "POST" })
     const personaId = await ensureFelipePersona(data.accountId);
     const ctx = data.contactId ? `\n\n[contexto: contact_id=${data.contactId}]` : "";
     const result = await runAgentLoop({
+      accountId: data.accountId,
       system: FELIPE_SYSTEM + ctx,
       history: data.history,
       userMessage: data.userMessage,

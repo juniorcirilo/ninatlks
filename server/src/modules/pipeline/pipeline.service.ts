@@ -20,10 +20,14 @@ export class PipelineService {
     return rows[0].pipeline_get;
   }
 
-  async moveToStage(contactId: string, stageId: string): Promise<void> {
-    await this.tx.manager.query(`SELECT public.lead_move_to_stage($1, $2)`, [
-      contactId,
-      stageId,
-    ]);
+  async moveToStage(
+    contactId: string,
+    stageId: string,
+    reason?: string,
+  ): Promise<void> {
+    await this.tx.manager.query(
+      `SELECT public.lead_move_to_stage($1, $2, $3)`,
+      [contactId, stageId, reason ?? null],
+    );
   }
 }

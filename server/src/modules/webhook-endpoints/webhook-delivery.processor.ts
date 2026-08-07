@@ -44,18 +44,34 @@ export class WebhookDeliveryProcessor extends WorkerHost {
     let status: number | null = null;
     let error: string | null = null;
 
+    // Job antigo (na fila antes desta coluna existir) não tem `method` — cai em POST.
+    const method = data.method ?? 'POST';
+    const headers: Record<string, string> = {
+      'User-Agent': 'NinaTalks-Webhook/1',
+      'X-Nina-Event': data.event,
+      'X-Nina-Delivery': data.deliveryId,
+      'X-Nina-Timestamp': timestamp,
+      'X-Nina-Signature': `sha256=${signature}`,
+    };
+
+    // GET não carrega corpo (muitos servidores — n8n incluso — o ignoram em
+    // requisições GET), então o mesmo JSON assinado vai em `?payload=` na
+    // querystring. A assinatura continua sobre o corpo canônico, não sobre a
+    // URL, pra quem recebe verificar do mesmo jeito nos dois métodos.
+    let target = data.url;
+    if (method === 'GET') {
+      const u = new URL(data.url);
+      u.searchParams.set('payload', data.body);
+      target = u.toString();
+    } else {
+      headers['Content-Type'] = 'application/json';
+    }
+
     try {
-      const res = await fetch(data.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'NinaTalks-Webhook/1',
-          'X-Nina-Event': data.event,
-          'X-Nina-Delivery': data.deliveryId,
-          'X-Nina-Timestamp': timestamp,
-          'X-Nina-Signature': `sha256=${signature}`,
-        },
-        body: data.body,
+      const res = await fetch(target, {
+        method,
+        headers,
+        body: method === 'GET' ? undefined : data.body,
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
       status = res.status;

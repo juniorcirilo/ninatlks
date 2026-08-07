@@ -15,6 +15,7 @@ import {
   ConfirmMeetingDto,
   GetAvailabilityDto,
   QualifyLeadDto,
+  RegistrarDesfechoCobrancaDto,
   RescheduleMeetingDto,
   ScheduleMeetingDto,
 } from './dto/agent-tools.dto';
@@ -61,6 +62,21 @@ export class AgentToolsController {
     @Res() res: Response,
   ): Promise<void> {
     const { status, body } = await this.agentTools.qualifyLead(
+      dto,
+      conversationIdHeader ?? null,
+    );
+    res.status(status).json(body);
+  }
+
+  @Public()
+  @Post('registrar-desfecho-cobranca')
+  @HttpCode(200)
+  async registrarDesfechoCobranca(
+    @Body() dto: RegistrarDesfechoCobrancaDto,
+    @Headers('x-conversation-id') conversationIdHeader: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { status, body } = await this.agentTools.registrarDesfechoCobranca(
       dto,
       conversationIdHeader ?? null,
     );

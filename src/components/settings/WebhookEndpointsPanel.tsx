@@ -24,6 +24,8 @@ import {
 } from "@/lib/webhook-endpoints";
 import { fetchPersonas, type Persona } from "@/lib/personas";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 type DialogState =
@@ -340,6 +342,7 @@ export function WebhookEndpointDialog({
 }) {
   const [name, setName] = useState(endpoint?.name ?? "");
   const [url, setUrl] = useState(endpoint?.url ?? "");
+  const [method, setMethod] = useState<"GET" | "POST">(endpoint?.method ?? "POST");
   const [events, setEvents] = useState<string[]>(endpoint?.events ?? []);
   const [agentId, setAgentId] = useState<string | null>(
     endpoint?.agent_id ?? defaultAgentId ?? null,
@@ -361,7 +364,13 @@ export function WebhookEndpointDialog({
   const save = async () => {
     setSaving(true);
     try {
-      const payload = { name: name.trim(), url: url.trim(), events, agent_id: agentId };
+      const payload = {
+        name: name.trim(),
+        url: url.trim(),
+        method,
+        events,
+        agent_id: agentId,
+      };
       const saved = endpoint
         ? await updateWebhookEndpoint(accountId, endpoint.id, payload)
         : await createWebhookEndpoint(accountId, payload);
@@ -375,20 +384,16 @@ export function WebhookEndpointDialog({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-white/[0.08] bg-background p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4">
-          <h3 className="text-[14px] font-semibold">
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-[14px]">
             {endpoint ? "Editar destino" : "Novo destino"}
-          </h3>
-          <p className="mt-1 text-[12px] text-muted-foreground">
-            Enviamos um POST com JSON e os cabeçalhos{" "}
+          </DialogTitle>
+          <p className="text-[12px] text-muted-foreground">
+            Em POST, enviamos um JSON no corpo. Em GET, o mesmo JSON vai no parâmetro de query{" "}
+            <code className="font-mono text-[11px]">payload</code> (útil quando o webhook do n8n
+            só aceita GET). Nos dois casos vão os cabeçalhos{" "}
             <code className="font-mono text-[11px]">X-Nina-Event</code>,{" "}
             <code className="font-mono text-[11px]">X-Nina-Delivery</code>,{" "}
             <code className="font-mono text-[11px]">X-Nina-Timestamp</code> e{" "}
@@ -399,7 +404,7 @@ export function WebhookEndpointDialog({
             — o timestamp entra no que é assinado para você conseguir recusar replay. Até 5
             tentativas com espera crescente se o destino falhar.
           </p>
-        </div>
+        </DialogHeader>
 
         <div className="space-y-3">
           <div>
@@ -413,22 +418,38 @@ export function WebhookEndpointDialog({
               className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
           </div>
-          <div>
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
-              URL
-            </label>
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://n8n.suaempresa.com/webhook/nina"
-              className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 font-mono text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              Use https sempre que o destino estiver na internet pública.
-            </p>
+          <div className="grid grid-cols-[88px_1fr] gap-2">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                Método
+              </label>
+              <Select value={method} onValueChange={(v) => setMethod(v as "GET" | "POST")}>
+                <SelectTrigger className="h-9 w-full bg-white/[0.02] text-[12px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="POST">POST</SelectItem>
+                  <SelectItem value="GET">GET</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+                URL
+              </label>
+              <input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://n8n.suaempresa.com/webhook/nina"
+                className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 font-mono text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
           </div>
+          <p className="-mt-1 text-[10px] text-muted-foreground">
+            Use https sempre que o destino estiver na internet pública.
+          </p>
 
           <div>
             <label className="mb-1.5 block text-[11px] font-medium text-muted-foreground">
@@ -438,18 +459,22 @@ export function WebhookEndpointDialog({
               Restrinja este destino a um agente específico — útil quando cada agente dispara pro
               seu próprio n8n. Deixe em "Todos os agentes" para um destino compartilhado.
             </p>
-            <select
-              value={agentId ?? ""}
-              onChange={(e) => setAgentId(e.target.value || null)}
-              className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+            <Select
+              value={agentId ?? "__all__"}
+              onValueChange={(v) => setAgentId(v === "__all__" ? null : v)}
             >
-              <option value="">Todos os agentes</option>
-              {personas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-9 w-full bg-white/[0.02] text-[12px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos os agentes</SelectItem>
+                {personas.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
@@ -508,7 +533,7 @@ export function WebhookEndpointDialog({
           </div>
         </div>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-2 flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
@@ -526,7 +551,7 @@ export function WebhookEndpointDialog({
             {saving ? "Salvando…" : "Salvar"}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

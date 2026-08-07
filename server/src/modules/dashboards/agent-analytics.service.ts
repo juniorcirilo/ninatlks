@@ -11,6 +11,9 @@ export interface PersonaKpi {
   csat_avg: number | null;
   csat_count: number;
   csat_low_pct: number;
+  calls_total: number;
+  calls_completed: number;
+  calls_avg_duration_sec: number;
 }
 
 export interface AnalyticsResult {
@@ -18,6 +21,8 @@ export interface AnalyticsResult {
   total_personas: number;
   total_handoffs: number;
   total_meetings: number;
+  total_calls: number;
+  total_calls_completed: number;
   csat_avg_global: number | null;
   per_persona: PersonaKpi[];
 }
@@ -30,19 +35,18 @@ export class AgentAnalyticsService {
   async get(accountId: string, windowDays = 30): Promise<AnalyticsResult> {
     const since = new Date(Date.now() - windowDays * 86400_000);
 
-    const [personas, handoffs, meetings, csat] = await Promise.all([
+    const [personas, handoffs, meetings, meetingsByPersonaRows, csat, callsByPersonaRows] =
+      await Promise.all([
       this.tx.manager.query<
         {
           id: string;
           name: string;
           status: string;
           kind: string | null;
-          is_sdr: boolean;
         }[]
       >(
         `SELECT p.id, p.name, p.status,
-                (SELECT r.kind FROM agent_roles r WHERE r.persona_id = p.id ORDER BY r.created_at LIMIT 1) AS kind,
-                EXISTS(SELECT 1 FROM agent_roles r WHERE r.persona_id = p.id AND r.kind = 'sdr') AS is_sdr
+                (SELECT r.kind FROM agent_roles r WHERE r.persona_id = p.id ORDER BY r.created_at LIMIT 1) AS kind
          FROM agent_personas p WHERE p.account_id = $1`,
         [accountId],
       ),
@@ -54,6 +58,14 @@ export class AgentAnalyticsService {
         `SELECT id FROM scheduled_meetings WHERE account_id = $1 AND created_at >= $2`,
         [accountId, since],
       ),
+      this.tx.manager.query<{ persona_id: string; n: string }[]>(
+        `SELECT vc.persona_id, COUNT(*) AS n
+         FROM scheduled_meetings sm
+         JOIN voice_calls vc ON vc.id = sm.sdr_call_id
+         WHERE sm.account_id = $1 AND sm.created_at >= $2 AND vc.persona_id IS NOT NULL
+         GROUP BY vc.persona_id`,
+        [accountId, since],
+      ),
       this.tx.manager.query<
         {
           rating: number;
@@ -63,6 +75,18 @@ export class AgentAnalyticsService {
       >(
         `SELECT rating, handler_type, handler_id FROM csat_surveys
          WHERE account_id = $1 AND sent_at >= $2 AND rating IS NOT NULL`,
+        [accountId, since],
+      ),
+      this.tx.manager.query<
+        { persona_id: string; total: string; completed: string; avg_duration: string }[]
+      >(
+        `SELECT persona_id,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+                COALESCE(AVG(duration_seconds) FILTER (WHERE status = 'completed'), 0) AS avg_duration
+         FROM voice_calls
+         WHERE account_id = $1 AND created_at >= $2 AND persona_id IS NOT NULL
+         GROUP BY persona_id`,
         [accountId, since],
       ),
     ]);
@@ -90,22 +114,41 @@ export class AgentAnalyticsService {
     }
 
     const meetingsTotal = meetings.length;
-    const sdrPersonas = personas.filter((p) => p.is_sdr);
-    const meetingsPerSdr =
-      sdrPersonas.length > 0
-        ? Math.round(meetingsTotal / sdrPersonas.length)
-        : 0;
+
+    const meetingsByPersona = new Map<string, number>();
+    for (const row of meetingsByPersonaRows) {
+      meetingsByPersona.set(row.persona_id, Number(row.n));
+    }
+
+    const callsByPersona = new Map<
+      string,
+      { total: number; completed: number; avgDurationSec: number }
+    >();
+    let callsGlobalTotal = 0;
+    let callsGlobalCompleted = 0;
+    for (const row of callsByPersonaRows) {
+      const total = Number(row.total);
+      const completed = Number(row.completed);
+      callsByPersona.set(row.persona_id, {
+        total,
+        completed,
+        avgDurationSec: Math.round(Number(row.avg_duration)),
+      });
+      callsGlobalTotal += total;
+      callsGlobalCompleted += completed;
+    }
 
     const perPersona: PersonaKpi[] = personas.map((p) => {
       const ratings = csatByPersona.get(p.id) ?? [];
       const sum = ratings.reduce((a, b) => a + b, 0);
+      const calls = callsByPersona.get(p.id);
       return {
         persona_id: p.id,
         name: p.name,
         kind: p.kind ?? '—',
         status: p.status,
         handoffs_out: handoffsByPersona.get(p.id) ?? 0,
-        meetings_scheduled: p.is_sdr ? meetingsPerSdr : 0,
+        meetings_scheduled: meetingsByPersona.get(p.id) ?? 0,
         csat_avg:
           ratings.length > 0 ? Number((sum / ratings.length).toFixed(2)) : null,
         csat_count: ratings.length,
@@ -118,12 +161,17 @@ export class AgentAnalyticsService {
                 ).toFixed(1),
               )
             : 0,
+        calls_total: calls?.total ?? 0,
+        calls_completed: calls?.completed ?? 0,
+        calls_avg_duration_sec: calls?.avgDurationSec ?? 0,
       };
     });
 
     return {
       window_days: windowDays,
       total_personas: personas.length,
+      total_calls: callsGlobalTotal,
+      total_calls_completed: callsGlobalCompleted,
       total_handoffs: handoffs.length,
       total_meetings: meetingsTotal,
       csat_avg_global:

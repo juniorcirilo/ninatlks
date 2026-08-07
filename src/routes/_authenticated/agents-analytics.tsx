@@ -2,7 +2,7 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { BarChart3, Bot, Users, Smile, ArrowRightLeft, CalendarCheck, Loader2 } from "lucide-react";
+import { BarChart3, Bot, Users, Smile, ArrowRightLeft, CalendarCheck, Loader2, Phone } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated/agents-analytics")({
       { title: "Analytics IA — Nexus" },
       {
         name: "description",
-        content: "KPIs por Funcionário IA: handoffs, CSAT, reuniões geradas e cobertura.",
+        content: "KPIs por Funcionário IA: ligações, handoffs, CSAT, reuniões geradas e cobertura.",
       },
     ],
   }),
@@ -50,7 +50,7 @@ function AnalyticsPage() {
       <PageHeader
         eyebrow="Funcionários IA"
         title="Analytics IA"
-        description="Como Bruno, Ana e Carla estão performando — mensagens, handoffs, CSAT, reuniões."
+        description="Como Bruno, Ana e Carla estão performando — ligações, handoffs, CSAT, reuniões."
         actions={
           <div className="flex gap-1">
             {WINDOWS.map((w) => (
@@ -77,11 +77,16 @@ function AnalyticsPage() {
       {!loading && data && (
         <>
           {/* KPIs globais */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
             <KpiCard
               icon={<Bot className="h-4 w-4" />}
               label="Personas ativas"
               value={data.total_personas}
+            />
+            <KpiCard
+              icon={<Phone className="h-4 w-4" />}
+              label="Ligações no período"
+              value={data.total_calls}
             />
             <KpiCard
               icon={<ArrowRightLeft className="h-4 w-4" />}
@@ -131,6 +136,8 @@ function AnalyticsPage() {
                       <tr>
                         <th className="px-6 py-3">Persona</th>
                         <th className="px-3 py-3">Função</th>
+                        <th className="px-3 py-3 text-right">Ligações</th>
+                        <th className="px-3 py-3 text-right">Atendidas</th>
                         <th className="px-3 py-3 text-right">Handoffs</th>
                         <th className="px-3 py-3 text-right">Reuniões</th>
                         <th className="px-3 py-3 text-right">CSAT</th>
@@ -148,6 +155,16 @@ function AnalyticsPage() {
                             <Bot className="h-4 w-4 text-primary" /> {p.name}
                           </td>
                           <td className="px-3 py-3 text-muted-foreground">{p.kind}</td>
+                          <td className="px-3 py-3 text-right tabular-nums">
+                            {p.calls_total || "—"}
+                          </td>
+                          <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
+                            {p.calls_total > 0
+                              ? `${p.calls_completed} (${Math.round(
+                                  (p.calls_completed / p.calls_total) * 100,
+                                )}%)`
+                              : "—"}
+                          </td>
                           <td className="px-3 py-3 text-right tabular-nums">{p.handoffs_out}</td>
                           <td className="px-3 py-3 text-right tabular-nums">
                             {p.meetings_scheduled || "—"}

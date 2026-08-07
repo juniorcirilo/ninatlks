@@ -32,7 +32,7 @@ export function WebhookDeliveriesPanel() {
         <div>
           <h3 className="text-[13px] font-semibold">Últimas entregas</h3>
           <p className="text-[11px] text-muted-foreground">
-            Histórico de chamadas recebidas. Limite: 30 mais recentes.
+            Histórico de entregas registradas. Limite: 30 mais recentes.
           </p>
         </div>
         <button
@@ -52,9 +52,9 @@ export function WebhookDeliveriesPanel() {
         </div>
       ) : items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border bg-muted/40 py-10 text-center text-[12px] text-muted-foreground">
-          Nenhuma chamada registrada ainda.
+          Nenhuma entrega registrada ainda.
           <br />
-          Quando seu CRM disparar um POST, aparecerá aqui.
+          Cada POST enviado aos seus destinos aparecerá aqui.
         </div>
       ) : (
         <ScrollArea className="max-h-[420px]">

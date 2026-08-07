@@ -11,9 +11,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AccountMemberGuard } from '../../common/guards/account-member.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { MeetingsService } from './meetings.service';
 import { SetOutcomeDto } from './dto/set-outcome.dto';
 import { UpsertDoctorDto } from './dto/upsert-doctor.dto';
+import { CreateMeetingDto, UpdateMeetingDto } from './dto/create-meeting.dto';
 import {
   SetDoctorAvailabilityDto,
   SetUserAvailabilityDto,
@@ -31,6 +34,31 @@ export class MeetingsController {
     @Query('end') end: string,
   ) {
     return this.meetingsService.listMeetings(accountId, start, end);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @Post()
+  create(@Param('accountId') accountId: string, @Body() dto: CreateMeetingDto) {
+    return this.meetingsService.createMeeting(accountId, dto);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @Patch(':id')
+  update(
+    @Param('accountId') accountId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateMeetingDto,
+  ) {
+    return this.meetingsService.updateMeeting(accountId, id, dto);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @Delete(':id')
+  cancel(@Param('accountId') accountId: string, @Param('id') id: string) {
+    return this.meetingsService.cancelMeeting(accountId, id);
   }
 
   @Patch(':id/outcome')

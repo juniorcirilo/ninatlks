@@ -11,7 +11,9 @@ export interface CadenceRow {
   enabled: boolean;
   steps: unknown;
   pending_count: number;
+  waiting_count: number;
   completed_count: number;
+  failed_count: number;
 }
 
 /** Ported from src/lib/cadences.ts. */

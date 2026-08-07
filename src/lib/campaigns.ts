@@ -50,13 +50,25 @@ export type CampaignRow = {
   scheduled_at: string | null;
   started_at: string | null;
   finished_at: string | null;
+  /** Intervalo desta campanha; null = herda o padrão da conta. */
+  min_minutes_between_attempts: number | null;
+  max_attempts_per_day: number | null;
 };
 
 export async function fetchCampaigns(accountId: string): Promise<CampaignRow[]> {
   return apiClient.get<CampaignRow[]>(`/accounts/${accountId}/campaigns`);
 }
 
-export type CampaignDetail = CampaignRow & { opening_script: string | null; from_number: string };
+export type CampaignDetail = CampaignRow & {
+  opening_script: string | null;
+  from_number: string;
+};
+
+/** Opções de intervalo mínimo entre tentativas ao mesmo número, em minutos. */
+export const MIN_INTERVAL_OPTIONS = [1, 5, 10, 15, 30, 60] as const;
+
+/** Teto de tentativas por dia ao mesmo número. 1000 = sem limite prático. */
+export const MAX_ATTEMPTS_OPTIONS = [1, 2, 3, 5, 10, 25, 50, 100, 1000] as const;
 
 export async function fetchCampaign(accountId: string, id: string): Promise<CampaignDetail> {
   return apiClient.get<CampaignDetail>(`/accounts/${accountId}/campaigns/${id}`);
@@ -70,6 +82,11 @@ export type CampaignContactRow = {
   last_attempt_at: string | null;
   last_error: string | null;
   voice_call_id: string | null;
+  /** Desfecho telefônico: atendida, recusada, nao_atendeu, caixa_postal… */
+  outcome: string | null;
+  call_duration_sec: number | null;
+  /** Quando volta a ser elegível; futuro = adiado por compliance. */
+  dispatch_after: string | null;
 };
 
 export async function fetchCampaignContacts(
@@ -123,11 +140,104 @@ export async function createCampaign(
     maxConcurrent?: number;
     retryAttempts?: number;
     recordCall?: boolean;
+    /** ISO 8601 com offset. Ausente = rascunho, iniciado na mão. */
+    scheduledAt?: string;
+    /** Minutos entre tentativas ao mesmo número. Ausente = padrão da conta. */
+    minMinutesBetweenAttempts?: number;
+    maxAttemptsPerDay?: number;
+    /**
+     * `off` (padrão): retrato da lista na criação. `approval`: a campanha
+     * acompanha a lista, e cada carga nova vira um lote que só disca depois de
+     * aprovação humana.
+     */
+    autoEnrollMode?: "off" | "approval";
   },
-): Promise<{ id: string; contactCount: number }> {
-  return apiClient.post<{ id: string; contactCount: number }>(
-    `/accounts/${accountId}/campaigns`,
+): Promise<{ id: string; contactCount: number; scheduledAt: string | null }> {
+  return apiClient.post<{
+    id: string;
+    contactCount: number;
+    scheduledAt: string | null;
+  }>(`/accounts/${accountId}/campaigns`, input);
+}
+
+// ============ Lotes de inscrição (campanha viva) ============
+
+export type EnrollmentBatch = {
+  id: string;
+  status: "pending" | "approved" | "rejected";
+  contact_count: number;
+  source: string | null;
+  created_at: string;
+  decided_at: string | null;
+  decided_by_name: string | null;
+  still_pending: number;
+};
+
+export type BatchPreviewRow = {
+  name: string | null;
+  external_id: string | null;
+  phone_number: string;
+  variables: Record<string, unknown>;
+};
+
+export async function fetchEnrollmentBatches(
+  accountId: string,
+  campaignId: string,
+): Promise<EnrollmentBatch[]> {
+  return apiClient.get<EnrollmentBatch[]>(
+    `/accounts/${accountId}/campaigns/${campaignId}/batches`,
+  );
+}
+
+export async function fetchBatchPreview(
+  accountId: string,
+  campaignId: string,
+  batchId: string,
+): Promise<BatchPreviewRow[]> {
+  return apiClient.get<BatchPreviewRow[]>(
+    `/accounts/${accountId}/campaigns/${campaignId}/batches/${batchId}/preview`,
+  );
+}
+
+export async function decideEnrollmentBatch(
+  accountId: string,
+  campaignId: string,
+  batchId: string,
+  decision: "approve" | "reject",
+): Promise<{ ok: boolean; reason?: string; queued?: number; removed?: number }> {
+  return apiClient.post(
+    `/accounts/${accountId}/campaigns/${campaignId}/batches/${batchId}/${decision}`,
+    {},
+  );
+}
+
+export async function updateCampaign(
+  accountId: string,
+  campaignId: string,
+  input: {
+    name?: string;
+    openingScript?: string | null;
+    maxConcurrent?: number;
+    retryAttempts?: number;
+    recordCall?: boolean;
+    /** ISO 8601, ou null pra desagendar (volta pra rascunho). */
+    scheduledAt?: string | null;
+    minMinutesBetweenAttempts?: number;
+    maxAttemptsPerDay?: number;
+  },
+): Promise<{ ok: true; status: string; scheduledAt: string | null }> {
+  return apiClient.patch<{ ok: true; status: string; scheduledAt: string | null }>(
+    `/accounts/${accountId}/campaigns/${campaignId}`,
     input,
+  );
+}
+
+export async function deleteCampaign(
+  accountId: string,
+  campaignId: string,
+): Promise<{ ok: true; deletedContacts: number }> {
+  return apiClient.delete<{ ok: true; deletedContacts: number }>(
+    `/accounts/${accountId}/campaigns/${campaignId}`,
   );
 }
 
@@ -136,14 +246,49 @@ export type ContactListRow = {
   name: string;
   description: string | null;
   campaign_kind: string | null;
+  /** Agente escolhido ao criar a lista — decide os campos do formulário manual. */
+  persona_id: string | null;
   is_dynamic: boolean;
   member_count: number;
+  /** Contatos da lista com telefone válido e não bloqueados — subconjunto pronto para discagem. */
+  valid_phone_count: number;
   filters: Record<string, unknown>;
   created_at: string;
+  /** Preenchida quando a lista é sincronizada por integração externa (ERP via n8n). */
+  external_key: string | null;
+  /** Variáveis que os contatos trazem do sistema de origem, para usar na abertura. */
+  variable_keys: string[];
 };
 
 export async function fetchContactLists(accountId: string): Promise<ContactListRow[]> {
   return apiClient.get<ContactListRow[]>(`/accounts/${accountId}/campaigns/contact-lists`);
+}
+
+export interface ListCandidatesResult {
+  contacts: Array<{ id: string; name: string | null; phone_number: string | null; email: string | null }>;
+  /** Contatos elegíveis (telefone, não bloqueado, estágio se filtrado) antes de aplicar excludeListed. */
+  totalEligible: number;
+  /** Subconjunto de totalEligible que já pertence a alguma lista — informativo mesmo quando excluído. */
+  alreadyInOtherList: number;
+}
+
+/**
+ * Ponto de partida de "criar lista sem CSV". `excludeListed=true` (padrão)
+ * deixa de fora quem já é membro de outra lista — sem isso, uma lista nova
+ * sem filtro varria a conta inteira e misturava o público de listas
+ * operacionais que deveriam ser exclusivas (ex.: alimentadas por webhook de
+ * agente).
+ */
+export async function fetchListCandidates(
+  accountId: string,
+  opts: { stageId?: string; excludeListed?: boolean } = {},
+): Promise<ListCandidatesResult> {
+  const params = new URLSearchParams();
+  if (opts.stageId) params.set("stageId", opts.stageId);
+  params.set("excludeListed", String(opts.excludeListed ?? true));
+  return apiClient.get<ListCandidatesResult>(
+    `/accounts/${accountId}/contacts/candidates?${params.toString()}`,
+  );
 }
 
 // ============ Retention Rules ============
