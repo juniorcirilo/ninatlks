@@ -1,6 +1,18 @@
-import { IsIn, IsOptional, IsUUID } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class UpdateContactOpsDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
   @IsOptional()
   @IsIn(['lead', 'prospect', 'customer', 'inactive', 'delinquent'])
   lifecycleStage?: string;

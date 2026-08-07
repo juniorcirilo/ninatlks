@@ -21,8 +21,11 @@ import {
   Plus,
   ArrowRightLeft,
   AlertTriangle,
+  Pencil,
+  CalendarPlus,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
+import { useAuth } from "@/lib/auth-context";
 import { useRealtimeRefresh } from "@/lib/realtime-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -101,6 +104,7 @@ import {
 import { mergeContacts } from "@/lib/contacts";
 import { startConversation } from "@/lib/inbox";
 import { NewCallDialog } from "@/components/calls/NewCallDialog";
+import { NewMeetingDialog } from "@/components/meetings/NewMeetingDialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -120,6 +124,7 @@ export const Route = createFileRoute("/_authenticated/central")({
 
 function CentralPage() {
   const { accountId } = useAccount();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [rows, setRows] = useState<CentralContact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,6 +144,8 @@ function CentralPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [callTarget, setCallTarget] = useState<CentralContact | null>(null);
   const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<CentralContact | null>(null);
+  const [meetingTarget, setMeetingTarget] = useState<CentralContact | null>(null);
 
   const handleWhatsApp = async (c: CentralContact) => {
     if (!accountId || !c.phone_number) return;
@@ -396,6 +403,8 @@ function CentralPage() {
                 onCall={() => setCallTarget(c)}
                 onWhatsApp={() => handleWhatsApp(c)}
                 whatsappBusy={whatsappBusyId === c.id}
+                onEdit={() => setEditTarget(c)}
+                onSchedule={() => setMeetingTarget(c)}
               />
             ))}
           </ul>
@@ -420,6 +429,8 @@ function CentralPage() {
         onCall={(c) => setCallTarget(c)}
         onWhatsApp={handleWhatsApp}
         whatsappBusy={whatsappBusyId === selected?.id}
+        onEdit={(c) => setEditTarget(c)}
+        onSchedule={(c) => setMeetingTarget(c)}
       />
 
       <NewCallDialog
@@ -430,6 +441,41 @@ function CentralPage() {
         contactId={callTarget?.id}
         onPlaced={() => setCallTarget(null)}
       />
+
+      <EditContactDialog
+        contact={editTarget}
+        onClose={() => setEditTarget(null)}
+        accountId={accountId ?? ""}
+        onDone={(patch) => {
+          if (editTarget) {
+            setRows((prev) => prev.map((r) => (r.id === editTarget.id ? { ...r, ...patch } : r)));
+            setSelected((prev) =>
+              prev && prev.id === editTarget.id ? { ...prev, ...patch } : prev,
+            );
+          }
+          setEditTarget(null);
+        }}
+      />
+
+      {accountId && (
+        <NewMeetingDialog
+          open={!!meetingTarget}
+          accountId={accountId}
+          currentUserId={user?.id ?? null}
+          presetContact={
+            meetingTarget
+              ? {
+                  id: meetingTarget.id,
+                  name: meetingTarget.name,
+                  email: meetingTarget.email,
+                  phone_number: meetingTarget.phone_number,
+                }
+              : null
+          }
+          onClose={() => setMeetingTarget(null)}
+          onCreated={() => setMeetingTarget(null)}
+        />
+      )}
 
       {picked.size > 0 && (
         <div className="fixed bottom-6 left-1/2 z-40 flex max-w-[95vw] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-elevation-3">
@@ -1459,6 +1505,8 @@ function ContactRow({
   onCall,
   onWhatsApp,
   whatsappBusy,
+  onEdit,
+  onSchedule,
 }: {
   c: CentralContact;
   checked: boolean;
@@ -1467,6 +1515,8 @@ function ContactRow({
   onCall: () => void;
   onWhatsApp: () => void;
   whatsappBusy?: boolean;
+  onEdit: () => void;
+  onSchedule: () => void;
 }) {
   const initials = (c.name ?? c.phone_number ?? "?")
     .split(/\s+/)
@@ -1567,6 +1617,24 @@ function ContactRow({
             <Sparkles className="h-3.5 w-3.5" />
           </Link>
         </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          title="Editar contato"
+          onClick={onEdit}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          title="Agendar reunião"
+          onClick={onSchedule}
+        >
+          <CalendarPlus className="h-3.5 w-3.5" />
+        </Button>
       </div>
     </li>
   );
@@ -1580,6 +1648,8 @@ function ContactDrawer({
   onCall,
   onWhatsApp,
   whatsappBusy,
+  onEdit,
+  onSchedule,
 }: {
   contact: CentralContact | null;
   onClose: () => void;
@@ -1588,6 +1658,8 @@ function ContactDrawer({
   onCall: (c: CentralContact) => void;
   onWhatsApp: (c: CentralContact) => void;
   whatsappBusy?: boolean;
+  onEdit: (c: CentralContact) => void;
+  onSchedule: (c: CentralContact) => void;
 }) {
   const { accountId } = useAccount();
   const [timeline, setTimeline] = useState<{
@@ -1735,6 +1807,17 @@ function ContactDrawer({
               <Link to="/inbox" search={{ contactId: contact.id }}>
                 <Bot className="h-3.5 w-3.5" /> Conversa
               </Link>
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => onEdit(contact)}>
+              <Pencil className="h-3.5 w-3.5" /> Editar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => onSchedule(contact)}
+            >
+              <CalendarPlus className="h-3.5 w-3.5" /> Agendar reunião
             </Button>
             <Button
               size="sm"
@@ -1908,6 +1991,106 @@ function NewContactDialog({
               <Plus className="h-3.5 w-3.5" />
             )}
             Criar contato
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditContactDialog({
+  contact,
+  onClose,
+  accountId,
+  onDone,
+}: {
+  contact: CentralContact | null;
+  onClose: () => void;
+  accountId: string;
+  onDone: (patch: {
+    name: string | null;
+    phone_number: string | null;
+    email: string | null;
+  }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!contact) return;
+    setName(contact.name ?? "");
+    setPhone(contact.phone_number ?? "");
+    setEmail(contact.email ?? "");
+  }, [contact]);
+
+  const handleSubmit = async () => {
+    if (!contact) return;
+    if (!name.trim()) {
+      toast.error("Informe o nome do contato");
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateContactOps(accountId, contact.id, {
+        name: name.trim(),
+        phone_number: phone.trim() || null,
+        email: email.trim() || null,
+      });
+      toast.success("Contato atualizado");
+      onDone({
+        name: name.trim(),
+        phone_number: phone.trim() || null,
+        email: email.trim() || null,
+      });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erro ao atualizar contato");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!contact} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar contato</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Nome *</label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nome completo"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Telefone</label>
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+55 11 99999-9999"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label>
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email@exemplo.com"
+              type="email"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={busy}>
+            Cancelar
+          </Button>
+          <Button size="sm" onClick={handleSubmit} disabled={busy || !name.trim()}>
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Salvar
           </Button>
         </DialogFooter>
       </DialogContent>

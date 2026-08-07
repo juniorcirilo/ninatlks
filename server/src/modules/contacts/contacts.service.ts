@@ -193,7 +193,15 @@ export class ContactsService {
     accountId: string,
     id: string,
     patch: Partial<
-      Pick<Contacts, 'lifecycleStage' | 'operationalStatus' | 'ownerUserId'>
+      Pick<
+        Contacts,
+        | 'name'
+        | 'email'
+        | 'phoneNumber'
+        | 'lifecycleStage'
+        | 'operationalStatus'
+        | 'ownerUserId'
+      >
     >,
   ) {
     // Every field on UpdateContactOpsDto is optional, and the global
@@ -210,7 +218,7 @@ export class ContactsService {
     );
     if (Object.keys(setFields).length === 0) {
       throw new BadRequestException(
-        'Nenhum campo atualizável informado. Campos aceitos: lifecycleStage, operationalStatus, ownerUserId.',
+        'Nenhum campo atualizável informado. Campos aceitos: name, email, phoneNumber, lifecycleStage, operationalStatus, ownerUserId.',
       );
     }
     await this.tx.manager

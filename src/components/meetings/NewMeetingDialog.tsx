@@ -27,12 +27,19 @@ export function NewMeetingDialog({
   open,
   accountId,
   currentUserId,
+  presetContact,
   onClose,
   onCreated,
 }: {
   open: boolean;
   accountId: string;
   currentUserId: string | null;
+  presetContact?: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    phone_number: string | null;
+  } | null;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -61,9 +68,9 @@ export function NewMeetingDialog({
     setTitle("");
     setDuration(30);
     setHostUserId(currentUserId ?? "");
-    setInviteeName("");
-    setInviteeEmail("");
-    setInviteePhone("");
+    setInviteeName(presetContact?.name ?? "");
+    setInviteeEmail(presetContact?.email ?? "");
+    setInviteePhone(presetContact?.phone_number ?? "");
     setDoctorId("");
     setNotes("");
     const d = new Date();
@@ -82,7 +89,7 @@ export function NewMeetingDialog({
         setUseGoogleMeet(s.connected);
       })
       .catch(() => setGoogle(null));
-  }, [open, accountId, currentUserId]);
+  }, [open, accountId, currentUserId, presetContact]);
 
   async function handleSave() {
     if (!hostUserId) {
@@ -103,6 +110,7 @@ export function NewMeetingDialog({
         inviteeName: inviteeName.trim() || undefined,
         inviteeEmail: inviteeEmail.trim() || undefined,
         inviteePhone: inviteePhone.trim() || undefined,
+        contactId: presetContact?.id,
         doctorId: doctorId || undefined,
         notes: notes.trim() || undefined,
         useGoogleMeet: google?.connected ? useGoogleMeet : false,
@@ -120,7 +128,11 @@ export function NewMeetingDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nova reunião</DialogTitle>
+          <DialogTitle>
+            {presetContact
+              ? `Agendar reunião com ${presetContact.name ?? "contato"}`
+              : "Nova reunião"}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -192,7 +204,7 @@ export function NewMeetingDialog({
 
           {doctors.length > 0 && (
             <div>
-              <Label>Médico (opcional)</Label>
+              <Label>Contato (opcional)</Label>
               <Select value={doctorId || "none"} onValueChange={(v) => setDoctorId(v === "none" ? "" : v)}>
                 <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Nenhum" />

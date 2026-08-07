@@ -140,9 +140,17 @@ export function applyQuickFilter(rows: CentralContact[], q: QuickFilter): Centra
 export async function updateContactOps(
   accountId: string,
   id: string,
-  patch: Partial<Pick<CentralContact, "lifecycle_stage" | "operational_status" | "owner_user_id">>,
+  patch: Partial<
+    Pick<
+      CentralContact,
+      "name" | "email" | "phone_number" | "lifecycle_stage" | "operational_status" | "owner_user_id"
+    >
+  >,
 ) {
   await apiClient.patch(`/accounts/${accountId}/contacts/${id}`, {
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.email !== undefined ? { email: patch.email } : {}),
+    ...(patch.phone_number !== undefined ? { phoneNumber: patch.phone_number } : {}),
     ...(patch.lifecycle_stage !== undefined ? { lifecycleStage: patch.lifecycle_stage } : {}),
     ...(patch.operational_status !== undefined
       ? { operationalStatus: patch.operational_status }
