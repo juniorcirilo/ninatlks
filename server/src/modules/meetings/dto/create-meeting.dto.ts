@@ -74,3 +74,18 @@ export class UpdateMeetingDto {
   @Max(480)
   durationMinutes?: number;
 }
+
+export class RescheduleMeetingDto {
+  @IsDateString()
+  startsAt!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @Max(480)
+  durationMinutes?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}

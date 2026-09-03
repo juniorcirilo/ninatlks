@@ -8,7 +8,7 @@
 // not in the vault. We test+persist via the evolution-provision edge.
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, ShieldCheck, ExternalLink, Trash2 } from "lucide-react";
+import { CheckCircle2, Loader2, ShieldCheck, ExternalLink, Trash2, Video } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +30,12 @@ import {
 } from "@/lib/account-secrets";
 import { testEvolution, provisionEvolution } from "@/lib/evolution";
 import { syncAgentSourcesToN8n, describeN8nSync } from "@/lib/n8n";
+import {
+  fetchGoogleCalendarStatus,
+  connectGoogleCalendar,
+  disconnectGoogleCalendar,
+  type GoogleCalendarStatus,
+} from "@/lib/google-calendar";
 
 export type CredentialProviderKey =
   | "twilio"
@@ -38,7 +44,8 @@ export type CredentialProviderKey =
   | "evolution"
   | "n8n"
   | "custom-llm"
-  | "resend";
+  | "smtp"
+  | "google_calendar";
 
 interface FieldDef {
   keyName: string;
@@ -123,14 +130,35 @@ const PROVIDER_FIELDS: Record<CredentialProviderKey, {
         hint: "Guardada com segurança; ao sincronizar um agente, criamos uma referência protegida dela dentro da ElevenLabs (nunca em texto puro)." },
     ],
   },
-  resend: {
-    label: "Resend",
-    docsUrl: "https://resend.com/api-keys",
-    docsLabel: "Painel Resend",
+  smtp: {
+    label: "E-mail (SMTP)",
+    docsUrl: "https://www.hostgator.com.br/ajuda/artigo/como-configurar-uma-conta-de-email-no-outlook",
+    docsLabel: "Onde achar host/porta/usuário no cPanel (Hostgator)",
     helper:
-      "Usada para enviar o e-mail de confirmação (com o link do Google Meet) para o convidado e para quem conduz a reunião. Sem isso, as notificações ficam só no sininho.",
+      "Usado para enviar o e-mail de confirmação (com o link do Google Meet) para o convidado e para quem conduz a reunião. Sem isso, as notificações ficam só no sininho. Funciona com qualquer provedor que ofereça uma conta de e-mail SMTP — o e-mail que já vem com a hospedagem (Hostgator/cPanel), Gmail, Zoho, ou o relay SMTP da Resend. No cPanel, acesse E-mail → Contas de E-mail → Configurar Cliente de E-mail pra ver host, porta e usuário. Usando o e-mail da própria empresa, o remetente já sai profissional, sem precisar de nenhum passo extra de verificação de domínio.",
     fields: [
-      { keyName: "api_key", label: "API Key", type: "password", placeholder: "re_…", required: true },
+      { keyName: "smtp_host", label: "Servidor SMTP (host)", type: "text", placeholder: "mail.suaempresa.com.br", required: true },
+      { keyName: "smtp_port", label: "Porta", type: "text", placeholder: "465 (SSL) ou 587 (TLS)", required: true },
+      { keyName: "smtp_user", label: "Usuário", type: "text", placeholder: "reunioes@suaempresa.com.br", required: true },
+      { keyName: "smtp_password", label: "Senha", type: "password", placeholder: "••••••••", required: true },
+      {
+        keyName: "from_email",
+        label: "Remetente (opcional)",
+        type: "text",
+        placeholder: "Sua Empresa <reunioes@suaempresa.com.br>",
+        hint: "Deixe em branco pra usar o próprio usuário SMTP como remetente.",
+      },
+    ],
+  },
+  google_calendar: {
+    label: "Google Calendar / Meet",
+    docsUrl: "https://console.cloud.google.com/apis/credentials",
+    docsLabel: "Google Cloud Console — Credenciais",
+    helper:
+      "Crie um projeto em console.cloud.google.com, habilite a Google Calendar API e crie uma credencial OAuth 2.0 do tipo \"Aplicativo da Web\". Cadastre a Redirect URI exibida abaixo nessa credencial. Depois de salvar aqui, conecte a conta Google em Reuniões — isso só cria o link do Meet, não envia o e-mail de confirmação (isso é o E-mail SMTP).",
+    fields: [
+      { keyName: "client_id", label: "Client ID", type: "text", placeholder: "xxxx.apps.googleusercontent.com", required: true },
+      { keyName: "client_secret", label: "Client Secret", type: "password", placeholder: "GOCSPX-…", required: true },
     ],
   },
 };
@@ -150,6 +178,9 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
   const [deleting, setDeleting] = useState(false);
   const [existing, setExisting] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [googleStatus, setGoogleStatus] = useState<GoogleCalendarStatus | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const hasExisting = useMemo(() => existing.size > 0, [existing]);
 
@@ -183,7 +214,41 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
     (provider === "evolution" ? loadEvolution() : loadVault())
       .catch((e: any) => toast.error(`Falha ao ler chaves: ${e.message ?? e}`))
       .finally(() => setLoading(false));
+
+    if (provider === "google_calendar") {
+      setGoogleStatus(null);
+      fetchGoogleCalendarStatus(accountId)
+        .then(setGoogleStatus)
+        .catch(() => setGoogleStatus(null));
+    }
   }, [open, provider, accountId]);
+
+  async function handleConnectGoogle() {
+    if (!accountId) return;
+    setConnecting(true);
+    try {
+      await connectGoogleCalendar(accountId); // navega o navegador pro Google — não retorna
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao iniciar conexão com o Google");
+      setConnecting(false);
+    }
+  }
+
+  async function handleDisconnectGoogle() {
+    if (!accountId) return;
+    if (!confirm("Desconectar o Google Meet desta conta?")) return;
+    setDisconnecting(true);
+    try {
+      await disconnectGoogleCalendar(accountId);
+      setGoogleStatus((s) => (s ? { ...s, connected: false, email: null } : s));
+      toast.success("Google Meet desconectado");
+      onSaved?.();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao desconectar");
+    } finally {
+      setDisconnecting(false);
+    }
+  }
 
   if (!def || !provider) return null;
 
@@ -252,7 +317,16 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
         }
       }
       onSaved?.();
-      onOpenChange(false);
+      if (provider === "google_calendar") {
+        // Mantém o diálogo aberto: o próximo passo (conectar a conta Google)
+        // é aqui mesmo, no botão que só habilita depois que client_id/secret
+        // estão salvos.
+        setValues({});
+        setExisting((prev) => new Set([...prev, ...Object.keys(toSave)]));
+        fetchGoogleCalendarStatus(accountId).then(setGoogleStatus).catch(() => {});
+      } else {
+        onOpenChange(false);
+      }
     } catch (e: any) {
       toast.error(`Falha ao salvar: ${e?.message ?? "erro desconhecido"}`);
     } finally {
@@ -306,6 +380,62 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
             Abrir {def.docsLabel} <ExternalLink className="h-3 w-3" />
           </a>
         </div>
+
+        {provider === "google_calendar" && (
+          <>
+            <div className="rounded-md border border-border/50 bg-muted/20 p-3 text-xs">
+              <p className="mb-1.5 font-semibold text-muted-foreground">
+                Redirect URI (cadastre exatamente esta URL na credencial OAuth)
+              </p>
+              <code className="block break-all rounded bg-muted px-2 py-1.5 font-mono text-[11px]">
+                {googleStatus?.redirectUri ?? "carregando…"}
+              </code>
+            </div>
+
+            {googleStatus?.connected ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-2.5 text-xs">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <span>
+                    Conta Google conectada{googleStatus.email ? ` — ${googleStatus.email}` : ""}. O Meet já é
+                    criado automaticamente nas novas reuniões.
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleDisconnectGoogle}
+                  disabled={disconnecting}
+                  className="h-7 shrink-0 text-[11px] text-muted-foreground"
+                >
+                  {disconnecting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Desconectar"}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2.5 text-xs">
+                <span className="text-muted-foreground">
+                  {existing.has("client_id") && existing.has("client_secret")
+                    ? "Credenciais salvas — falta autorizar a conta Google."
+                    : "Salve o Client ID/Secret abaixo antes de conectar a conta."}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="default"
+                  onClick={handleConnectGoogle}
+                  disabled={
+                    connecting || !(existing.has("client_id") && existing.has("client_secret"))
+                  }
+                  className="h-7 shrink-0 gap-1.5 text-[11px]"
+                >
+                  {connecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
+                  Conectar conta Google
+                </Button>
+              </div>
+            )}
+          </>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-6">

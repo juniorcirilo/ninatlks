@@ -26,6 +26,8 @@ import {
   fetchMeetings,
   formatMeetingTime,
   setMeetingOutcome,
+  rescheduleMeeting,
+  toLocalInputValue,
   MEETING_STATUS_LABEL,
   type Meeting,
   type MeetingStatus,
@@ -506,6 +508,11 @@ function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: ()
   const tone = MEETING_STATUS_LABEL[meeting.status];
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [savingStatus, setSavingStatus] = useState<MeetingStatus | null>(null);
+  const [reschedulePickerOpen, setReschedulePickerOpen] = useState(false);
+  const [newStartsAt, setNewStartsAt] = useState(() =>
+    toLocalInputValue(new Date(meeting.starts_at)),
+  );
+  const [rescheduling, setRescheduling] = useState(false);
 
   async function applyStatus(status: MeetingStatus, cancellationReason?: string) {
     if (!accountId) return;
@@ -521,6 +528,23 @@ function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: ()
       toast.error(e?.message ?? "falha ao atualizar");
     } finally {
       setSavingStatus(null);
+    }
+  }
+
+  async function confirmReschedule() {
+    if (!accountId) return;
+    setRescheduling(true);
+    try {
+      await rescheduleMeeting(accountId, meeting.id, {
+        startsAt: new Date(newStartsAt).toISOString(),
+        notes: notes !== meeting.notes ? notes : undefined,
+      });
+      toast.success("Reunião remarcada — convidado e host foram notificados por e-mail");
+      onChanged();
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao remarcar");
+    } finally {
+      setRescheduling(false);
     }
   }
 
@@ -624,7 +648,7 @@ function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: ()
           />
         </div>
 
-        {meeting.status === "scheduled" && (
+        {(meeting.status === "scheduled" || meeting.status === "rescheduled") && (
           <div>
             <div className="mb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
               Marcar como
@@ -654,7 +678,7 @@ function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: ()
                 size="sm"
                 variant="outline"
                 disabled={!!savingStatus}
-                onClick={() => applyStatus("rescheduled")}
+                onClick={() => setReschedulePickerOpen((v) => !v)}
                 className="gap-1.5"
               >
                 <RotateCcw className="h-3.5 w-3.5 text-primary" />
@@ -670,6 +694,38 @@ function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: ()
                 Cancelar
               </Button>
             </div>
+
+            {reschedulePickerOpen && (
+              <div className="mt-2 space-y-2 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Novo horário
+                </div>
+                <Input
+                  type="datetime-local"
+                  value={newStartsAt}
+                  onChange={(e) => setNewStartsAt(e.target.value)}
+                  disabled={rescheduling}
+                />
+                <div className="flex gap-1.5">
+                  <Button size="sm" disabled={rescheduling} onClick={confirmReschedule}>
+                    {rescheduling && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Confirmar remarcação
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={rescheduling}
+                    onClick={() => setReschedulePickerOpen(false)}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  O convidado e quem conduz a reunião recebem um e-mail com o novo horário. Se a
+                  reunião tiver Google Meet, o evento no Calendar também é atualizado.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

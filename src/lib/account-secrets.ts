@@ -21,7 +21,8 @@ export type SecretProvider =
   | "n8n"
   | "custom-llm"
   | "agent-llm"
-  | "resend";
+  | "smtp"
+  | "google_calendar";
 
 export interface AccountSecretEntry {
   provider: SecretProvider;

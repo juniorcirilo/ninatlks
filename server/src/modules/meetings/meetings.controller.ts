@@ -16,7 +16,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { MeetingsService } from './meetings.service';
 import { SetOutcomeDto } from './dto/set-outcome.dto';
 import { UpsertDoctorDto } from './dto/upsert-doctor.dto';
-import { CreateMeetingDto, UpdateMeetingDto } from './dto/create-meeting.dto';
+import { CreateMeetingDto, UpdateMeetingDto, RescheduleMeetingDto } from './dto/create-meeting.dto';
 import {
   SetDoctorAvailabilityDto,
   SetUserAvailabilityDto,
@@ -52,6 +52,17 @@ export class MeetingsController {
     @Body() dto: UpdateMeetingDto,
   ) {
     return this.meetingsService.updateMeeting(accountId, id, dto);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @Patch(':id/reschedule')
+  reschedule(
+    @Param('accountId') accountId: string,
+    @Param('id') id: string,
+    @Body() dto: RescheduleMeetingDto,
+  ) {
+    return this.meetingsService.rescheduleMeeting(accountId, id, dto);
   }
 
   @UseGuards(RolesGuard)

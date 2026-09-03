@@ -152,6 +152,14 @@ export async function updateMeeting(
   await apiClient.patch(`/accounts/${accountId}/meetings/${meetingId}`, patch);
 }
 
+export async function rescheduleMeeting(
+  accountId: string,
+  meetingId: string,
+  patch: { startsAt: string; durationMinutes?: number; notes?: string },
+): Promise<void> {
+  await apiClient.patch(`/accounts/${accountId}/meetings/${meetingId}/reschedule`, patch);
+}
+
 export async function cancelMeeting(accountId: string, meetingId: string): Promise<void> {
   await apiClient.delete(`/accounts/${accountId}/meetings/${meetingId}`);
 }
@@ -189,6 +197,11 @@ export function formatMeetingTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
+}
+
+export function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function startOfWeek(d: Date): Date {

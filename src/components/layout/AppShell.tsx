@@ -23,6 +23,7 @@ import {
   Rocket,
   ClipboardList,
   MessageCircle,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -70,6 +71,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/campanhas", label: "Campanhas IA", icon: Rocket },
       { to: "/agents", label: "Agentes de voz", icon: Bot },
       { to: "/agents-playground", label: "Playground IA", icon: Sparkles },
+      { to: "/orcamentos", label: "Orçamentos", icon: Receipt },
       { to: "/agents-analytics", label: "Analytics IA", icon: BarChart3 },
     ],
   },

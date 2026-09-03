@@ -215,6 +215,78 @@ export class MeetingsService {
     }
   }
 
+  async rescheduleMeeting(
+    accountId: string,
+    id: string,
+    patch: { startsAt: string; durationMinutes?: number; notes?: string },
+  ): Promise<void> {
+    const rows = await this.tx.manager.query<
+      {
+        provider: string;
+        provider_event_id: string;
+        duration_minutes: number | null;
+        title: string | null;
+        meeting_url: string | null;
+        invitee_name: string | null;
+        invitee_email: string | null;
+        invitee_phone: string | null;
+        attendee_user_id: string | null;
+      }[]
+    >(
+      `SELECT provider, provider_event_id, duration_minutes, title, meeting_url,
+              invitee_name, invitee_email, invitee_phone, attendee_user_id
+         FROM public.scheduled_meetings WHERE id = $1 AND account_id = $2`,
+      [id, accountId],
+    );
+    const existing = rows[0];
+    if (!existing) throw new NotFoundException('Reunião não encontrada.');
+
+    const startsAt = new Date(patch.startsAt);
+    if (Number.isNaN(startsAt.getTime())) {
+      throw new BadRequestException('startsAt inválido.');
+    }
+    const durationMinutes = patch.durationMinutes ?? existing.duration_minutes ?? 30;
+    const endsAt = new Date(startsAt.getTime() + durationMinutes * 60_000);
+
+    await this.tx.manager.query(
+      `UPDATE public.scheduled_meetings
+          SET starts_at = $3, ends_at = $4, duration_minutes = $5, status = 'rescheduled',
+              notes = COALESCE($6, notes), updated_at = now()
+        WHERE id = $1 AND account_id = $2`,
+      [id, accountId, startsAt, endsAt, durationMinutes, patch.notes ?? null],
+    );
+
+    if (existing.provider === 'google_calendar') {
+      await this.googleCalendar
+        .updateMeetEvent(accountId, existing.provider_event_id, { startsAt, endsAt })
+        .catch((err) =>
+          this.logger.error(
+            `atualizar evento no Google falhou meeting=${id}: ${(err as Error).message}`,
+          ),
+        );
+    }
+
+    await this.meetingNotifications
+      .notifyMeetingRescheduled({
+        id,
+        accountId,
+        title: existing.title,
+        startsAt,
+        endsAt,
+        durationMinutes,
+        meetingUrl: existing.meeting_url,
+        status: 'rescheduled',
+        hostUserId: existing.attendee_user_id,
+        inviteeName: existing.invitee_name,
+        inviteeEmail: existing.invitee_email,
+        inviteePhone: existing.invitee_phone,
+        scheduledVia: 'manual',
+      })
+      .catch((err) =>
+        this.logger.error(`notify reschedule falhou meeting=${id}: ${(err as Error).message}`),
+      );
+  }
+
   async cancelMeeting(accountId: string, id: string, reason?: string): Promise<void> {
     const rows = await this.tx.manager.query<
       { provider: string; provider_event_id: string }[]

@@ -10,6 +10,8 @@ const PROVIDERS = [
   'n8n',
   'custom-llm',
   'agent-llm',
+  'smtp',
+  'google_calendar',
 ];
 
 export class SetSecretDto {

@@ -46,8 +46,9 @@ export class IngestController {
   }
 
   /**
-   * Recebimento para automação de agente, upsert pelo telefone — é o endpoint
-   * que os templates da tela de Webhooks > Recebimento geram.
+   * Recebimento para automação de agente, insert-only pelo telefone (contato
+   * existente é ignorado, não atualizado) — é o endpoint que os templates da
+   * tela de Webhooks > Recebimento geram.
    *
    * Aceita um contato (`{…}`) ou lote (`[{…}, {…}]`). A resposta acompanha o
    * formato do corpo: objeto para um, resumo com `results[]` para lote.

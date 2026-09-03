@@ -14,14 +14,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createMeeting, fetchDoctors, type Doctor } from "@/lib/meetings";
+import { createMeeting, fetchDoctors, toLocalInputValue, type Doctor } from "@/lib/meetings";
 import { listTeamMembers, type TeamMember } from "@/lib/team";
 import { fetchGoogleCalendarStatus, type GoogleCalendarStatus } from "@/lib/google-calendar";
-
-function toLocalInputValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 export function NewMeetingDialog({
   open,

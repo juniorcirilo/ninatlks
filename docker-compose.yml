@@ -6,6 +6,8 @@ services:
   # usuário/database/bucket dedicados — ver .env.
   utalks:
     image: ubvabrasil/utalks
+    build:
+      context: .
     container_name: utalks
     env_file:
       - .env
@@ -18,10 +20,6 @@ services:
     networks:
       - srv_default
     restart: unless-stopped
-    # O host não suporta NAT hairpin: o container não alcança o próprio IP
-    # público (evolution.ubva.com.br resolve pra ele via DNS externo), então
-    # a chamada de provisionamento do Evolution trava/expira. Aponta o
-    # domínio direto pro host (nginx local já faz o proxy certo por SNI).
     extra_hosts:
       - "evolution.ubva.com.br:host-gateway"
 

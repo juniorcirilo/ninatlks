@@ -106,18 +106,31 @@ export async function generateQuotePdfBuffer(q: QuoteForPdf): Promise<Uint8Array
   return doc.save();
 }
 
-export async function uploadQuotePdf(accountId: string, buf: Uint8Array): Promise<{ path: string; signedUrl: string }> {
-  const quoteId = crypto.randomUUID();
-  const path = `${accountId}/${quoteId}.pdf`;
-  const rows = await insert("quote_pdfs", {
-    account_id: accountId,
-    path,
-    bytes: Buffer.from(buf),
+/** Persiste o orçamento (linhas, valores, PDF) em `public.quotes` — é essa
+ * linha que alimenta a tela /orcamentos. */
+export async function saveQuote(q: QuoteForPdf & {
+  personaId: string | null;
+  conversationId: string | null;
+  usageType?: string;
+  pdf: Uint8Array;
+}): Promise<{ id: string }> {
+  const [row] = await insert<{ id: string }>("quotes", {
+    account_id: q.accountId,
+    persona_id: q.personaId,
+    conversation_id: q.conversationId,
+    customer_name: q.customerName ?? null,
+    project_description: q.projectDescription ?? null,
+    usage_type: q.usageType ?? null,
+    items: JSON.stringify(q.items),
+    subtotal: q.subtotal,
+    margin_pct: q.marginPct,
+    total: q.total,
+    nbr_notes: JSON.stringify(q.nbrNotes ?? []),
+    validity_days: q.validityDays ?? 7,
+    pdf_bytes: Buffer.from(q.pdf),
   });
-  if (!rows[0]) throw new Error("upload pdf failed");
-  const API_URL = process.env.VITE_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-  const signedUrl = `${API_URL}/files/quote-pdfs/${path}`;
-  return { path, signedUrl };
+  if (!row) throw new Error("falha ao salvar orçamento");
+  return { id: row.id };
 }
 
 // ============== NBR 7199 / 14207 enforcement helpers ==============

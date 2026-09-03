@@ -35,7 +35,7 @@ export class AgentContactBodyPipe
     }
     if (raw.length > MAX_BATCH) {
       throw new BadRequestException(
-        `Máximo de ${MAX_BATCH} contatos por requisição, recebidos ${raw.length}. Pagine o lote — o upsert é idempotente pelo telefone.`,
+        `Máximo de ${MAX_BATCH} contatos por requisição, recebidos ${raw.length}. Pagine o lote — a operação é insert-only e idempotente pelo telefone (contato existente é só ignorado).`,
       );
     }
 

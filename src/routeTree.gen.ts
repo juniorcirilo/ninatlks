@@ -21,6 +21,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedReunioesRouteImport } from './routes/_authenticated/reunioes'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
+import { Route as AuthenticatedOrcamentosRouteImport } from './routes/_authenticated/orcamentos'
 import { Route as AuthenticatedMissionControlRouteImport } from './routes/_authenticated/mission-control'
 import { Route as AuthenticatedListasRouteImport } from './routes/_authenticated/listas'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
@@ -102,6 +103,11 @@ const AuthenticatedPhoneNumbersRoute =
     path: '/phone-numbers',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedOrcamentosRoute = AuthenticatedOrcamentosRouteImport.update({
+  id: '/orcamentos',
+  path: '/orcamentos',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedMissionControlRoute =
   AuthenticatedMissionControlRouteImport.update({
     id: '/mission-control',
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/inbox': typeof AuthenticatedInboxRoute
   '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
+  '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/reunioes': typeof AuthenticatedReunioesRoute
@@ -266,6 +273,7 @@ export interface FileRoutesByTo {
   '/inbox': typeof AuthenticatedInboxRoute
   '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
+  '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/reunioes': typeof AuthenticatedReunioesRoute
@@ -301,6 +309,7 @@ export interface FileRoutesById {
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/listas': typeof AuthenticatedListasRoute
   '/_authenticated/mission-control': typeof AuthenticatedMissionControlRoute
+  '/_authenticated/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/reunioes': typeof AuthenticatedReunioesRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/listas'
     | '/mission-control'
+    | '/orcamentos'
     | '/phone-numbers'
     | '/pipeline'
     | '/reunioes'
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/inbox'
     | '/listas'
     | '/mission-control'
+    | '/orcamentos'
     | '/phone-numbers'
     | '/pipeline'
     | '/reunioes'
@@ -403,6 +414,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inbox'
     | '/_authenticated/listas'
     | '/_authenticated/mission-control'
+    | '/_authenticated/orcamentos'
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
     | '/_authenticated/reunioes'
@@ -512,6 +524,13 @@ declare module '@tanstack/react-router' {
       path: '/phone-numbers'
       fullPath: '/phone-numbers'
       preLoaderRoute: typeof AuthenticatedPhoneNumbersRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/orcamentos': {
+      id: '/_authenticated/orcamentos'
+      path: '/orcamentos'
+      fullPath: '/orcamentos'
+      preLoaderRoute: typeof AuthenticatedOrcamentosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/mission-control': {
@@ -685,6 +704,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedListasRoute: typeof AuthenticatedListasRoute
   AuthenticatedMissionControlRoute: typeof AuthenticatedMissionControlRoute
+  AuthenticatedOrcamentosRoute: typeof AuthenticatedOrcamentosRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedReunioesRoute: typeof AuthenticatedReunioesRoute
@@ -711,6 +731,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedListasRoute: AuthenticatedListasRoute,
   AuthenticatedMissionControlRoute: AuthenticatedMissionControlRoute,
+  AuthenticatedOrcamentosRoute: AuthenticatedOrcamentosRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedReunioesRoute: AuthenticatedReunioesRoute,

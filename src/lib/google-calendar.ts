@@ -1,7 +1,8 @@
 import { apiClient } from "@/lib/api-client";
 
 export type GoogleCalendarStatus = {
-  configured: boolean; // servidor tem GOOGLE_CLIENT_ID/SECRET
+  configured: boolean; // esta conta tem client_id/secret (vault ou GOOGLE_CLIENT_ID/SECRET do servidor)
+  redirectUri: string; // URL de callback a cadastrar no Google Cloud Console
   connected: boolean; // esta conta já autorizou
   email: string | null;
   enabled: boolean;

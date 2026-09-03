@@ -13,7 +13,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
 import { query, getOne, insert } from "@/lib/db";
-import { generateQuotePdfBuffer, uploadQuotePdf, validateNbr, type GlassUsage } from "./bruno-pdf.server";
+import { generateQuotePdfBuffer, saveQuote, validateNbr, type GlassUsage } from "./bruno-pdf.server";
 import { resolveLlmConfig } from "./llm-config";
 import { callChatCompletion } from "./providers";
 import type { ToolDef } from "./runner";
@@ -150,6 +150,8 @@ async function execCalculateQuote(
 
 async function execGenerateQuotePdf(
   accountId: string,
+  personaId: string | null,
+  conversationId: string | null,
   args: {
     customer_name?: string;
     project_description?: string;
@@ -174,8 +176,21 @@ async function execGenerateQuotePdf(
       nbrNotes: args.nbr_notes,
       validityDays: args.validity_days,
     });
-    const { path, signedUrl } = await uploadQuotePdf(accountId, buf);
-    return { ok: true, path, url: signedUrl, expires_in_hours: 24 * 7 };
+    const { id } = await saveQuote({
+      accountId,
+      personaId,
+      conversationId,
+      customerName: args.customer_name,
+      projectDescription: args.project_description,
+      items: args.items,
+      subtotal: args.subtotal,
+      marginPct: args.margin_pct,
+      total: args.total,
+      nbrNotes: args.nbr_notes,
+      validityDays: args.validity_days,
+      pdf: buf,
+    });
+    return { ok: true, quote_id: id };
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };
   }
@@ -266,7 +281,7 @@ const TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "generate_quote_pdf",
-      description: "Gera um PDF do orçamento (após calculate_quote ter aprovado) e devolve uma URL temporária para o cliente. Use APÓS confirmar o cálculo com o cliente.",
+      description: "Gera o PDF do orçamento (após calculate_quote ter aprovado) e salva no painel, na tela Orçamentos. Use APÓS confirmar o cálculo com o cliente.",
       parameters: {
         type: "object",
         properties: {
@@ -320,7 +335,7 @@ REGRAS:
 - Quando o cliente descrever o projeto (ex: "box de banheiro 1,2m x 1,9m"), calcule m² (largura × altura) e use \`calculate_quote\` SEMPRE passando \`usage_type\` (box, fachada, sacada, guarda_corpo, divisoria_interna, mesa, espelho, cobertura, outro). O sistema valida a NBR 7199/14207 e BLOQUEIA o cálculo se a configuração for ilegal.
 - Se \`calculate_quote\` retornar \`error: "violação de norma técnica"\`, releia os \`blockers\`, sugira ao cliente o vidro correto (ex: trocar temperado por laminado em fachada) e refaça o cálculo.
 - Margem padrão da UBVA: 35% sobre o custo. Pode subir até 50% se cliente pedir entrega expressa.
-- Após o cliente APROVAR o valor, ofereça gerar o PDF e chame \`generate_quote_pdf\` com os mesmos itens — envie a URL retornada na conversa.
+- Após o cliente APROVAR o valor, ofereça gerar o PDF e chame \`generate_quote_pdf\` com os mesmos itens — confirme ao cliente que o orçamento foi salvo e está disponível no painel, em Orçamentos.
 - Espessuras mínimas (referência): box 8mm temperado, divisória interna 10mm, fachada/sacada/guarda-corpo 4+4 laminado.
 - Se o cliente quiser falar com humano OU pedir algo fora do seu escopo (entrega complexa, garantia, projeto especial >R$10k), chame \`request_handoff\` com target="human".
 - Apresente orçamentos em formato claro: itens com qtd × preço, subtotal, margem, total.
@@ -406,7 +421,12 @@ export const askBruno = createServerFn({ method: "POST" })
             result = await execCalculateQuote(data.accountId, parsed as Parameters<typeof execCalculateQuote>[1]);
             break;
           case "generate_quote_pdf":
-            result = await execGenerateQuotePdf(data.accountId, parsed as Parameters<typeof execGenerateQuotePdf>[1]);
+            result = await execGenerateQuotePdf(
+              data.accountId,
+              personaId,
+              data.conversationId ?? null,
+              parsed as Parameters<typeof execGenerateQuotePdf>[3],
+            );
             break;
           case "request_handoff":
             result = await execRequestHandoff(

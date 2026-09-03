@@ -48,6 +48,11 @@ export const WEBHOOK_EVENT_CATALOG: Array<{
     desc: "A Nina marcou horário com o contato.",
   },
   {
+    event: "meeting.rescheduled",
+    label: "Reunião remarcada",
+    desc: "Uma reunião existente mudou de horário.",
+  },
+  {
     event: "campaign.finished",
     label: "Campanha concluída",
     desc: "Todos os contatos da campanha foram trabalhados.",

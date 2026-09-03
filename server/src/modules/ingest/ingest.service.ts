@@ -110,8 +110,9 @@ export class IngestService {
 
   /**
    * Recebimento de um contato para automação de agente, com o telefone como
-   * chave: a mesma pessoa chegando de novo atualiza o contato e mescla as
-   * variáveis em vez de virar uma segunda ligação.
+   * chave: insert-only — a mesma pessoa chegando de novo (por telefone,
+   * identifier ou externalId) é ignorada, não atualizada. Evita que uma
+   * carga reenviada sobrescreva correção manual feita no produto.
    *
    * Telefone inválido aqui é 400: quem manda um contato só está reagindo a um
    * evento (formulário enviado, pedido fechado) e precisa saber na hora que
@@ -129,7 +130,7 @@ export class IngestService {
     }
     const agentNames = await this.resolveAgents(accountId, [dto.agent]);
 
-    const row = await this.upsertAgentContact(
+    const row = await this.insertAgentContact(
       accountId,
       dto,
       phone,
@@ -164,10 +165,11 @@ export class IngestService {
    *    linha: por linha viraria um lote de aprovação por contato, e o operador
    *    veria 300 lotes de 1 na tela da campanha.
    *
-   * Sem transação única de propósito: cada linha é uma chamada à função de
-   * upsert, então uma falha no meio deixa o que já entrou. Como a operação é
-   * idempotente pelo telefone, reexecutar o mesmo lote conserta em vez de
-   * duplicar.
+   * Sem transação única de propósito: cada linha é uma chamada de insert,
+   * então uma falha no meio deixa o que já entrou. Como a operação é
+   * insert-only (contato existente é ignorado, não atualizado), reexecutar o
+   * mesmo lote nunca duplica — só cria quem ainda não existia na primeira
+   * passada.
    */
   async ingestAgentContacts(
     accountId: string,
@@ -211,7 +213,7 @@ export class IngestService {
         continue;
       }
 
-      const row = await this.upsertAgentContact(
+      const row = await this.insertAgentContact(
         accountId,
         dto,
         phone,
@@ -282,14 +284,15 @@ export class IngestService {
   }
 
   /**
-   * O upsert em si. `phone` já normalizado em E.164 — a função no banco recusa
-   * qualquer outro formato, e a regra de DDI mora só no toE164.
+   * O insert em si — insert-only, contato existente é ignorado. `phone` já
+   * normalizado em E.164 — a função no banco recusa qualquer outro formato,
+   * e a regra de DDI mora só no toE164.
    *
    * O contato entra na lista do agente (`agent:<agent>`), e é essa lista que a
    * campanha de voz aponta — nada aqui disca. Campanha com auto_enroll_mode
    * 'approval' ganha um lote pendente, liberado por uma pessoa na tela.
    */
-  private async upsertAgentContact(
+  private async insertAgentContact(
     accountId: string,
     dto: IngestAgentContactDto,
     phone: string,

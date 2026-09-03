@@ -17,6 +17,7 @@ export const WEBHOOK_EVENTS = [
   'call.finished',
   'call.transferred',
   'meeting.scheduled',
+  'meeting.rescheduled',
   'campaign.finished',
   'contact.disposition_changed',
 ] as const;

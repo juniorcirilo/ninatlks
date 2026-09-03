@@ -24,7 +24,8 @@ export class GoogleCalendarController {
   @Get('status')
   async status(@Param('accountId') accountId: string) {
     return {
-      configured: this.googleCalendar.isConfigured(),
+      configured: await this.googleCalendar.isConfigured(accountId),
+      redirectUri: this.googleCalendar.getRedirectUri(),
       ...(await this.googleCalendar.getStatus(accountId)),
     };
   }

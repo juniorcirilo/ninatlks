@@ -81,15 +81,15 @@ const PROVIDER_META: Record<
   },
   google_calendar: {
     icon: Video,
-    setupHint: "Conecte sua conta Google em Reuniões para gerar automaticamente o link do Meet em cada reunião criada por um admin.",
+    setupHint: "Cole o Client ID/Secret do Google Cloud Console aqui. Depois, conecte a conta Google em Reuniões para gerar o link do Meet em cada reunião criada por um admin.",
     setupHref: "/reunioes",
-    credentialKey: null,
+    credentialKey: "google_calendar",
   },
-  resend: {
+  smtp: {
     icon: Mail,
-    setupHint: "API key da Resend, usada para enviar o e-mail de confirmação de reunião (convidado + host).",
+    setupHint: "Host, usuário e senha SMTP (Hostgator/cPanel, Gmail, Resend via SMTP, etc.), usados para enviar o e-mail de confirmação de reunião (convidado + host).",
     setupHref: "/settings",
-    credentialKey: "resend",
+    credentialKey: "smtp",
   },
 };
 
@@ -370,7 +370,6 @@ function ProviderCard({
   const status = statusOf(report);
   const isN8n = report.key === "n8n";
   const isEvolution = report.key === "evolution";
-  const isGoogleCalendar = report.key === "google_calendar";
 
   return (
     <div className="glass flex flex-col gap-3 rounded-lg p-4">
@@ -476,13 +475,6 @@ function ProviderCard({
           >
             <MessageCircle className="h-3 w-3" />
             {status === "ok" ? "Gerenciar canais" : "Conectar WhatsApp"}
-          </Button>
-        ) : isGoogleCalendar ? (
-          <Button type="button" size="sm" variant={status === "ok" ? "outline" : "default"} asChild className="h-7 text-[11px]">
-            <Link to="/reunioes">
-              <Video className="h-3 w-3" />
-              {status === "ok" ? "Gerenciar em Reuniões" : "Conectar em Reuniões"}
-            </Link>
           </Button>
         ) : (
           <span className="text-[10px] text-muted-foreground">Configurado por canal</span>

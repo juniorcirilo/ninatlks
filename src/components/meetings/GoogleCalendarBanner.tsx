@@ -78,7 +78,18 @@ export function GoogleCalendarBanner({
     );
   }
 
-  if (!status.configured) return null; // sem GOOGLE_CLIENT_ID no servidor — nada a oferecer ainda
+  if (!status.configured) {
+    if (!isAdmin) return null;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/[0.04] px-3.5 py-2.5 text-xs text-amber-600 dark:text-amber-400">
+        <Video className="h-4 w-4 shrink-0" />
+        <span>
+          Google Meet ainda não foi configurado: cole o Client ID/Secret em Configurações →
+          Integrações para liberar a conexão.
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-border bg-card px-3.5 py-2.5 text-xs">

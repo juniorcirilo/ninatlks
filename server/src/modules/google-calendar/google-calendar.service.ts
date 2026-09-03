@@ -83,27 +83,58 @@ export class GoogleCalendarService {
     return `${base}/google-calendar/callback`;
   }
 
-  private assertConfigured(): {
+  /** Exposta pro status endpoint — o admin precisa dessa URL exata pra cadastrar no Google Cloud Console ao trazer seu próprio client_id/secret. */
+  getRedirectUri(): string {
+    return this.redirectUri();
+  }
+
+  /**
+   * Client ID/Secret podem vir por conta (colados em Integrações → vault,
+   * mesmo mecanismo do Resend) ou, na ausência deles, das variáveis de
+   * ambiente globais do servidor. Lê o vault direto via `DataSource`
+   * (mesmo padrão de `EmailService.resolveApiKey`) em vez de injetar
+   * `SecretsService` (REQUEST-scoped) — este service também é chamado fora
+   * de uma requisição HTTP (ex.: fluxo do agente de voz).
+   */
+  private async resolveCredentials(
+    accountId: string,
+  ): Promise<{ clientId: string; clientSecret: string } | null> {
+    const rows = await this.dataSource.query<
+      { key_name: string; decrypted_secret: string }[]
+    >(
+      `SELECT s.key_name, vs.decrypted_secret
+         FROM public.account_secrets s
+         JOIN vault.decrypted_secrets vs ON vs.id = s.vault_secret_id
+        WHERE s.account_id = $1 AND s.provider = 'google_calendar'`,
+      [accountId],
+    );
+    const stored = Object.fromEntries(rows.map((r) => [r.key_name, r.decrypted_secret]));
+    const clientId = stored.client_id ?? process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = stored.client_secret ?? process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return null;
+    return { clientId, clientSecret };
+  }
+
+  private async assertConfigured(accountId: string): Promise<{
     clientId: string;
     clientSecret: string;
     redirectUri: string;
-  } {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    if (!clientId || !clientSecret) {
+  }> {
+    const creds = await this.resolveCredentials(accountId);
+    if (!creds) {
       throw new Error(
-        'Integração com Google não configurada — defina GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.',
+        'Integração com Google não configurada — cole o Client ID/Secret em Configurações → Integrações ou defina GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET no servidor.',
       );
     }
-    return { clientId, clientSecret, redirectUri: this.redirectUri() };
+    return { ...creds, redirectUri: this.redirectUri() };
   }
 
-  isConfigured(): boolean {
-    return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  async isConfigured(accountId: string): Promise<boolean> {
+    return (await this.resolveCredentials(accountId)) !== null;
   }
 
   async getAuthUrl(accountId: string, userId: string): Promise<string> {
-    const { clientId, redirectUri } = this.assertConfigured();
+    const { clientId, redirectUri } = await this.assertConfigured(accountId);
     const state = randomBytes(24).toString('hex');
     await this.redisClient().set(
       `${STATE_KEY_PREFIX}${state}`,
@@ -138,7 +169,7 @@ export class GoogleCalendarService {
       userId: string;
     };
 
-    const { clientId, clientSecret, redirectUri } = this.assertConfigured();
+    const { clientId, clientSecret, redirectUri } = await this.assertConfigured(accountId);
     const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -242,7 +273,7 @@ export class GoogleCalendarService {
       return config.access_token;
     }
 
-    const { clientId, clientSecret } = this.assertConfigured();
+    const { clientId, clientSecret } = await this.assertConfigured(accountId);
     const res = await fetch(GOOGLE_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

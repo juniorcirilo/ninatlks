@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { createTransport } from 'nodemailer';
 
 export interface SendEmailInput {
   accountId: string;
@@ -8,16 +9,26 @@ export interface SendEmailInput {
   html: string;
 }
 
-const RESEND_API_URL = 'https://api.resend.com/emails';
+interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  from: string;
+}
 
 /**
- * Envio de e-mail via API REST da Resend (fetch puro, sem SDK — mesmo estilo
- * das outras integrações externas do projeto). Singleton (não
- * REQUEST-scoped) de propósito: precisa ser chamável tanto de dentro de uma
- * requisição HTTP (MeetingsService) quanto do fluxo do agente de voz
- * (AgentToolsService, que roda fora de um tenant de request e não pode
- * injetar `SecretsService`, que é REQUEST-scoped) — por isso lê o vault
- * direto via `DataSource`, replicando a mesma query de
+ * Envio de e-mail via SMTP genérico (nodemailer) — funciona com qualquer
+ * provedor que ofereça uma conta SMTP: Hostgator/cPanel, Gmail, Zoho, o
+ * relay SMTP da própria Resend, etc. Não é acoplado a um provedor
+ * específico de propósito: o cliente pode trazer o e-mail que já tem na
+ * hospedagem em vez de precisar contratar outro serviço.
+ *
+ * Singleton (não REQUEST-scoped) de propósito: precisa ser chamável tanto
+ * de dentro de uma requisição HTTP (MeetingsService) quanto do fluxo do
+ * agente de voz (AgentToolsService, que roda fora de um tenant de request e
+ * não pode injetar `SecretsService`, que é REQUEST-scoped) — por isso lê o
+ * vault direto via `DataSource`, replicando a mesma query de
  * `SecretsService.getInternal`.
  *
  * Nunca lança: um e-mail que falha não pode derrubar a criação da reunião
@@ -31,34 +42,25 @@ export class EmailService {
 
   async send(input: SendEmailInput): Promise<{ sent: boolean }> {
     try {
-      const apiKey = await this.resolveApiKey(input.accountId);
-      if (!apiKey) {
+      const config = await this.resolveConfig(input.accountId);
+      if (!config) {
         this.logger.warn(
-          `e-mail não enviado (Resend não configurado) account=${input.accountId} to=${input.to}`,
+          `e-mail não enviado (SMTP não configurado) account=${input.accountId} to=${input.to}`,
         );
         return { sent: false };
       }
-      const from = process.env.RESEND_FROM_EMAIL ?? 'Nina Talks <no-reply@ninatalks.app>';
-      const res = await fetch(RESEND_API_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from,
-          to: [input.to],
-          subject: input.subject,
-          html: input.html,
-        }),
+      const transport = createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.port === 465,
+        auth: { user: config.user, pass: config.password },
       });
-      if (!res.ok) {
-        const detail = await res.text().catch(() => '');
-        this.logger.error(
-          `falha ao enviar e-mail account=${input.accountId} to=${input.to}: HTTP ${res.status} ${detail}`,
-        );
-        return { sent: false };
-      }
+      await transport.sendMail({
+        from: config.from,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+      });
       return { sent: true };
     } catch (err) {
       this.logger.error(
@@ -68,14 +70,28 @@ export class EmailService {
     }
   }
 
-  private async resolveApiKey(accountId: string): Promise<string | null> {
-    const rows = await this.dataSource.query<{ decrypted_secret: string }[]>(
-      `SELECT vs.decrypted_secret
+  /**
+   * As credenciais SMTP podem vir por conta (coladas em Integrações → vault)
+   * ou, na ausência delas, das variáveis de ambiente globais do servidor.
+   */
+  private async resolveConfig(accountId: string): Promise<SmtpConfig | null> {
+    const rows = await this.dataSource.query<
+      { key_name: string; decrypted_secret: string }[]
+    >(
+      `SELECT s.key_name, vs.decrypted_secret
          FROM public.account_secrets s
          JOIN vault.decrypted_secrets vs ON vs.id = s.vault_secret_id
-        WHERE s.account_id = $1 AND s.provider = 'resend' AND s.key_name = 'api_key'`,
+        WHERE s.account_id = $1 AND s.provider = 'smtp'`,
       [accountId],
     );
-    return rows[0]?.decrypted_secret ?? process.env.RESEND_API_KEY ?? null;
+    const stored = Object.fromEntries(rows.map((r) => [r.key_name, r.decrypted_secret]));
+    const host = stored.smtp_host ?? process.env.SMTP_HOST;
+    const user = stored.smtp_user ?? process.env.SMTP_USER;
+    const password = stored.smtp_password ?? process.env.SMTP_PASSWORD;
+    const portRaw = stored.smtp_port ?? process.env.SMTP_PORT;
+    const port = Number(portRaw);
+    if (!host || !user || !password || !portRaw || !Number.isFinite(port)) return null;
+    const from = stored.from_email ?? process.env.SMTP_FROM_EMAIL ?? user;
+    return { host, port, user, password, from };
   }
 }

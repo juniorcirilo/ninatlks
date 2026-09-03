@@ -59,10 +59,11 @@ export interface RunResult {
 /**
  * Busca ativa (pull) da fonte de dados de um agente.
  *
- * O upsert reusa `IngestService.ingestAgentContacts`, o mesmo caminho do
- * recebimento por push: telefone como chave, lista operacional do agente,
- * variáveis em `ingest_variables`. O que este serviço faz de diferente é só
- * chegar até os dados e traduzi-los — quem grava é o caminho já testado.
+ * Reusa `IngestService.ingestAgentContacts`, o mesmo caminho do recebimento
+ * por push: telefone como chave, insert-only (contato existente é ignorado),
+ * lista operacional do agente, variáveis em `ingest_variables`. O que este
+ * serviço faz de diferente é só chegar até os dados e traduzi-los — quem
+ * grava é o caminho já testado.
  *
  * DataSource direto porque o poller roda em job de fila, sem sessão.
  */

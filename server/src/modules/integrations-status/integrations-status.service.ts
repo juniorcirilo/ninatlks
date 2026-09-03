@@ -1,4 +1,5 @@
 import { Injectable, Scope } from '@nestjs/common';
+import { createTransport } from 'nodemailer';
 import { TenantTxHost } from '../../common/tenant-tx.host';
 import { SecretsService } from '../secrets/secrets.service';
 import { n8nLockedByEnv } from '../n8n/n8n-client.service';
@@ -41,7 +42,7 @@ export class IntegrationsStatusService {
   ) {}
 
   async check(accountId: string): Promise<IntegrationsStatusReport> {
-    const [elevenlabs, twilio, evolution, deepgram, n8n, googleCalendar, resend] =
+    const [elevenlabs, twilio, evolution, deepgram, n8n, googleCalendar, smtp] =
       await Promise.all([
         this.checkElevenLabs(accountId),
         this.checkTwilio(accountId),
@@ -49,7 +50,7 @@ export class IntegrationsStatusService {
         this.checkDeepgram(accountId),
         this.checkN8n(accountId),
         this.checkGoogleCalendar(accountId),
-        this.checkResend(accountId),
+        this.checkSmtp(accountId),
       ]);
 
     const personas = await this.tx.manager.query<
@@ -78,7 +79,7 @@ export class IntegrationsStatusService {
         deepgram,
         n8n,
         googleCalendar,
-        resend,
+        smtp,
       ],
       nexus: {
         agents_total: personas.length,
@@ -270,14 +271,13 @@ export class IntegrationsStatusService {
   }
 
   private async checkGoogleCalendar(accountId: string): Promise<ProviderStatus> {
-    if (!this.googleCalendar.isConfigured()) {
+    if (!(await this.googleCalendar.isConfigured(accountId))) {
       return {
         key: 'google_calendar',
         label: 'Google Calendar / Meet',
         configured: false,
         ok: null,
-        detail: 'GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET não configurados no servidor',
-        locked: true,
+        detail: 'Client ID/Secret do Google não configurados',
       };
     }
     const status = await this.googleCalendar.getStatus(accountId);
@@ -287,6 +287,7 @@ export class IntegrationsStatusService {
         label: 'Google Calendar / Meet',
         configured: false,
         ok: null,
+        detail: 'Credenciais salvas — falta conectar a conta Google em Reuniões',
       };
     }
     return {
@@ -298,42 +299,39 @@ export class IntegrationsStatusService {
     };
   }
 
-  private async checkResend(accountId: string): Promise<ProviderStatus> {
-    const key =
-      (await this.secrets.getInternal(accountId, 'resend', 'api_key')) ||
-      process.env.RESEND_API_KEY ||
-      '';
-    if (!key)
+  private async checkSmtp(accountId: string): Promise<ProviderStatus> {
+    const stored = await this.secrets.getInternalBulk(accountId, 'smtp');
+    const host = stored.smtp_host || process.env.SMTP_HOST || '';
+    const user = stored.smtp_user || process.env.SMTP_USER || '';
+    const password = stored.smtp_password || process.env.SMTP_PASSWORD || '';
+    const port = Number(stored.smtp_port || process.env.SMTP_PORT || '');
+    if (!host || !user || !password || !Number.isFinite(port)) {
       return {
-        key: 'resend',
-        label: 'Resend (e-mail)',
+        key: 'smtp',
+        label: 'E-mail (SMTP)',
         configured: false,
         ok: null,
       };
+    }
     try {
-      const res = await fetch('https://api.resend.com/domains', {
-        headers: { Authorization: `Bearer ${key}` },
+      const transport = createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user, pass: password },
       });
-      if (!res.ok) {
-        return {
-          key: 'resend',
-          label: 'Resend (e-mail)',
-          configured: true,
-          ok: false,
-          detail: `HTTP ${res.status}`,
-        };
-      }
+      await transport.verify();
       return {
-        key: 'resend',
-        label: 'Resend (e-mail)',
+        key: 'smtp',
+        label: 'E-mail (SMTP)',
         configured: true,
         ok: true,
-        detail: 'Pronto para enviar e-mails de confirmação de reunião',
+        detail: `Conectado a ${host}:${port} — pronto para enviar e-mails de confirmação de reunião`,
       };
     } catch (err) {
       return {
-        key: 'resend',
-        label: 'Resend',
+        key: 'smtp',
+        label: 'E-mail (SMTP)',
         configured: true,
         ok: false,
         detail: String(err).slice(0, 120),
