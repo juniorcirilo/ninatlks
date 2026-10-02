@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -13,6 +14,7 @@ import {
   EvolutionError,
   instanceNameFor,
   normalizeStatus,
+  type RemoteInstance,
 } from './evolution-client.service';
 
 interface EvolutionChannelConfig {
@@ -38,6 +40,69 @@ export class EvolutionService {
       select: { id: true, name: true, config: true, enabled: true },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /** Canais WhatsApp + dados ao vivo do Evolution (perfil, número, contagens). */
+  async listSessions(accountId: string) {
+    const channels = await this.listChannels(accountId);
+    const servers = new Map<
+      string,
+      Promise<Map<string, Record<string, any>>>
+    >();
+    const load = (url: string, key: string) => {
+      const k = `${url}|${key}`;
+      if (!servers.has(k)) {
+        servers.set(
+          k,
+          this.client
+            .fetchInstances(url, key)
+            .then(
+              (l) =>
+                new Map(
+                  l.map((i) => [String(i.name ?? i.instanceName ?? ''), i]),
+                ),
+            ),
+        );
+      }
+      return servers.get(k)!;
+    };
+    return Promise.all(
+      channels.map(async (c) => {
+        const cfg = (c.config ?? {}) as EvolutionChannelConfig;
+        let remote: RemoteInstance | undefined;
+        let error: string | undefined;
+        if (cfg.evolution_url && cfg.evolution_api_key) {
+          try {
+            remote = (await load(cfg.evolution_url, cfg.evolution_api_key)).get(
+              cfg.evolution_instance_name ?? '',
+            );
+          } catch (e) {
+            error = e instanceof Error ? e.message : String(e);
+          }
+        }
+        return {
+          id: c.id,
+          name: c.name,
+          enabled: c.enabled,
+          instance_name: cfg.evolution_instance_name ?? null,
+          url: cfg.evolution_url ?? null,
+          status: remote
+            ? normalizeStatus(remote.connectionStatus)
+            : (cfg.evolution_instance_status ?? 'disconnected'),
+          found: !!remote,
+          error,
+          profile_name: remote?.profileName ?? null,
+          profile_pic_url: remote?.profilePicUrl ?? null,
+          owner_jid: remote?.ownerJid ?? null,
+          integration: remote?.integration ?? null,
+          counts: {
+            contacts: remote?._count?.Contact ?? 0,
+            chats: remote?._count?.Chat ?? 0,
+            messages: remote?._count?.Message ?? 0,
+          },
+        };
+      }),
+    );
   }
 
   async test(
@@ -71,8 +136,9 @@ export class EvolutionService {
   async provision(
     accountId: string,
     input: {
-      evolutionUrl: string;
-      evolutionApiKey: string;
+      evolutionUrl?: string;
+      evolutionApiKey?: string;
+      instanceName?: string;
       channelId?: string;
       channelName?: string;
     },
@@ -85,8 +151,22 @@ export class EvolutionService {
     }
     const webhookUrl = `${this.config.get<string>('PUBLIC_API_URL')!.replace(/\/$/, '')}/webhooks/evolution/incoming`;
 
-    const url = input.evolutionUrl.trim();
-    const apiKey = input.evolutionApiKey.trim();
+    let url = input.evolutionUrl?.trim();
+    let apiKey = input.evolutionApiKey?.trim();
+    if (!url || !apiKey) {
+      // Reaproveita o servidor Evolution já configurado em outro canal da conta.
+      const channels = await this.listChannels(accountId);
+      const known = channels
+        .map((c) => (c.config ?? {}) as EvolutionChannelConfig)
+        .find((c) => c.evolution_url && c.evolution_api_key);
+      url = url || known?.evolution_url;
+      apiKey = apiKey || known?.evolution_api_key;
+    }
+    if (!url || !apiKey) {
+      throw new BadRequestException(
+        'Informe a URL e a API key do servidor Evolution.',
+      );
+    }
 
     let channelId = input.channelId;
     let existingInstanceName: string | undefined;
@@ -115,14 +195,16 @@ export class EvolutionService {
       channelId = saved.id;
     }
 
+    const customName = !existingInstanceName ? input.instanceName : undefined;
     let instanceName =
       existingInstanceName ??
+      customName ??
       instanceNameFor(accountId, channelId.replace(/-/g, '').slice(0, 8));
 
     let provisioned:
       Awaited<ReturnType<EvolutionClientService['createInstance']>> | undefined;
     let lastErr: unknown;
-    const maxAttempts = existingInstanceName ? 1 : 4;
+    const maxAttempts = existingInstanceName || customName ? 1 : 4;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         provisioned = await this.client.createInstance({
@@ -153,10 +235,16 @@ export class EvolutionService {
       const status = lastErr instanceof EvolutionError ? lastErr.status : 500;
       const message =
         lastErr instanceof Error ? lastErr.message : String(lastErr);
-      throw new EvolutionError(
-        `falha ao criar instância: ${message}`,
-        status >= 400 && status < 500 ? 400 : 502,
-      );
+      if (!input.channelId) {
+        // Não deixa um canal órfão (sem instância) para trás.
+        await this.tx.manager.delete(Channels, { id: channelId });
+      }
+      const text =
+        lastErr instanceof EvolutionError && lastErr.code === 'ALREADY_EXISTS'
+          ? `Já existe uma instância com o nome "${instanceName}" no Evolution.`
+          : `Falha ao criar instância: ${message}`;
+      if (status >= 400 && status < 500) throw new BadRequestException(text);
+      throw new BadGatewayException(text);
     }
 
     const channelConfig: EvolutionChannelConfig = {
@@ -248,6 +336,53 @@ export class EvolutionService {
       );
     }
     return { status: normalized, raw: state.instance?.state ?? null };
+  }
+
+  async restart(accountId: string, channelId: string) {
+    const { channel, cfg } = await this.loadChannelConfig(accountId, channelId);
+    await this.client.restartInstance({
+      url: cfg.evolution_url!,
+      apiKey: cfg.evolution_api_key!,
+      instanceName: cfg.evolution_instance_name!,
+    });
+    await this.tx.manager.update(
+      Channels,
+      { id: channel.id },
+      { config: { ...cfg, evolution_instance_status: 'connecting' } },
+    );
+    return { ok: true };
+  }
+
+  async logout(accountId: string, channelId: string) {
+    const { channel, cfg } = await this.loadChannelConfig(accountId, channelId);
+    await this.client.logoutInstance({
+      url: cfg.evolution_url!,
+      apiKey: cfg.evolution_api_key!,
+      instanceName: cfg.evolution_instance_name!,
+    });
+    await this.tx.manager.update(
+      Channels,
+      { id: channel.id },
+      { config: { ...cfg, evolution_instance_status: 'disconnected' } },
+    );
+    return { ok: true };
+  }
+
+  async updateChannel(
+    accountId: string,
+    channelId: string,
+    dto: { name?: string; enabled?: boolean },
+  ) {
+    const channel = await this.tx.manager.findOne(Channels, {
+      where: { id: channelId, accountId, channelType: 'whatsapp' },
+    });
+    if (!channel) throw new NotFoundException('channel not found');
+    const patch: Record<string, unknown> = {};
+    if (dto.name !== undefined) patch.name = dto.name.trim();
+    if (dto.enabled !== undefined) patch.enabled = dto.enabled;
+    if (Object.keys(patch).length)
+      await this.tx.manager.update(Channels, { id: channel.id }, patch);
+    return { ok: true };
   }
 
   async deleteChannel(accountId: string, channelId: string) {

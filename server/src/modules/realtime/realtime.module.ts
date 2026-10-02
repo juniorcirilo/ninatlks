@@ -6,5 +6,6 @@ import { PgListenService } from './pg-listen.service';
 @Module({
   imports: [AuthModule],
   providers: [RealtimeGateway, PgListenService],
+  exports: [RealtimeGateway],
 })
 export class RealtimeModule {}

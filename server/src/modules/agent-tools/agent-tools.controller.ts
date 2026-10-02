@@ -16,6 +16,7 @@ import {
   GetAvailabilityDto,
   QualifyLeadDto,
   RegistrarDesfechoCobrancaDto,
+  RegistrarTransferenciaDto,
   RescheduleMeetingDto,
   ScheduleMeetingDto,
 } from './dto/agent-tools.dto';
@@ -26,6 +27,15 @@ import {
  * auth is the shared secret checked by AgentToolsAuthGuard, so every route
  * opts out of the global SessionAuthGuard via @Public().
  */
+/** O header do ElevenLabs ({{system__conversation_id}}) é confiável; o body pode vir inventado pelo LLM. */
+function withConversationHeader<T extends { conversation_id?: string }>(
+  dto: T,
+  header: string | undefined,
+): T {
+  if (header?.startsWith('conv_')) dto.conversation_id = header;
+  return dto;
+}
+
 @Controller('agent-tools')
 @UseGuards(AgentToolsAuthGuard)
 export class AgentToolsController {
@@ -47,9 +57,12 @@ export class AgentToolsController {
   @HttpCode(200)
   async getAvailability(
     @Body() dto: GetAvailabilityDto,
+    @Headers('x-conversation-id') conversationIdHeader: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
-    const { status, body } = await this.agentTools.getAvailability(dto);
+    const { status, body } = await this.agentTools.getAvailability(
+      withConversationHeader(dto, conversationIdHeader),
+    );
     res.status(status).json(body);
   }
 
@@ -95,13 +108,31 @@ export class AgentToolsController {
   }
 
   @Public()
+  @Post('registrar-transferencia')
+  @HttpCode(200)
+  async registrarTransferencia(
+    @Body() dto: RegistrarTransferenciaDto,
+    @Headers('x-conversation-id') conversationIdHeader: string | undefined,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { status, body } = await this.agentTools.registrarTransferencia(
+      dto,
+      conversationIdHeader ?? null,
+    );
+    res.status(status).json(body);
+  }
+
+  @Public()
   @Post('schedule-meeting')
   @HttpCode(200)
   async scheduleMeeting(
     @Body() dto: ScheduleMeetingDto,
+    @Headers('x-conversation-id') conversationIdHeader: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
-    const { status, body } = await this.agentTools.scheduleMeeting(dto);
+    const { status, body } = await this.agentTools.scheduleMeeting(
+      withConversationHeader(dto, conversationIdHeader),
+    );
     res.status(status).json(body);
   }
 }

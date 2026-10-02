@@ -220,7 +220,7 @@ export function EvolutionQuickConnect({ open, onOpenChange, accountId, onConnect
                 URL do servidor <span className="text-destructive">*</span>
               </Label>
               <Input
-                placeholder="https://evo.exemplo.com"
+                placeholder="http://evolution:9002"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 autoComplete="off"

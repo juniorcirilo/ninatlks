@@ -57,6 +57,7 @@ export type CentralContact = {
   email: string | null;
   phone_number: string | null;
   identifier: string | null;
+  external_id: string | null;
   score: number;
   lifecycle_stage: LifecycleStage;
   operational_status: OperationalStatus;
@@ -66,6 +67,24 @@ export type CentralContact = {
   last_whatsapp_at: string | null;
   owner_user_id: string | null;
   briefing: any;
+  company_id: string | null;
+  razao_social: string | null;
+  nome_fantasia: string | null;
+  vendedor_id: string | null;
+  source_agent_id: string | null;
+  source_agent_name: string | null;
+  agent_names: string[] | null;
+};
+
+export type Company = {
+  id: string;
+  account_id: string;
+  name: string;
+  razao_social: string | null;
+  nome_fantasia: string | null;
+  vendedor_id: string | null;
+  vendedor_nome_erp: string | null;
+  external_id: string | null;
 };
 
 export type QuickFilter =
@@ -157,6 +176,144 @@ export async function updateContactOps(
       : {}),
     ...(patch.owner_user_id !== undefined ? { ownerUserId: patch.owner_user_id } : {}),
   });
+}
+
+export type CompanyListRow = Company & {
+  vendedor_resolved_nome: string | null;
+  created_at: string;
+  linked_contacts_count: number;
+};
+
+export async function listCompanyContacts(
+  accountId: string,
+  companyId: string,
+): Promise<{ id: string; name: string | null; phone_number: string | null }[]> {
+  return apiClient.get(`/accounts/${accountId}/companies/${companyId}/contacts`);
+}
+
+export async function fetchCompany(accountId: string, companyId: string): Promise<Company> {
+  return apiClient.get<Company>(`/accounts/${accountId}/companies/${companyId}`);
+}
+
+export async function listCompanies(accountId: string, search?: string): Promise<CompanyListRow[]> {
+  const qs = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+  return apiClient.get<CompanyListRow[]>(`/accounts/${accountId}/companies${qs}`);
+}
+
+/** Cria uma empresa avulsa (sem cliente vinculado ainda) — usado pelo fluxo
+ * de reconciliação de "Itens não sincronizados" em Cobranças/Orçamentos.
+ * Na tela Empresas, empresa nasce sempre a partir de um cliente — ver
+ * linkClientCompany. */
+export async function createCompany(
+  accountId: string,
+  input: {
+    externalId?: string | null;
+    name?: string | null;
+    razaoSocial?: string | null;
+    nomeFantasia?: string | null;
+    vendedorId?: string | null;
+  },
+): Promise<Company> {
+  return apiClient.post<Company>(`/accounts/${accountId}/companies`, input);
+}
+
+export interface ClientCompanyRow {
+  contact_id: string;
+  contact_name: string | null;
+  phone_number: string | null;
+  company_id: string | null;
+  company_name: string | null;
+  company_external_id: string | null;
+  company_razao_social: string | null;
+}
+
+/** Clientes com a empresa que já têm vinculada (ou nenhuma) — lista base
+ * da tela Empresas. */
+export async function listClientCompanies(
+  accountId: string,
+  search?: string,
+): Promise<ClientCompanyRow[]> {
+  const qs = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+  return apiClient.get<ClientCompanyRow[]>(`/accounts/${accountId}/companies/clients${qs}`);
+}
+
+/** Vincula um cliente já existente à empresa dele — por empresa_id (acha ou
+ * cria) ou por uma empresa já escolhida (companyId); sem nenhum dos dois,
+ * cria uma empresa avulsa com `name` só pra este cliente. */
+export async function linkClientCompany(
+  accountId: string,
+  input: { contactId: string; companyId?: string | null; externalId?: string | null; name?: string | null },
+): Promise<Company> {
+  return apiClient.post<Company>(`/accounts/${accountId}/companies/link`, input);
+}
+
+export interface LinkClientCompaniesResult {
+  created: number;
+  linked: number;
+  errors: { row: number; phone: string; reason: string }[];
+}
+
+export async function bulkLinkClientCompanies(
+  accountId: string,
+  rows: { phone: string; externalId?: string | null; name?: string | null }[],
+): Promise<LinkClientCompaniesResult> {
+  return apiClient.post<LinkClientCompaniesResult>(`/accounts/${accountId}/companies/link/import`, { rows });
+}
+
+/** Colunas aceitas: telefone/phone/celular (chave do cliente, obrigatória),
+ * empresa_id/external_id/codigo (chave da empresa) e nome/name (opcional,
+ * usado só quando não há empresa_id). */
+export async function bulkLinkClientCompaniesCsv(
+  accountId: string,
+  text: string,
+): Promise<LinkClientCompaniesResult> {
+  const { headers, rows } = parseCsv(text);
+  if (!headers.length) return { created: 0, linked: 0, errors: [] };
+  const idx = (names: string[]) => {
+    for (const n of names) {
+      const i = headers.indexOf(n);
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const iPhone = idx(["telefone", "phone", "phone_number", "celular", "whatsapp"]);
+  const iExternalId = idx(["empresa_id", "external_id", "id", "codigo", "código"]);
+  const iName = idx(["nome", "name", "razao_social", "razão social"]);
+  if (iPhone < 0) {
+    return {
+      created: 0,
+      linked: 0,
+      errors: [{ row: 0, phone: "", reason: 'Planilha sem coluna "telefone" (aceita também phone/celular).' }],
+    };
+  }
+  const payload = rows.map((r) => ({
+    phone: r[iPhone] ?? "",
+    externalId: iExternalId >= 0 ? r[iExternalId] || null : null,
+    name: iName >= 0 ? r[iName] || null : null,
+  }));
+  return bulkLinkClientCompanies(accountId, payload);
+}
+
+export async function updateCompany(
+  accountId: string,
+  companyId: string,
+  patch: Partial<Pick<Company, "razao_social" | "nome_fantasia" | "vendedor_id">>,
+): Promise<Company> {
+  return apiClient.patch<Company>(`/accounts/${accountId}/companies/${companyId}`, {
+    ...(patch.razao_social !== undefined ? { razaoSocial: patch.razao_social } : {}),
+    ...(patch.nome_fantasia !== undefined ? { nomeFantasia: patch.nome_fantasia } : {}),
+    ...(patch.vendedor_id !== undefined ? { vendedorId: patch.vendedor_id } : {}),
+  });
+}
+
+export async function deleteCompany(accountId: string, companyId: string): Promise<void> {
+  await apiClient.delete(`/accounts/${accountId}/companies/${companyId}`);
+}
+
+/** Apaga TODAS as empresas da conta e desvincula os clientes delas — botão
+ * "Truncar" da tela Empresas. */
+export async function deleteAllCompanies(accountId: string): Promise<{ deleted: number }> {
+  return apiClient.delete(`/accounts/${accountId}/companies`);
 }
 
 export type ListLite = { id: string; name: string; member_count: number };

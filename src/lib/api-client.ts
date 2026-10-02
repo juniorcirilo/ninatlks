@@ -40,7 +40,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     credentials: "include",
     headers: {
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      // FormData: o navegador define o Content-Type (com boundary).
+      ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
@@ -66,7 +67,7 @@ export const apiClient = {
   post: <T>(path: string, data?: unknown) =>
     request<T>(path, {
       method: "POST",
-      body: data !== undefined ? JSON.stringify(data) : undefined,
+      body: data instanceof FormData ? data : data !== undefined ? JSON.stringify(data) : undefined,
     }),
   patch: <T>(path: string, data?: unknown) =>
     request<T>(path, {

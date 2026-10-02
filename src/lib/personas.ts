@@ -47,6 +47,10 @@ export interface Persona {
   llm_custom_model_id: string | null;
   /** Campos de dados esperados deste agente — formulário manual e template de webhook usam este conjunto. */
   variable_schema: PersonaVariableField[];
+  /** Papel estruturado desta persona: 'cobranca', 'orcamento' ou null para SDR genérico. */
+  document_kind: string | null;
+  /** Modo do webhook de contato: 'insert' (ignora se já existe) ou 'upsert' (atualiza se já existe). */
+  ingest_mode: "insert" | "upsert";
   created_at: string;
   updated_at: string;
 }
@@ -123,6 +127,8 @@ type ApiPersona = {
   llmCustomUrl: string | null;
   llmCustomModelId: string | null;
   variableSchema: PersonaVariableField[];
+  ingestMode: "insert" | "upsert";
+  documentKind: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -155,6 +161,8 @@ function toPersona(p: ApiPersona): Persona {
     llm_custom_url: p.llmCustomUrl ?? null,
     llm_custom_model_id: p.llmCustomModelId ?? null,
     variable_schema: p.variableSchema ?? [],
+    ingest_mode: p.ingestMode ?? "insert",
+    document_kind: p.documentKind ?? null,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
@@ -228,6 +236,7 @@ export async function updatePersona(accountId: string, id: string, updates: Part
   if (updates.llm_custom_url !== undefined) body.llmCustomUrl = updates.llm_custom_url;
   if (updates.llm_custom_model_id !== undefined) body.llmCustomModelId = updates.llm_custom_model_id;
   if (updates.variable_schema !== undefined) body.variableSchema = updates.variable_schema;
+  if (updates.ingest_mode !== undefined) body.ingestMode = updates.ingest_mode;
 
   const row = await apiClient.patch<ApiPersona>(`/accounts/${accountId}/personas/${id}`, body);
   return toPersona(row);

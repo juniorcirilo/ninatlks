@@ -24,6 +24,7 @@ import {
 } from './dto/agent-source.dto';
 import { N8nEnsureNodeDto } from './dto/n8n-ensure-node.dto';
 import { N8nAddNodeDto } from './dto/n8n-add-node.dto';
+import { ResolveSyncFailureDto } from './dto/resolve-sync-failure.dto';
 
 /**
  * Fontes de dados por agente: o produto busca no sistema do cliente em vez de
@@ -71,7 +72,7 @@ export class AgentSourcesController {
     }
     const result = await this.n8n.ensureAgentNode(accountId, {
       agentName: dto.agentName,
-      method: dto.method ?? process.env.N8N_HTTP_METHOD?.toUpperCase() === 'GET' ? 'GET' : 'POST',
+      method: dto.method ?? (process.env.N8N_HTTP_METHOD?.toUpperCase() === 'GET' ? 'GET' : 'POST'),
     });
     return { configured: true as const, ...result };
   }
@@ -215,6 +216,34 @@ export class AgentSourcesController {
   ) {
     await this.sources.requireSource(accountId, id);
     return this.sources.run(id);
+  }
+
+  /**
+   * Falhas da última corrida desta fonte (ver PersistAgentSourceSyncFailures)
+   * — sobrevive ao fechamento do modal de sincronização, pra investigar
+   * depois "por que só X dos Y chegaram" sem precisar sincronizar de novo.
+   */
+  @Get(':id/failures')
+  async failures(
+    @Param('accountId') accountId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    await this.sources.requireSource(accountId, id);
+    return this.sources.listFailures(accountId, id);
+  }
+
+  /**
+   * Reconciliação manual de uma linha que a última corrida bloqueou por
+   * "empresa não identificada" (Cobranças/Orçamentos > Itens não
+   * sincronizados). Não depende do :id da fonte — a tela já tem tudo que
+   * precisa (telefone/nome/email/variables) vindo do `details` da falha.
+   */
+  @Post('resolve-failure')
+  async resolveFailure(
+    @Param('accountId') accountId: string,
+    @Body() dto: ResolveSyncFailureDto,
+  ) {
+    return this.sources.resolveSyncFailure(accountId, dto);
   }
 
   @Delete(':id')

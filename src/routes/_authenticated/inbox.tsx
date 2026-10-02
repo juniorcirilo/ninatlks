@@ -1,17 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Bot,
-  Loader2,
-  MessageCircle,
-  Send,
-  User as UserIcon,
-} from "lucide-react";
+import { ListChecks, Loader2, MessageCircle, Mic, Paperclip, Search, Send, X } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
-import { subscribeTable } from "@/lib/realtime-client";
+import { subscribePresence, subscribeTable } from "@/lib/realtime-client";
+import { MessageBubble } from "@/components/inbox/MessageBubble";
+import { InteractiveDialog } from "@/components/inbox/InteractiveDialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -20,10 +16,13 @@ import {
   fetchConversationMessages,
   fetchConversations,
   markConversationRead,
+  sendConversationInteractive,
+  sendConversationMedia,
   sendConversationMessage,
+  sendConversationPresence,
   setConversationAutopilot,
   type ConversationListItem,
-  type ConversationMessage,
+  type InteractiveInput,
 } from "@/lib/inbox";
 
 export const Route = createFileRoute("/_authenticated/inbox")({
@@ -32,7 +31,8 @@ export const Route = createFileRoute("/_authenticated/inbox")({
       { title: "Mensagens — Nina Talks" },
       {
         name: "description",
-        content: "Converse por WhatsApp com seus contatos, com a IA respondendo ou você no controle.",
+        content:
+          "Converse por WhatsApp com seus contatos, com a IA respondendo ou você no controle.",
       },
     ],
   }),
@@ -56,6 +56,7 @@ function InboxPage() {
   const { contactId } = Route.useSearch();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   const listKey = useMemo(() => ["conversations", accountId] as const, [accountId]);
   const { data: conversations = [], isLoading } = useQuery({
@@ -98,31 +99,54 @@ function InboxPage() {
     }
   }, [conversations, selectedId, contactId]);
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter(
+      (c) =>
+        (c.contact_name ?? "").toLowerCase().includes(q) ||
+        (c.contact_phone ?? "").includes(q.replace(/\D/g, "") || "\u0000"),
+    );
+  }, [conversations, query]);
+
   const selected = useMemo(
     () => conversations.find((c) => c.id === selectedId) ?? null,
     [conversations, selectedId],
   );
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] min-h-0 w-full">
-      <aside className="flex h-full w-[340px] shrink-0 flex-col border-r border-border bg-background">
-        <div className="border-b border-border px-4 py-3">
-          <h2 className="text-sm font-semibold">Mensagens</h2>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">WhatsApp via Evolution</p>
+    <div className="flex h-full min-h-0 w-full overflow-hidden">
+      <aside className="flex h-full min-h-0 w-[340px] shrink-0 flex-col border-r border-border bg-background">
+        <div className="shrink-0 space-y-2 border-b border-border px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold">Mensagens</h2>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">WhatsApp via Evolution</p>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar contato ou número"
+              className="h-8 pl-8 text-xs"
+            />
+          </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex h-32 items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
-          ) : conversations.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-              Nenhuma conversa de WhatsApp ainda.
+              {conversations.length === 0
+                ? "Nenhuma conversa de WhatsApp ainda."
+                : "Nada encontrado."}
             </div>
           ) : (
             <ul className="space-y-1 px-2 py-2">
-              {conversations.map((c) => (
+              {filtered.map((c) => (
                 <ConversationListItemRow
                   key={c.id}
                   conversation={c}
@@ -132,10 +156,10 @@ function InboxPage() {
               ))}
             </ul>
           )}
-        </ScrollArea>
+        </div>
       </aside>
 
-      <section className="flex h-full min-w-0 flex-1 flex-col bg-muted/20">
+      <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-muted/20">
         {!selected ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
             <MessageCircle className="h-8 w-8 text-muted-foreground/40" />
@@ -189,12 +213,23 @@ function ConversationListItemRow({
   );
 }
 
+const digits = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
+// Compara pelos 8 últimos dígitos: tolera o 9º dígito e o DDI.
+const samePhone = (a: string, b: string) =>
+  a.length >= 8 && b.length >= 8 && a.slice(-8) === b.slice(-8);
+
+const MAX_FILE_MB = 25;
+
 function ConversationThread({ conversation }: { conversation: ConversationListItem }) {
   const { accountId } = useAccount();
   const queryClient = useQueryClient();
   const endRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
+  const [interactiveOpen, setInteractiveOpen] = useState(false);
+  const [contactPresence, setContactPresence] = useState<string | null>(null);
 
   const messagesKey = useMemo(
     () => ["conversation-messages", conversation.id] as const,
@@ -210,26 +245,96 @@ function ConversationThread({ conversation }: { conversation: ConversationListIt
   useEffect(() => {
     if (!accountId) return;
     markConversationRead(accountId, conversation.id).catch(() => {});
-  }, [accountId, conversation.id]);
+  }, [accountId, conversation.id, messages.length]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length]);
+  }, [messages.length, contactPresence]);
+
+  // Presença do contato ("digitando…" / "gravando áudio…").
+  useEffect(() => {
+    const phone = digits(conversation.contact_phone);
+    let timer: number | undefined;
+    const off = subscribePresence((e) => {
+      if (!samePhone(digits(e.jid), phone)) return;
+      window.clearTimeout(timer);
+      if (e.presence === "composing" || e.presence === "recording") {
+        setContactPresence(e.presence);
+        timer = window.setTimeout(() => setContactPresence(null), 7000);
+      } else {
+        setContactPresence(null);
+      }
+    });
+    return () => {
+      off();
+      window.clearTimeout(timer);
+    };
+  }, [conversation.contact_phone]);
+
+  // Nossa presença: avisa "digitando" (no máx. 1x/4s) e "pausou" ao parar.
+  const lastTyping = useRef(0);
+  const pauseTimer = useRef<number | undefined>(undefined);
+  const announce = (presence: "composing" | "paused") => {
+    if (!accountId) return;
+    sendConversationPresence(accountId, conversation.id, presence).catch(() => {});
+  };
+  const onDraftChange = (value: string) => {
+    setDraft(value);
+    window.clearTimeout(pauseTimer.current);
+    if (!value.trim()) return announce("paused");
+    if (Date.now() - lastTyping.current > 4000) {
+      lastTyping.current = Date.now();
+      announce("composing");
+    }
+    pauseTimer.current = window.setTimeout(() => {
+      lastTyping.current = 0;
+      announce("paused");
+    }, 3000);
+  };
+  useEffect(() => () => window.clearTimeout(pauseTimer.current), []);
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: messagesKey });
+    queryClient.invalidateQueries({ queryKey: ["conversations", accountId] });
+  };
 
   const handleSend = async () => {
     const content = draft.trim();
-    if (!content || !accountId) return;
+    if ((!content && !file) || !accountId) return;
     setSending(true);
+    window.clearTimeout(pauseTimer.current);
     try {
-      await sendConversationMessage(accountId, conversation.id, content);
+      if (file) await sendConversationMedia(accountId, conversation.id, file, content);
+      else await sendConversationMessage(accountId, conversation.id, content);
       setDraft("");
-      queryClient.invalidateQueries({ queryKey: messagesKey });
-      queryClient.invalidateQueries({ queryKey: ["conversations", accountId] });
+      setFile(null);
+      lastTyping.current = 0;
+      refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao enviar mensagem");
     } finally {
       setSending(false);
     }
+  };
+
+  const handleInteractive = async (input: InteractiveInput) => {
+    if (!accountId) return;
+    try {
+      await sendConversationInteractive(accountId, conversation.id, input);
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar mensagem interativa");
+      throw err;
+    }
+  };
+
+  const pickFile = (f: File | undefined) => {
+    if (!f) return;
+    if (f.size > MAX_FILE_MB * 1024 * 1024) {
+      toast.error(`Arquivo maior que ${MAX_FILE_MB} MB.`);
+      return;
+    }
+    setFile(f);
   };
 
   const handleAutopilotToggle = async (enabled: boolean) => {
@@ -242,16 +347,24 @@ function ConversationThread({ conversation }: { conversation: ConversationListIt
     }
   };
 
+  const title = conversation.contact_name || conversation.contact_phone || "Sem nome";
+
   return (
     <>
-      <div className="flex items-center justify-between border-b border-border bg-background px-4 py-3">
-        <div>
-          <h3 className="text-sm font-semibold">
-            {conversation.contact_name || conversation.contact_phone || "Sem nome"}
-          </h3>
-          <p className="text-[11px] text-muted-foreground">{conversation.contact_phone}</p>
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-semibold">{title}</h3>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {contactPresence === "composing" ? (
+              <span className="text-emerald-500">digitando…</span>
+            ) : contactPresence === "recording" ? (
+              <span className="text-emerald-500">gravando áudio…</span>
+            ) : (
+              conversation.contact_phone
+            )}
+          </p>
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
           <span>{conversation.ai_autopilot_enabled ? "IA" : "Humano"}</span>
           <Switch
             checked={conversation.ai_autopilot_enabled}
@@ -260,7 +373,7 @@ function ConversationThread({ conversation }: { conversation: ConversationListIt
         </div>
       </div>
 
-      <ScrollArea className="flex-1 px-4 py-3">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <div className="space-y-2">
           {isLoading ? (
             <div className="flex h-32 items-center justify-center">
@@ -274,70 +387,101 @@ function ConversationThread({ conversation }: { conversation: ConversationListIt
           ) : (
             messages.map((m) => <MessageBubble key={m.id} message={m} />)
           )}
+          {contactPresence && (
+            <div className="flex justify-start">
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-2 text-muted-foreground">
+                {contactPresence === "recording" ? (
+                  <Mic className="h-3.5 w-3.5" />
+                ) : (
+                  [0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-current"
+                      style={{ animationDelay: `${i * 150}ms` }}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
           <div ref={endRef} />
         </div>
-      </ScrollArea>
+      </div>
 
-      <footer className="border-t border-border bg-background px-4 py-3">
+      <footer className="shrink-0 border-t border-border bg-background px-4 py-3">
+        {file && (
+          <div className="mb-2 flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-xs">
+            <Paperclip className="h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{file.name}</span>
+            <span className="shrink-0 text-muted-foreground">
+              {(file.size / 1024 / 1024).toFixed(1)} MB
+            </span>
+            <button
+              type="button"
+              onClick={() => setFile(null)}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
         <div className="flex items-end gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            hidden
+            onChange={(e) => {
+              pickFile(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Anexar arquivo"
+            onClick={() => fileRef.current?.click()}
+          >
+            <Paperclip className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Mensagem interativa"
+            onClick={() => setInteractiveOpen(true)}
+          >
+            <ListChecks className="h-4 w-4" />
+          </Button>
           <Textarea
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => onDraftChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 void handleSend();
               }
             }}
-            placeholder="Escreva uma mensagem…"
+            onPaste={(e) => {
+              const f = Array.from(e.clipboardData.files)[0];
+              if (f) {
+                e.preventDefault();
+                pickFile(f);
+              }
+            }}
+            placeholder={file ? "Legenda (opcional)…" : "Escreva uma mensagem…"}
             rows={2}
             className="min-h-0 resize-none"
           />
-          <Button size="icon" onClick={handleSend} disabled={sending || !draft.trim()}>
+          <Button size="icon" onClick={handleSend} disabled={sending || (!draft.trim() && !file)}>
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
       </footer>
-    </>
-  );
-}
 
-function MessageBubble({ message }: { message: ConversationMessage }) {
-  const isOutbound = message.sender_type === "User" || message.sender_type === "AgentBot";
-  const isBot = message.sender_type === "AgentBot";
-  return (
-    <div className={cn("flex", isOutbound ? "justify-end" : "justify-start")}>
-      <div
-        className={cn(
-          "max-w-[75%] rounded-lg border px-3 py-2 text-sm",
-          isOutbound
-            ? "border-violet-500/15 bg-violet-500/[0.06]"
-            : "border-border bg-background",
-        )}
-      >
-        {isOutbound && (
-          <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-            {isBot ? (
-              <>
-                <Bot className="h-3 w-3 text-violet-500" />
-                <span className="text-violet-600 dark:text-violet-300">Nina</span>
-              </>
-            ) : (
-              <>
-                <UserIcon className="h-3 w-3 text-sky-500" />
-                <span className="text-sky-600 dark:text-sky-300">Você</span>
-              </>
-            )}
-          </div>
-        )}
-        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
-        <div className="mt-1 text-right text-[10px] opacity-60">
-          {new Date(message.created_at).toLocaleTimeString("pt-BR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </div>
-      </div>
-    </div>
+      <InteractiveDialog
+        open={interactiveOpen}
+        onOpenChange={setInteractiveOpen}
+        onSend={handleInteractive}
+      />
+    </>
   );
 }

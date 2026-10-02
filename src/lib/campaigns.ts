@@ -46,6 +46,12 @@ export type CampaignRow = {
   escalated_count: number;
   voicemail_count: number;
   failed_count: number;
+  /** Aguardando discagem (ao vivo). */
+  queued_count: number;
+  /** Chamando agora (ao vivo). */
+  ringing_count: number;
+  /** Em ligação agora (ao vivo). */
+  in_progress_count: number;
   created_at: string;
   scheduled_at: string | null;
   started_at: string | null;
@@ -94,6 +100,16 @@ export async function fetchCampaignContacts(
   id: string,
 ): Promise<CampaignContactRow[]> {
   return apiClient.get<CampaignContactRow[]>(`/accounts/${accountId}/campaigns/${id}/contacts`);
+}
+
+export async function retryFailedCampaignContacts(
+  accountId: string,
+  id: string,
+  contactRowId?: string,
+): Promise<{ ok: true; requeued: number }> {
+  return apiClient.post(`/accounts/${accountId}/campaigns/${id}/retry-failed`, {
+    contactRowId,
+  });
 }
 
 export async function updateCampaignStatus(
@@ -248,6 +264,8 @@ export type ContactListRow = {
   campaign_kind: string | null;
   /** Agente escolhido ao criar a lista — decide os campos do formulário manual. */
   persona_id: string | null;
+  /** Nome do agente de `persona_id`, já resolvido pelo backend. */
+  persona_name: string | null;
   is_dynamic: boolean;
   member_count: number;
   /** Contatos da lista com telefone válido e não bloqueados — subconjunto pronto para discagem. */
@@ -258,6 +276,10 @@ export type ContactListRow = {
   external_key: string | null;
   /** Variáveis que os contatos trazem do sistema de origem, para usar na abertura. */
   variable_keys: string[];
+  /** 'aberta' | 'finalizada' — lista gerada por sync de cobrança/orçamento controla dedup por isso. */
+  status: string;
+  /** Número sequencial só em lista gerada por sincronização; null em lista manual. */
+  list_number: number | null;
 };
 
 export async function fetchContactLists(accountId: string): Promise<ContactListRow[]> {
@@ -346,6 +368,9 @@ export type CampaignsAggregate = {
   escalated: number;
   voicemail: number;
   failed: number;
+  queued: number;
+  ringing: number;
+  in_progress: number;
   by_kind: Record<string, { total: number; connected: number; campaigns: number }>;
 };
 
@@ -359,6 +384,9 @@ export function aggregateCampaigns(rows: CampaignRow[]): CampaignsAggregate {
     escalated: 0,
     voicemail: 0,
     failed: 0,
+    queued: 0,
+    ringing: 0,
+    in_progress: 0,
     by_kind: {},
   };
   for (const r of rows) {
@@ -369,6 +397,9 @@ export function aggregateCampaigns(rows: CampaignRow[]): CampaignsAggregate {
     agg.escalated += r.escalated_count;
     agg.voicemail += r.voicemail_count;
     agg.failed += r.failed_count;
+    agg.queued += r.queued_count ?? 0;
+    agg.ringing += r.ringing_count ?? 0;
+    agg.in_progress += r.in_progress_count ?? 0;
     const k = r.campaign_kind ?? "custom";
     const cur = agg.by_kind[k] ?? { total: 0, connected: 0, campaigns: 0 };
     cur.total += r.total_contacts;

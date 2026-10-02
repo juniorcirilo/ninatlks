@@ -1,19 +1,27 @@
-// Orçamentos gerados pelo Bruno (Funcionário IA orçamentista de vidros).
+// Orçamentos gerados pela Sofia (Funcionário IA orçamentista de vidros).
 // Lista e download de PDF para a tela /orcamentos.
 
 import { createServerFn } from "@tanstack/react-start";
 import { requireSessionAuth } from "@/lib/session-middleware";
 import { z } from "zod";
-import { query, getOne } from "@/lib/db";
+import { query, getOne, queryAsAccount } from "@/lib/db";
 import { fetchChatQuotes, fetchErpQuotes, type QuoteItem, type QuoteRow, type ErpQuoteRow } from "./quotes-data.server";
 
 export type { QuoteItem, QuoteRow, ErpQuoteRow };
 
-export const listBrunoQuotes = createServerFn({ method: "GET" })
+// accountId nunca vem de `data` (client-supplied) — sempre de
+// `context.accountId`, resolvido pela sessão em requireSessionAuth. Usar o
+// accountId do body permitiria a qualquer usuário autenticado ler/editar/
+// apagar orçamentos de outra conta só trocando o valor enviado (IDOR entre
+// tenants) — accountId ainda é aceito no schema só por compatibilidade com
+// chamadores existentes, mas é ignorado.
+
+export const listSofiaQuotes = createServerFn({ method: "GET" })
   .middleware([requireSessionAuth])
-  .inputValidator((d) => z.object({ accountId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    const quotes = await fetchChatQuotes(data.accountId);
+  .inputValidator((d) => z.object({ accountId: z.string().uuid().optional() }).parse(d))
+  .handler(async ({ context }) => {
+    const accountId = requireAccountId(context);
+    const quotes = await fetchChatQuotes(accountId);
     return {
       quotes,
       totalValue: quotes.reduce((acc, q) => acc + q.total, 0),
@@ -21,19 +29,17 @@ export const listBrunoQuotes = createServerFn({ method: "GET" })
   });
 
 /**
- * Orçamentos recebidos pelo webhook de integração (n8n → ERP) do Bruno —
- * ver Configurações > Webhooks > Recebimento > Templates por agente. Cada
- * linha é um contato da lista operacional `agent:<persona Bruno>`, com os
- * campos do ERP (numero_orcamento, valor_total, status_orcamento, ...)
- * gravados em `contacts.custom_attributes.ingest_variables` — não existe
- * tabela própria para isso, a integração escreve direto no contato (ver
- * `ingest_agent_contact`, AgentInboundUpsert20260730190000).
+ * Orçamentos recebidos pelo webhook de integração (n8n → ERP) da Sofia —
+ * ver Configurações > Webhooks > Recebimento > Templates por agente. Uma
+ * linha por orçamento em `public.orcamentos_erp` (ver `ingest_agent_contact`,
+ * migration CobrancaOrcamentoTables20260904010000).
  */
-export const listBrunoErpQuotes = createServerFn({ method: "GET" })
+export const listSofiaErpQuotes = createServerFn({ method: "GET" })
   .middleware([requireSessionAuth])
-  .inputValidator((d) => z.object({ accountId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }) => {
-    const quotes = await fetchErpQuotes(data.accountId);
+  .inputValidator((d) => z.object({ accountId: z.string().uuid().optional() }).parse(d))
+  .handler(async ({ context }) => {
+    const accountId = requireAccountId(context);
+    const quotes = await fetchErpQuotes(context.userId, accountId);
     return {
       quotes,
       totalValue: quotes.reduce((acc, q) => acc + (q.valorTotal ?? 0), 0),
@@ -49,20 +55,21 @@ export const updateQuote = createServerFn({ method: "POST" })
   .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
-      accountId: z.string().uuid(),
+      accountId: z.string().uuid().optional(),
       quoteId: z.string().uuid(),
       customerName: z.string().max(200).nullable(),
       projectDescription: z.string().max(500).nullable(),
       status: z.enum(QUOTE_STATUSES),
     }).parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const accountId = requireAccountId(context);
     const rows = await query(
       `UPDATE public.quotes
           SET customer_name = $3, project_description = $4, status = $5, updated_at = now()
         WHERE id = $1 AND account_id = $2
         RETURNING id`,
-      [data.quoteId, data.accountId, data.customerName, data.projectDescription, data.status],
+      [data.quoteId, accountId, data.customerName, data.projectDescription, data.status],
     );
     if (rows.length === 0) throw new Error("Orçamento não encontrado");
     return { ok: true };
@@ -71,12 +78,13 @@ export const updateQuote = createServerFn({ method: "POST" })
 export const deleteQuote = createServerFn({ method: "POST" })
   .middleware([requireSessionAuth])
   .inputValidator((d) =>
-    z.object({ accountId: z.string().uuid(), quoteId: z.string().uuid() }).parse(d),
+    z.object({ accountId: z.string().uuid().optional(), quoteId: z.string().uuid() }).parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const accountId = requireAccountId(context);
     const rows = await query(
       `DELETE FROM public.quotes WHERE id = $1 AND account_id = $2 RETURNING id`,
-      [data.quoteId, data.accountId],
+      [data.quoteId, accountId],
     );
     if (rows.length === 0) throw new Error("Orçamento não encontrado");
     return { ok: true };
@@ -87,18 +95,21 @@ export const deleteQuote = createServerFn({ method: "POST" })
  * não são editáveis aqui de propósito: são dado de origem do ERP, e deixar
  * corrigir à mão criaria divergência silenciosa com o sistema de origem.
  * Telefone/email são dado de contato — cabe ao time corrigir se o ERP
- * mandou errado. */
+ * mandou errado. Razão social, nome fantasia e vendedor agora aparecem
+ * nesta tela (via `companies`), mas só como leitura — quem edita esses
+ * dados de empresa é a Central de Contatos. */
 export const updateErpQuote = createServerFn({ method: "POST" })
   .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
-      accountId: z.string().uuid(),
+      accountId: z.string().uuid().optional(),
       contactId: z.string().uuid(),
       phoneNumber: z.string().max(40).nullable(),
       email: z.string().max(200).nullable(),
     }).parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const accountId = requireAccountId(context);
     let rows;
     try {
       rows = await query(
@@ -106,7 +117,7 @@ export const updateErpQuote = createServerFn({ method: "POST" })
             SET phone_number = $3, email = $4, updated_at = now()
           WHERE c.id = $1 AND c.account_id = $2
           RETURNING c.id`,
-        [data.contactId, data.accountId, data.phoneNumber, data.email],
+        [data.contactId, accountId, data.phoneNumber, data.email],
       );
     } catch (err) {
       // contacts_account_id_email_key — outro contato desta conta já usa esse e-mail.
@@ -119,34 +130,26 @@ export const updateErpQuote = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** "Exclui" um orçamento do ERP — remove o contato só da lista operacional
- * do Bruno. O contato em si não é apagado (pode ter conversas, ligações,
- * outras listas); é a mesma lógica de "sair da lista" que a exclusão de
- * lista operacional já usa em /listas. */
+/** Exclui um orçamento — remove só aquela linha de `orcamentos_erp`. O
+ * contato continua na lista operacional da Sofia (e nos outros orçamentos
+ * que ele tenha) independente de quantos existiam antes. */
 export const deleteErpQuote = createServerFn({ method: "POST" })
   .middleware([requireSessionAuth])
   .inputValidator((d) =>
-    z.object({ accountId: z.string().uuid(), contactId: z.string().uuid() }).parse(d),
+    z.object({ accountId: z.string().uuid().optional(), orcamentoId: z.string().uuid() }).parse(d),
   )
-  .handler(async ({ data }) => {
-    const rows = await query<{ list_id: string }>(
-      `DELETE FROM public.contact_list_members m
-        USING public.contact_lists l, public.agent_personas p
-        WHERE m.list_id = l.id
-          AND l.account_id = p.account_id AND p.name = 'Bruno'
-          AND l.external_key = 'agent:' || p.id::text
-          AND m.contact_id = $1 AND l.account_id = $2
-        RETURNING l.id AS list_id`,
-      [data.contactId, data.accountId],
+  .handler(async ({ data, context }) => {
+    const accountId = requireAccountId(context);
+    // orcamentos_erp tem FORCE ROW LEVEL SECURITY — precisa do contexto de
+    // sessão (queryAsAccount), senão a policy nega e a linha nunca é
+    // encontrada mesmo pertencendo à conta certa.
+    const rows = await queryAsAccount(
+      context.userId,
+      accountId,
+      `DELETE FROM public.orcamentos_erp WHERE id = $1 AND account_id = $2 RETURNING id`,
+      [data.orcamentoId, accountId],
     );
     if (rows.length === 0) throw new Error("Orçamento não encontrado");
-    await query(
-      `UPDATE public.contact_lists
-          SET member_count = (SELECT count(*) FROM public.contact_list_members WHERE list_id = $1),
-              updated_at = now()
-        WHERE id = $1`,
-      [rows[0].list_id],
-    );
     return { ok: true };
   });
 
@@ -154,12 +157,13 @@ export const deleteErpQuote = createServerFn({ method: "POST" })
 export const downloadQuotePdf = createServerFn({ method: "GET" })
   .middleware([requireSessionAuth])
   .inputValidator((d) =>
-    z.object({ accountId: z.string().uuid(), quoteId: z.string().uuid() }).parse(d),
+    z.object({ accountId: z.string().uuid().optional(), quoteId: z.string().uuid() }).parse(d),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
+    const accountId = requireAccountId(context);
     const row = await getOne<{ pdf_bytes: Buffer | null; customer_name: string | null }>(
       `SELECT pdf_bytes, customer_name FROM public.quotes WHERE id = $1 AND account_id = $2`,
-      [data.quoteId, data.accountId],
+      [data.quoteId, accountId],
     );
     if (!row || !row.pdf_bytes) throw new Error("Orçamento não encontrado");
     return {
@@ -167,3 +171,28 @@ export const downloadQuotePdf = createServerFn({ method: "GET" })
       filename: `orcamento-${(row.customer_name ?? data.quoteId).replace(/[^\w-]+/g, "_")}.pdf`,
     };
   });
+
+/** Apaga TODOS os orçamentos desta conta — os do ERP (`orcamentos_erp`) e os
+ * gerados em chat (`quotes`, com PDF). Reset da tela; clientes/contatos não
+ * são afetados. */
+export const truncateQuotes = createServerFn({ method: "POST" })
+  .middleware([requireSessionAuth])
+  .inputValidator((d) => z.object({ accountId: z.string().uuid().optional() }).parse(d))
+  .handler(async ({ context }) => {
+    const accountId = requireAccountId(context);
+    const [erp, chat] = await Promise.all([
+      queryAsAccount(
+        context.userId,
+        accountId,
+        `DELETE FROM public.orcamentos_erp WHERE account_id = $1 RETURNING id`,
+        [accountId],
+      ),
+      query(`DELETE FROM public.quotes WHERE account_id = $1 RETURNING id`, [accountId]),
+    ]);
+    return { deleted: erp.length + chat.length };
+  });
+
+function requireAccountId(context: { accountId: string | null }): string {
+  if (!context.accountId) throw new Error("Usuário sem conta associada.");
+  return context.accountId;
+}

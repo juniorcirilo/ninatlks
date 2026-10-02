@@ -16,18 +16,22 @@ import { Route as DataDeletionRouteImport } from './routes/data-deletion'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedVendedoresRouteImport } from './routes/_authenticated/vendedores'
 import { Route as AuthenticatedTutorialRouteImport } from './routes/_authenticated/tutorial'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReunioesRouteImport } from './routes/_authenticated/reunioes'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedPhoneNumbersRouteImport } from './routes/_authenticated/phone-numbers'
 import { Route as AuthenticatedOrcamentosRouteImport } from './routes/_authenticated/orcamentos'
+import { Route as AuthenticatedNovosClientesRouteImport } from './routes/_authenticated/novos-clientes'
 import { Route as AuthenticatedMissionControlRouteImport } from './routes/_authenticated/mission-control'
 import { Route as AuthenticatedListasRouteImport } from './routes/_authenticated/listas'
 import { Route as AuthenticatedInboxRouteImport } from './routes/_authenticated/inbox'
 import { Route as AuthenticatedFollowUpsRouteImport } from './routes/_authenticated/follow-ups'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
+import { Route as AuthenticatedEmpresasRouteImport } from './routes/_authenticated/empresas'
 import { Route as AuthenticatedContactsRouteImport } from './routes/_authenticated/contacts'
+import { Route as AuthenticatedCobrancasRouteImport } from './routes/_authenticated/cobrancas'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedCentralRouteImport } from './routes/_authenticated/central'
 import { Route as AuthenticatedCallsRouteImport } from './routes/_authenticated/calls'
@@ -37,9 +41,16 @@ import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedAdminRegistroRouteImport } from './routes/_authenticated/admin-registro'
 import { Route as AuthenticatedAdminFilasRouteImport } from './routes/_authenticated/admin-filas'
 import { Route as AuthenticatedCampanhasIndexRouteImport } from './routes/_authenticated/campanhas.index'
+import { Route as AuthenticatedAgentsIndexRouteImport } from './routes/_authenticated/agents.index'
 import { Route as AuthenticatedContactsContactIdRouteImport } from './routes/_authenticated/contacts.$contactId'
 import { Route as AuthenticatedCampanhasNovaRouteImport } from './routes/_authenticated/campanhas.nova'
 import { Route as AuthenticatedCampanhasCampaignIdRouteImport } from './routes/_authenticated/campanhas.$campaignId'
+import { Route as AuthenticatedAgentsSofiaRouteImport } from './routes/_authenticated/agents.sofia'
+import { Route as AuthenticatedAgentsOrcamentosRouteImport } from './routes/_authenticated/agents.orcamentos'
+import { Route as AuthenticatedAgentsNovosClientesRouteImport } from './routes/_authenticated/agents.novos-clientes'
+import { Route as AuthenticatedAgentsElenaRouteImport } from './routes/_authenticated/agents.elena'
+import { Route as AuthenticatedAgentsCobrancasRouteImport } from './routes/_authenticated/agents.cobrancas'
+import { Route as AuthenticatedAgentsCarlaRouteImport } from './routes/_authenticated/agents.carla'
 import { Route as ApiPublicHooksVoiceCallsFinalizePendingRouteImport } from './routes/api/public/hooks/voice-calls-finalize-pending'
 import { Route as ApiPublicHooksResendInboundRouteImport } from './routes/api/public/hooks/resend-inbound'
 
@@ -77,6 +88,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedVendedoresRoute = AuthenticatedVendedoresRouteImport.update({
+  id: '/vendedores',
+  path: '/vendedores',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedTutorialRoute = AuthenticatedTutorialRouteImport.update({
   id: '/tutorial',
   path: '/tutorial',
@@ -108,6 +124,12 @@ const AuthenticatedOrcamentosRoute = AuthenticatedOrcamentosRouteImport.update({
   path: '/orcamentos',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedNovosClientesRoute =
+  AuthenticatedNovosClientesRouteImport.update({
+    id: '/novos-clientes',
+    path: '/novos-clientes',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedMissionControlRoute =
   AuthenticatedMissionControlRouteImport.update({
     id: '/mission-control',
@@ -134,9 +156,19 @@ const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
   path: '/equipe',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedEmpresasRoute = AuthenticatedEmpresasRouteImport.update({
+  id: '/empresas',
+  path: '/empresas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedContactsRoute = AuthenticatedContactsRouteImport.update({
   id: '/contacts',
   path: '/contacts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCobrancasRoute = AuthenticatedCobrancasRouteImport.update({
+  id: '/cobrancas',
+  path: '/cobrancas',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
@@ -188,6 +220,12 @@ const AuthenticatedCampanhasIndexRoute =
     path: '/campanhas/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAgentsIndexRoute =
+  AuthenticatedAgentsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedAgentsRoute,
+  } as any)
 const AuthenticatedContactsContactIdRoute =
   AuthenticatedContactsContactIdRouteImport.update({
     id: '/$contactId',
@@ -205,6 +243,42 @@ const AuthenticatedCampanhasCampaignIdRoute =
     id: '/campanhas/$campaignId',
     path: '/campanhas/$campaignId',
     getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAgentsSofiaRoute =
+  AuthenticatedAgentsSofiaRouteImport.update({
+    id: '/sofia',
+    path: '/sofia',
+    getParentRoute: () => AuthenticatedAgentsRoute,
+  } as any)
+const AuthenticatedAgentsOrcamentosRoute =
+  AuthenticatedAgentsOrcamentosRouteImport.update({
+    id: '/orcamentos',
+    path: '/orcamentos',
+    getParentRoute: () => AuthenticatedAgentsRoute,
+  } as any)
+const AuthenticatedAgentsNovosClientesRoute =
+  AuthenticatedAgentsNovosClientesRouteImport.update({
+    id: '/novos-clientes',
+    path: '/novos-clientes',
+    getParentRoute: () => AuthenticatedAgentsRoute,
+  } as any)
+const AuthenticatedAgentsElenaRoute =
+  AuthenticatedAgentsElenaRouteImport.update({
+    id: '/elena',
+    path: '/elena',
+    getParentRoute: () => AuthenticatedAgentsRoute,
+  } as any)
+const AuthenticatedAgentsCobrancasRoute =
+  AuthenticatedAgentsCobrancasRouteImport.update({
+    id: '/cobrancas',
+    path: '/cobrancas',
+    getParentRoute: () => AuthenticatedAgentsRoute,
+  } as any)
+const AuthenticatedAgentsCarlaRoute =
+  AuthenticatedAgentsCarlaRouteImport.update({
+    id: '/carla',
+    path: '/carla',
+    getParentRoute: () => AuthenticatedAgentsRoute,
   } as any)
 const ApiPublicHooksVoiceCallsFinalizePendingRoute =
   ApiPublicHooksVoiceCallsFinalizePendingRouteImport.update({
@@ -228,27 +302,38 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/admin-registro': typeof AuthenticatedAdminRegistroRoute
-  '/agents': typeof AuthenticatedAgentsRoute
+  '/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/calls': typeof AuthenticatedCallsRoute
   '/central': typeof AuthenticatedCentralRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/cobrancas': typeof AuthenticatedCobrancasRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
+  '/empresas': typeof AuthenticatedEmpresasRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
+  '/novos-clientes': typeof AuthenticatedNovosClientesRoute
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tutorial': typeof AuthenticatedTutorialRoute
+  '/vendedores': typeof AuthenticatedVendedoresRoute
+  '/agents/carla': typeof AuthenticatedAgentsCarlaRoute
+  '/agents/cobrancas': typeof AuthenticatedAgentsCobrancasRoute
+  '/agents/elena': typeof AuthenticatedAgentsElenaRoute
+  '/agents/novos-clientes': typeof AuthenticatedAgentsNovosClientesRoute
+  '/agents/orcamentos': typeof AuthenticatedAgentsOrcamentosRoute
+  '/agents/sofia': typeof AuthenticatedAgentsSofiaRoute
   '/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
   '/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/agents/': typeof AuthenticatedAgentsIndexRoute
   '/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
@@ -261,28 +346,38 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/admin-registro': typeof AuthenticatedAdminRegistroRoute
-  '/agents': typeof AuthenticatedAgentsRoute
   '/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/calls': typeof AuthenticatedCallsRoute
   '/central': typeof AuthenticatedCentralRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/cobrancas': typeof AuthenticatedCobrancasRoute
   '/contacts': typeof AuthenticatedContactsRouteWithChildren
+  '/empresas': typeof AuthenticatedEmpresasRoute
   '/equipe': typeof AuthenticatedEquipeRoute
   '/follow-ups': typeof AuthenticatedFollowUpsRoute
   '/inbox': typeof AuthenticatedInboxRoute
   '/listas': typeof AuthenticatedListasRoute
   '/mission-control': typeof AuthenticatedMissionControlRoute
+  '/novos-clientes': typeof AuthenticatedNovosClientesRoute
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/reunioes': typeof AuthenticatedReunioesRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/tutorial': typeof AuthenticatedTutorialRoute
+  '/vendedores': typeof AuthenticatedVendedoresRoute
   '/': typeof AuthenticatedIndexRoute
+  '/agents/carla': typeof AuthenticatedAgentsCarlaRoute
+  '/agents/cobrancas': typeof AuthenticatedAgentsCobrancasRoute
+  '/agents/elena': typeof AuthenticatedAgentsElenaRoute
+  '/agents/novos-clientes': typeof AuthenticatedAgentsNovosClientesRoute
+  '/agents/orcamentos': typeof AuthenticatedAgentsOrcamentosRoute
+  '/agents/sofia': typeof AuthenticatedAgentsSofiaRoute
   '/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
   '/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/agents': typeof AuthenticatedAgentsIndexRoute
   '/campanhas': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
@@ -297,28 +392,39 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/_authenticated/admin-filas': typeof AuthenticatedAdminFilasRoute
   '/_authenticated/admin-registro': typeof AuthenticatedAdminRegistroRoute
-  '/_authenticated/agents': typeof AuthenticatedAgentsRoute
+  '/_authenticated/agents': typeof AuthenticatedAgentsRouteWithChildren
   '/_authenticated/agents-analytics': typeof AuthenticatedAgentsAnalyticsRoute
   '/_authenticated/agents-playground': typeof AuthenticatedAgentsPlaygroundRoute
   '/_authenticated/calls': typeof AuthenticatedCallsRoute
   '/_authenticated/central': typeof AuthenticatedCentralRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
+  '/_authenticated/cobrancas': typeof AuthenticatedCobrancasRoute
   '/_authenticated/contacts': typeof AuthenticatedContactsRouteWithChildren
+  '/_authenticated/empresas': typeof AuthenticatedEmpresasRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/follow-ups': typeof AuthenticatedFollowUpsRoute
   '/_authenticated/inbox': typeof AuthenticatedInboxRoute
   '/_authenticated/listas': typeof AuthenticatedListasRoute
   '/_authenticated/mission-control': typeof AuthenticatedMissionControlRoute
+  '/_authenticated/novos-clientes': typeof AuthenticatedNovosClientesRoute
   '/_authenticated/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/_authenticated/phone-numbers': typeof AuthenticatedPhoneNumbersRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/reunioes': typeof AuthenticatedReunioesRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/tutorial': typeof AuthenticatedTutorialRoute
+  '/_authenticated/vendedores': typeof AuthenticatedVendedoresRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/agents/carla': typeof AuthenticatedAgentsCarlaRoute
+  '/_authenticated/agents/cobrancas': typeof AuthenticatedAgentsCobrancasRoute
+  '/_authenticated/agents/elena': typeof AuthenticatedAgentsElenaRoute
+  '/_authenticated/agents/novos-clientes': typeof AuthenticatedAgentsNovosClientesRoute
+  '/_authenticated/agents/orcamentos': typeof AuthenticatedAgentsOrcamentosRoute
+  '/_authenticated/agents/sofia': typeof AuthenticatedAgentsSofiaRoute
   '/_authenticated/campanhas/$campaignId': typeof AuthenticatedCampanhasCampaignIdRoute
   '/_authenticated/campanhas/nova': typeof AuthenticatedCampanhasNovaRoute
   '/_authenticated/contacts/$contactId': typeof AuthenticatedContactsContactIdRoute
+  '/_authenticated/agents/': typeof AuthenticatedAgentsIndexRoute
   '/_authenticated/campanhas/': typeof AuthenticatedCampanhasIndexRoute
   '/api/public/hooks/resend-inbound': typeof ApiPublicHooksResendInboundRoute
   '/api/public/hooks/voice-calls-finalize-pending': typeof ApiPublicHooksVoiceCallsFinalizePendingRoute
@@ -340,21 +446,32 @@ export interface FileRouteTypes {
     | '/calls'
     | '/central'
     | '/chat'
+    | '/cobrancas'
     | '/contacts'
+    | '/empresas'
     | '/equipe'
     | '/follow-ups'
     | '/inbox'
     | '/listas'
     | '/mission-control'
+    | '/novos-clientes'
     | '/orcamentos'
     | '/phone-numbers'
     | '/pipeline'
     | '/reunioes'
     | '/settings'
     | '/tutorial'
+    | '/vendedores'
+    | '/agents/carla'
+    | '/agents/cobrancas'
+    | '/agents/elena'
+    | '/agents/novos-clientes'
+    | '/agents/orcamentos'
+    | '/agents/sofia'
     | '/campanhas/$campaignId'
     | '/campanhas/nova'
     | '/contacts/$contactId'
+    | '/agents/'
     | '/campanhas/'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
@@ -367,28 +484,38 @@ export interface FileRouteTypes {
     | '/terms'
     | '/admin-filas'
     | '/admin-registro'
-    | '/agents'
     | '/agents-analytics'
     | '/agents-playground'
     | '/calls'
     | '/central'
     | '/chat'
+    | '/cobrancas'
     | '/contacts'
+    | '/empresas'
     | '/equipe'
     | '/follow-ups'
     | '/inbox'
     | '/listas'
     | '/mission-control'
+    | '/novos-clientes'
     | '/orcamentos'
     | '/phone-numbers'
     | '/pipeline'
     | '/reunioes'
     | '/settings'
     | '/tutorial'
+    | '/vendedores'
     | '/'
+    | '/agents/carla'
+    | '/agents/cobrancas'
+    | '/agents/elena'
+    | '/agents/novos-clientes'
+    | '/agents/orcamentos'
+    | '/agents/sofia'
     | '/campanhas/$campaignId'
     | '/campanhas/nova'
     | '/contacts/$contactId'
+    | '/agents'
     | '/campanhas'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
@@ -408,22 +535,33 @@ export interface FileRouteTypes {
     | '/_authenticated/calls'
     | '/_authenticated/central'
     | '/_authenticated/chat'
+    | '/_authenticated/cobrancas'
     | '/_authenticated/contacts'
+    | '/_authenticated/empresas'
     | '/_authenticated/equipe'
     | '/_authenticated/follow-ups'
     | '/_authenticated/inbox'
     | '/_authenticated/listas'
     | '/_authenticated/mission-control'
+    | '/_authenticated/novos-clientes'
     | '/_authenticated/orcamentos'
     | '/_authenticated/phone-numbers'
     | '/_authenticated/pipeline'
     | '/_authenticated/reunioes'
     | '/_authenticated/settings'
     | '/_authenticated/tutorial'
+    | '/_authenticated/vendedores'
     | '/_authenticated/'
+    | '/_authenticated/agents/carla'
+    | '/_authenticated/agents/cobrancas'
+    | '/_authenticated/agents/elena'
+    | '/_authenticated/agents/novos-clientes'
+    | '/_authenticated/agents/orcamentos'
+    | '/_authenticated/agents/sofia'
     | '/_authenticated/campanhas/$campaignId'
     | '/_authenticated/campanhas/nova'
     | '/_authenticated/contacts/$contactId'
+    | '/_authenticated/agents/'
     | '/_authenticated/campanhas/'
     | '/api/public/hooks/resend-inbound'
     | '/api/public/hooks/voice-calls-finalize-pending'
@@ -491,6 +629,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/vendedores': {
+      id: '/_authenticated/vendedores'
+      path: '/vendedores'
+      fullPath: '/vendedores'
+      preLoaderRoute: typeof AuthenticatedVendedoresRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/tutorial': {
       id: '/_authenticated/tutorial'
       path: '/tutorial'
@@ -533,6 +678,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrcamentosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/novos-clientes': {
+      id: '/_authenticated/novos-clientes'
+      path: '/novos-clientes'
+      fullPath: '/novos-clientes'
+      preLoaderRoute: typeof AuthenticatedNovosClientesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/mission-control': {
       id: '/_authenticated/mission-control'
       path: '/mission-control'
@@ -568,11 +720,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEquipeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/empresas': {
+      id: '/_authenticated/empresas'
+      path: '/empresas'
+      fullPath: '/empresas'
+      preLoaderRoute: typeof AuthenticatedEmpresasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/contacts': {
       id: '/_authenticated/contacts'
       path: '/contacts'
       fullPath: '/contacts'
       preLoaderRoute: typeof AuthenticatedContactsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/cobrancas': {
+      id: '/_authenticated/cobrancas'
+      path: '/cobrancas'
+      fullPath: '/cobrancas'
+      preLoaderRoute: typeof AuthenticatedCobrancasRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/chat': {
@@ -638,6 +804,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCampanhasIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/agents/': {
+      id: '/_authenticated/agents/'
+      path: '/'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AuthenticatedAgentsIndexRouteImport
+      parentRoute: typeof AuthenticatedAgentsRoute
+    }
     '/_authenticated/contacts/$contactId': {
       id: '/_authenticated/contacts/$contactId'
       path: '/$contactId'
@@ -659,6 +832,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCampanhasCampaignIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/agents/sofia': {
+      id: '/_authenticated/agents/sofia'
+      path: '/sofia'
+      fullPath: '/agents/sofia'
+      preLoaderRoute: typeof AuthenticatedAgentsSofiaRouteImport
+      parentRoute: typeof AuthenticatedAgentsRoute
+    }
+    '/_authenticated/agents/orcamentos': {
+      id: '/_authenticated/agents/orcamentos'
+      path: '/orcamentos'
+      fullPath: '/agents/orcamentos'
+      preLoaderRoute: typeof AuthenticatedAgentsOrcamentosRouteImport
+      parentRoute: typeof AuthenticatedAgentsRoute
+    }
+    '/_authenticated/agents/novos-clientes': {
+      id: '/_authenticated/agents/novos-clientes'
+      path: '/novos-clientes'
+      fullPath: '/agents/novos-clientes'
+      preLoaderRoute: typeof AuthenticatedAgentsNovosClientesRouteImport
+      parentRoute: typeof AuthenticatedAgentsRoute
+    }
+    '/_authenticated/agents/elena': {
+      id: '/_authenticated/agents/elena'
+      path: '/elena'
+      fullPath: '/agents/elena'
+      preLoaderRoute: typeof AuthenticatedAgentsElenaRouteImport
+      parentRoute: typeof AuthenticatedAgentsRoute
+    }
+    '/_authenticated/agents/cobrancas': {
+      id: '/_authenticated/agents/cobrancas'
+      path: '/cobrancas'
+      fullPath: '/agents/cobrancas'
+      preLoaderRoute: typeof AuthenticatedAgentsCobrancasRouteImport
+      parentRoute: typeof AuthenticatedAgentsRoute
+    }
+    '/_authenticated/agents/carla': {
+      id: '/_authenticated/agents/carla'
+      path: '/carla'
+      fullPath: '/agents/carla'
+      preLoaderRoute: typeof AuthenticatedAgentsCarlaRouteImport
+      parentRoute: typeof AuthenticatedAgentsRoute
+    }
     '/api/public/hooks/voice-calls-finalize-pending': {
       id: '/api/public/hooks/voice-calls-finalize-pending'
       path: '/api/public/hooks/voice-calls-finalize-pending'
@@ -676,6 +891,29 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedAgentsRouteChildren {
+  AuthenticatedAgentsCarlaRoute: typeof AuthenticatedAgentsCarlaRoute
+  AuthenticatedAgentsCobrancasRoute: typeof AuthenticatedAgentsCobrancasRoute
+  AuthenticatedAgentsElenaRoute: typeof AuthenticatedAgentsElenaRoute
+  AuthenticatedAgentsNovosClientesRoute: typeof AuthenticatedAgentsNovosClientesRoute
+  AuthenticatedAgentsOrcamentosRoute: typeof AuthenticatedAgentsOrcamentosRoute
+  AuthenticatedAgentsSofiaRoute: typeof AuthenticatedAgentsSofiaRoute
+  AuthenticatedAgentsIndexRoute: typeof AuthenticatedAgentsIndexRoute
+}
+
+const AuthenticatedAgentsRouteChildren: AuthenticatedAgentsRouteChildren = {
+  AuthenticatedAgentsCarlaRoute: AuthenticatedAgentsCarlaRoute,
+  AuthenticatedAgentsCobrancasRoute: AuthenticatedAgentsCobrancasRoute,
+  AuthenticatedAgentsElenaRoute: AuthenticatedAgentsElenaRoute,
+  AuthenticatedAgentsNovosClientesRoute: AuthenticatedAgentsNovosClientesRoute,
+  AuthenticatedAgentsOrcamentosRoute: AuthenticatedAgentsOrcamentosRoute,
+  AuthenticatedAgentsSofiaRoute: AuthenticatedAgentsSofiaRoute,
+  AuthenticatedAgentsIndexRoute: AuthenticatedAgentsIndexRoute,
+}
+
+const AuthenticatedAgentsRouteWithChildren =
+  AuthenticatedAgentsRoute._addFileChildren(AuthenticatedAgentsRouteChildren)
+
 interface AuthenticatedContactsRouteChildren {
   AuthenticatedContactsContactIdRoute: typeof AuthenticatedContactsContactIdRoute
 }
@@ -692,24 +930,28 @@ const AuthenticatedContactsRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminFilasRoute: typeof AuthenticatedAdminFilasRoute
   AuthenticatedAdminRegistroRoute: typeof AuthenticatedAdminRegistroRoute
-  AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
+  AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRouteWithChildren
   AuthenticatedAgentsAnalyticsRoute: typeof AuthenticatedAgentsAnalyticsRoute
   AuthenticatedAgentsPlaygroundRoute: typeof AuthenticatedAgentsPlaygroundRoute
   AuthenticatedCallsRoute: typeof AuthenticatedCallsRoute
   AuthenticatedCentralRoute: typeof AuthenticatedCentralRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedCobrancasRoute: typeof AuthenticatedCobrancasRoute
   AuthenticatedContactsRoute: typeof AuthenticatedContactsRouteWithChildren
+  AuthenticatedEmpresasRoute: typeof AuthenticatedEmpresasRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFollowUpsRoute: typeof AuthenticatedFollowUpsRoute
   AuthenticatedInboxRoute: typeof AuthenticatedInboxRoute
   AuthenticatedListasRoute: typeof AuthenticatedListasRoute
   AuthenticatedMissionControlRoute: typeof AuthenticatedMissionControlRoute
+  AuthenticatedNovosClientesRoute: typeof AuthenticatedNovosClientesRoute
   AuthenticatedOrcamentosRoute: typeof AuthenticatedOrcamentosRoute
   AuthenticatedPhoneNumbersRoute: typeof AuthenticatedPhoneNumbersRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedReunioesRoute: typeof AuthenticatedReunioesRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTutorialRoute: typeof AuthenticatedTutorialRoute
+  AuthenticatedVendedoresRoute: typeof AuthenticatedVendedoresRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedCampanhasCampaignIdRoute: typeof AuthenticatedCampanhasCampaignIdRoute
   AuthenticatedCampanhasNovaRoute: typeof AuthenticatedCampanhasNovaRoute
@@ -719,24 +961,28 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminFilasRoute: AuthenticatedAdminFilasRoute,
   AuthenticatedAdminRegistroRoute: AuthenticatedAdminRegistroRoute,
-  AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
+  AuthenticatedAgentsRoute: AuthenticatedAgentsRouteWithChildren,
   AuthenticatedAgentsAnalyticsRoute: AuthenticatedAgentsAnalyticsRoute,
   AuthenticatedAgentsPlaygroundRoute: AuthenticatedAgentsPlaygroundRoute,
   AuthenticatedCallsRoute: AuthenticatedCallsRoute,
   AuthenticatedCentralRoute: AuthenticatedCentralRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedCobrancasRoute: AuthenticatedCobrancasRoute,
   AuthenticatedContactsRoute: AuthenticatedContactsRouteWithChildren,
+  AuthenticatedEmpresasRoute: AuthenticatedEmpresasRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFollowUpsRoute: AuthenticatedFollowUpsRoute,
   AuthenticatedInboxRoute: AuthenticatedInboxRoute,
   AuthenticatedListasRoute: AuthenticatedListasRoute,
   AuthenticatedMissionControlRoute: AuthenticatedMissionControlRoute,
+  AuthenticatedNovosClientesRoute: AuthenticatedNovosClientesRoute,
   AuthenticatedOrcamentosRoute: AuthenticatedOrcamentosRoute,
   AuthenticatedPhoneNumbersRoute: AuthenticatedPhoneNumbersRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedReunioesRoute: AuthenticatedReunioesRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTutorialRoute: AuthenticatedTutorialRoute,
+  AuthenticatedVendedoresRoute: AuthenticatedVendedoresRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedCampanhasCampaignIdRoute: AuthenticatedCampanhasCampaignIdRoute,
   AuthenticatedCampanhasNovaRoute: AuthenticatedCampanhasNovaRoute,

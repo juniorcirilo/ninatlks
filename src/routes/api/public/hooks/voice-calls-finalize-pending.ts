@@ -84,9 +84,14 @@ export const Route = createFileRoute("/api/public/hooks/voice-calls-finalize-pen
               await supabaseAdmin.functions.invoke("lead-classify-from-call", {
                 body: { voice_call_id: c.id },
               });
+              // O shim de supabaseAdmin.from().update().eq() só executa a
+              // query quando encadeado com .maybeSingle()/.single() no
+              // final (ver src/lib/db.ts) — sem isso, o UPDATE nunca
+              // rodava e name_reclassified_at nunca era persistido,
+              // fazendo esta chamada rodar de novo a cada execução do cron.
               await supabaseAdmin.from("voice_calls").update({
                 metadata: { ...(c.metadata ?? {}), name_reclassified_at: new Date().toISOString() },
-              }).eq("id", c.id);
+              }).eq("id", c.id).maybeSingle();
               reclassResults.push({ id: c.id, ok: true });
             } catch (err) {
               reclassResults.push({ id: c.id, ok: false, reason: String(err) });

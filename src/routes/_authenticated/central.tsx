@@ -23,6 +23,8 @@ import {
   AlertTriangle,
   Pencil,
   CalendarPlus,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
 import { useAuth } from "@/lib/auth-context";
@@ -50,6 +52,8 @@ import {
   createListFromContacts,
   importContactsCsv,
   fetchTeam,
+  fetchCompany,
+  updateCompany,
   bulkAssignOwner,
   bulkAssignRoundRobin,
   bulkSetLifecycle,
@@ -77,6 +81,7 @@ import {
   type OperationalStatus,
   type ListLite,
   type TeamLite,
+  type Company,
   type CampaignLite,
   type OwnerProductivity,
   type DuplicateGroup,
@@ -119,17 +124,30 @@ export const Route = createFileRoute("/_authenticated/central")({
       },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    contactId: typeof search.contactId === "string" ? search.contactId : undefined,
+  }),
   component: CentralPage,
 });
+
+/** Todos os agentes que já importaram este contato — `agent_names` (fonte
+ * completa) com fallback pro único `source_agent_name` (mais recente) para
+ * contatos sem membership de lista 'agent:<id>' nenhuma. */
+function agentNamesOf(c: CentralContact): string[] {
+  if (c.agent_names && c.agent_names.length > 0) return c.agent_names;
+  return c.source_agent_name ? [c.source_agent_name] : [];
+}
 
 function CentralPage() {
   const { accountId } = useAccount();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { contactId } = Route.useSearch();
   const [rows, setRows] = useState<CentralContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [quick, setQuick] = useState<QuickFilter>("all");
+  const [agentFilter, setAgentFilter] = useState<string>("all");
   const [selected, setSelected] = useState<CentralContact | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -146,6 +164,8 @@ function CentralPage() {
   const [whatsappBusyId, setWhatsappBusyId] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<CentralContact | null>(null);
   const [meetingTarget, setMeetingTarget] = useState<CentralContact | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   const handleWhatsApp = async (c: CentralContact) => {
     if (!accountId || !c.phone_number) return;
@@ -186,6 +206,14 @@ function CentralPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
+  // Deep link vindo de Orçamentos (?contactId=...): abre o drawer desse
+  // contato assim que a lista carregar. Mesmo padrão de inbox.tsx.
+  useEffect(() => {
+    if (!contactId || rows.length === 0) return;
+    const match = rows.find((r) => r.id === contactId);
+    if (match) setSelected(match);
+  }, [contactId, rows]);
+
   // Contatos mudam por ligação atendida, import, e ações em massa de outro
   // operador. Refetch silencioso: a lista atualiza sem piscar o spinner.
   // Debounce maior porque import/bulk disparam um evento por linha.
@@ -193,8 +221,27 @@ function CentralPage() {
     debounceMs: 1000,
   });
 
+  // Agentes distintos entre os contatos carregados — alimenta o filtro
+  // "Importado por" sem precisar de uma chamada à parte. `agent_names` (a
+  // lista operacional 'agent:<id>' de cada sync) é a fonte completa; cai
+  // pra source_agent_name (só o mais recente) quando o contato não tem
+  // membership de lista alguma — ex.: gravado antes dessa migration.
+  const agentOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) {
+      for (const n of agentNamesOf(r)) set.add(n);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+
   const filtered = useMemo(() => {
     let list = applyQuickFilter(rows, quick);
+    if (agentFilter !== "all") {
+      list =
+        agentFilter === "__none"
+          ? list.filter((r) => agentNamesOf(r).length === 0)
+          : list.filter((r) => agentNamesOf(r).includes(agentFilter));
+    }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
@@ -206,7 +253,22 @@ function CentralPage() {
       );
     }
     return list;
-  }, [rows, search, quick]);
+  }, [rows, search, quick, agentFilter]);
+
+  // Busca/filtro muda o conjunto — volta pra página 1 pra não deixar o
+  // operador "preso" numa página que não existe mais no resultado novo.
+  useEffect(() => {
+    setPage(1);
+  }, [search, quick, agentFilter]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // Clampa depois de uma exclusão/merge reduzir o total: sem isso a página
+  // ficava vazia em vez de voltar pra última válida.
+  const currentPage = Math.min(page, pageCount);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filtered, currentPage, pageSize],
+  );
 
   const kpis = useMemo(() => {
     const total = rows.length;
@@ -237,7 +299,7 @@ function CentralPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Central de Contatos</h1>
@@ -331,6 +393,23 @@ function CentralPage() {
             className="pl-9"
           />
         </div>
+        {agentOptions.length > 0 && (
+          <Select value={agentFilter} onValueChange={setAgentFilter}>
+            <SelectTrigger className="w-[220px]">
+              <Bot className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+              <SelectValue placeholder="Importado por" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os agentes</SelectItem>
+              <SelectItem value="__none">Sem agente de origem</SelectItem>
+              {agentOptions.map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="mb-4 flex flex-wrap gap-1.5">
@@ -393,7 +472,7 @@ function CentralPage() {
             <div className="col-span-2 text-right">Ações</div>
           </div>
           <ul>
-            {filtered.map((c) => (
+            {paged.map((c) => (
               <ContactRow
                 key={c.id}
                 c={c}
@@ -411,9 +490,52 @@ function CentralPage() {
         </Card>
       )}
 
-      <p className="mt-4 text-center text-xs text-muted-foreground">
-        {filtered.length} de {rows.length} contatos exibidos
-      </p>
+      {filtered.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {(currentPage - 1) * pageSize + 1}–
+            {Math.min(currentPage * pageSize, filtered.length)} de {filtered.length} contatos
+            {filtered.length !== rows.length ? ` (de ${rows.length} no total)` : ""}
+          </p>
+          <div className="flex items-center gap-3">
+            <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+              <SelectTrigger className="h-8 w-[110px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[25, 50, 100, 200].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n} / página
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="min-w-[88px] text-center text-xs text-muted-foreground">
+                Página {currentPage} de {pageCount}
+              </span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                disabled={currentPage >= pageCount}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ContactDrawer
         contact={selected}
@@ -1562,6 +1684,19 @@ function ContactRow({
               </span>
             )}
           </div>
+          {agentNamesOf(c).length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1" title="Importado pelos agentes">
+              {agentNamesOf(c).map((name) => (
+                <span
+                  key={name}
+                  className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-300 ring-1 ring-violet-500/20"
+                >
+                  <Bot className="h-2.5 w-2.5" />
+                  {name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       <div className="col-span-2">
@@ -1669,6 +1804,12 @@ function ContactDrawer({
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [company, setCompany] = useState<Company | null>(null);
+  const [companyLoading, setCompanyLoading] = useState(false);
+  const [companySaving, setCompanySaving] = useState(false);
+  const [team, setTeam] = useState<TeamLite[]>([]);
+  const [razaoSocial, setRazaoSocial] = useState("");
+  const [nomeFantasia, setNomeFantasia] = useState("");
 
   useEffect(() => {
     if (!contact || !accountId) return;
@@ -1678,6 +1819,23 @@ function ContactDrawer({
       .catch(() => setTimeline({ calls: [], conversations: [], lists: [] }))
       .finally(() => setLoading(false));
   }, [contact, accountId]);
+
+  useEffect(() => {
+    if (!contact?.company_id || !accountId) {
+      setCompany(null);
+      return;
+    }
+    setCompanyLoading(true);
+    Promise.all([fetchCompany(accountId, contact.company_id), fetchTeam(accountId)])
+      .then(([co, tm]) => {
+        setCompany(co);
+        setTeam(tm);
+        setRazaoSocial(co.razao_social ?? "");
+        setNomeFantasia(co.nome_fantasia ?? "");
+      })
+      .catch(() => setCompany(null))
+      .finally(() => setCompanyLoading(false));
+  }, [contact?.company_id, accountId]);
 
   if (!contact) return null;
 
@@ -1692,6 +1850,28 @@ function ContactDrawer({
       toast.error(e?.message ?? "Falha ao atualizar");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveCompany = async (
+    patch: Partial<Pick<Company, "razao_social" | "nome_fantasia" | "vendedor_id">>,
+  ) => {
+    if (!accountId || !company) return;
+    setCompanySaving(true);
+    try {
+      const updated = await updateCompany(accountId, company.id, patch);
+      setCompany(updated);
+      onChanged({
+        ...contact,
+        razao_social: updated.razao_social,
+        nome_fantasia: updated.nome_fantasia,
+        vendedor_id: updated.vendedor_id,
+      });
+      toast.success("Empresa atualizada");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao atualizar empresa");
+    } finally {
+      setCompanySaving(false);
     }
   };
 
@@ -1729,6 +1909,82 @@ function ContactDrawer({
               <PhoneCall className="h-3 w-3" />
               Ligação: {timeAgoShort(contact.last_call_at)}
             </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Empresa
+            </h3>
+            {!contact.company_id ? (
+              <p className="text-xs text-muted-foreground">Sem empresa vinculada.</p>
+            ) : companyLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : company ? (
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Razão social
+                  </label>
+                  <Input
+                    value={razaoSocial}
+                    onChange={(e) => setRazaoSocial(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = razaoSocial.trim() || null;
+                      if (trimmed !== (company.razao_social ?? null)) {
+                        handleSaveCompany({ razao_social: trimmed });
+                      }
+                    }}
+                    disabled={companySaving}
+                    placeholder="Razão social"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Nome fantasia
+                  </label>
+                  <Input
+                    value={nomeFantasia}
+                    onChange={(e) => setNomeFantasia(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = nomeFantasia.trim() || null;
+                      if (trimmed !== (company.nome_fantasia ?? null)) {
+                        handleSaveCompany({ nome_fantasia: trimmed });
+                      }
+                    }}
+                    disabled={companySaving}
+                    placeholder="Nome fantasia"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Vendedor
+                  </label>
+                  <Select
+                    value={company.vendedor_id ?? "__none"}
+                    onValueChange={(v) =>
+                      handleSaveCompany({ vendedor_id: v === "__none" ? null : v })
+                    }
+                    disabled={companySaving}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">Sem vendedor</SelectItem>
+                      {team.map((t) => (
+                        <SelectItem key={t.user_id} value={t.user_id}>
+                          {t.name ?? t.email ?? t.user_id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Falha ao carregar dados da empresa.</p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

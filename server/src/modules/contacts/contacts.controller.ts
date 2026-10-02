@@ -234,4 +234,9 @@ export class ContactListsController {
   listMembers(@Param('accountId') accountId: string, @Param('listId') listId: string) {
     return this.contactsService.listContactListMembers(accountId, listId);
   }
+
+  @Get(':listId/documents')
+  listDocuments(@Param('accountId') accountId: string, @Param('listId') listId: string) {
+    return this.contactsService.listContactListDocuments(accountId, listId);
+  }
 }

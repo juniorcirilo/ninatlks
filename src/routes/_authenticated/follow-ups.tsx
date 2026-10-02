@@ -125,7 +125,7 @@ function FollowUpsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <header className="mb-4 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Follow-ups</h1>

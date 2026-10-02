@@ -24,8 +24,9 @@ export async function testEvolution(args: {
 
 export async function provisionEvolution(args: {
   accountId: string;
-  evolutionUrl: string;
-  evolutionApiKey: string;
+  evolutionUrl?: string;
+  evolutionApiKey?: string;
+  instanceName?: string;
   channelId?: string;
   channelName?: string;
 }): Promise<{
@@ -40,6 +41,7 @@ export async function provisionEvolution(args: {
     return await apiClient.post(`/accounts/${args.accountId}/evolution/provision`, {
       evolutionUrl: args.evolutionUrl,
       evolutionApiKey: args.evolutionApiKey,
+      instanceName: args.instanceName,
       channelId: args.channelId,
       channelName: args.channelName,
     });
@@ -83,4 +85,55 @@ export async function deleteEvolutionInstance(
   } catch (e: any) {
     return { ok: false, error: e?.message ?? "falha ao remover instância" };
   }
+}
+
+export interface EvolutionChannel {
+  id: string;
+  name: string;
+  enabled: boolean;
+  config: {
+    evolution_url?: string;
+    evolution_instance_name?: string;
+    evolution_instance_status?: EvolutionStatus;
+  } | null;
+}
+
+export function listEvolutionChannels(accountId: string): Promise<EvolutionChannel[]> {
+  return apiClient.get(`/accounts/${accountId}/evolution`);
+}
+
+export function restartEvolutionInstance(accountId: string, channelId: string) {
+  return apiClient.post(`/accounts/${accountId}/evolution/channels/${channelId}/restart`, {});
+}
+
+export function logoutEvolutionInstance(accountId: string, channelId: string) {
+  return apiClient.post(`/accounts/${accountId}/evolution/channels/${channelId}/logout`, {});
+}
+
+export function updateEvolutionChannel(
+  accountId: string,
+  channelId: string,
+  patch: { name?: string; enabled?: boolean },
+) {
+  return apiClient.patch(`/accounts/${accountId}/evolution/channels/${channelId}`, patch);
+}
+
+export interface EvolutionSession {
+  id: string;
+  name: string;
+  enabled: boolean;
+  instance_name: string | null;
+  url: string | null;
+  status: EvolutionStatus;
+  found: boolean;
+  error?: string;
+  profile_name: string | null;
+  profile_pic_url: string | null;
+  owner_jid: string | null;
+  integration: string | null;
+  counts: { contacts: number; chats: number; messages: number };
+}
+
+export function listEvolutionSessions(accountId: string): Promise<EvolutionSession[]> {
+  return apiClient.get(`/accounts/${accountId}/evolution/sessions`);
 }

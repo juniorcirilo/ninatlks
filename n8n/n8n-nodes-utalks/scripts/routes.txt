@@ -1,0 +1,220 @@
+GET    /accounts/:accountId   get account-settings.controller.ts
+PATCH  /accounts/:accountId   update account-settings.controller.ts
+GET    /accounts/:accountId/dialing-settings   getDialing account-settings.controller.ts
+PUT    /accounts/:accountId/dialing-settings   putDialing account-settings.controller.ts
+POST   /accounts/:accountId/webhook-secret   ensureWebhookSecret account-settings.controller.ts
+GET    /accounts/:accountId/my-availability   getMyAvailability account-settings.controller.ts
+PUT    /accounts/:accountId/my-availability   setMyAvailability account-settings.controller.ts
+GET    /accounts/:accountId/inboxes   listInboxes account-settings.controller.ts
+GET    /invites/:token/preview P preview invite-token.controller.ts
+POST   /invites/:token/accept   acceptAsCurrentUser invite-token.controller.ts
+GET    /accounts/:accountId/invites   list invites.controller.ts
+POST   /accounts/:accountId/invites   create invites.controller.ts
+DELETE /accounts/:accountId/invites/:inviteId   revoke invites.controller.ts
+GET    /system-settings P get system-settings.controller.ts
+PATCH  /system-settings   update system-settings.controller.ts
+GET    /accounts/:accountId/members   list team.controller.ts
+PATCH  /accounts/:accountId/members/:userId/role   changeRole team.controller.ts
+DELETE /accounts/:accountId/members/:userId   remove team.controller.ts
+POST   /accounts/:accountId/agent-llm-provider/models   listModels agent-llm-provider.controller.ts
+POST   /accounts/:accountId/agent-llm-provider/test   testConnection agent-llm-provider.controller.ts
+POST   /agent-tools/confirm-meeting P confirmMeeting agent-tools.controller.ts
+POST   /agent-tools/get-availability P getAvailability agent-tools.controller.ts
+POST   /agent-tools/qualify-lead P qualifyLead agent-tools.controller.ts
+POST   /agent-tools/registrar-desfecho-cobranca P registrarDesfechoCobranca agent-tools.controller.ts
+POST   /agent-tools/reschedule-meeting P rescheduleMeeting agent-tools.controller.ts
+POST   /agent-tools/registrar-transferencia P registrarTransferencia agent-tools.controller.ts
+POST   /agent-tools/schedule-meeting P scheduleMeeting agent-tools.controller.ts
+POST   /auth/login P login auth.controller.ts
+POST   /auth/logout   logout auth.controller.ts
+GET    /auth/me   me auth.controller.ts
+POST   /auth/change-password   changePassword auth.controller.ts
+POST   /auth/forgot-password P forgotPassword auth.controller.ts
+POST   /auth/reset-password P resetPassword auth.controller.ts
+POST   /auth/register P register auth.controller.ts
+POST   /auth/invites/accept P acceptInvite auth.controller.ts
+GET    /accounts/:accountId/cadences   list cadences.controller.ts
+POST   /accounts/:accountId/cadences   upsert cadences.controller.ts
+DELETE /accounts/:accountId/cadences/:id   remove cadences.controller.ts
+POST   /accounts/:accountId/cadences/:id/enroll   enroll cadences.controller.ts
+GET    /accounts/:accountId/calls   list calls.controller.ts
+GET    /accounts/:accountId/calls/:id   detail calls.controller.ts
+GET    /accounts/:accountId/campaigns   list campaigns.controller.ts
+POST   /accounts/:accountId/campaigns   create campaigns.controller.ts
+PATCH  /accounts/:accountId/campaigns/:id   update campaigns.controller.ts
+DELETE /accounts/:accountId/campaigns/:id   remove campaigns.controller.ts
+GET    /accounts/:accountId/campaigns/:id/batches   batches campaigns.controller.ts
+GET    /accounts/:accountId/campaigns/:id/batches/:batchId/preview   batchPreview campaigns.controller.ts
+POST   /accounts/:accountId/campaigns/:id/batches/:batchId/approve   approveBatch campaigns.controller.ts
+POST   /accounts/:accountId/campaigns/:id/batches/:batchId/reject   rejectBatch campaigns.controller.ts
+GET    /accounts/:accountId/campaigns/personas   personas campaigns.controller.ts
+GET    /accounts/:accountId/campaigns/phone-numbers   phoneNumbers campaigns.controller.ts
+GET    /accounts/:accountId/campaigns/contact-lists   contactLists campaigns.controller.ts
+GET    /accounts/:accountId/campaigns/:id   get campaigns.controller.ts
+GET    /accounts/:accountId/campaigns/:id/contacts   contacts campaigns.controller.ts
+POST   /accounts/:accountId/campaigns/:id/export   exportCsv campaigns.controller.ts
+PATCH  /accounts/:accountId/campaigns/:id/status   updateStatus campaigns.controller.ts
+POST   /accounts/:accountId/campaigns/:id/retry-failed   retryFailed campaigns.controller.ts
+POST   /accounts/:accountId/campaigns/:id/cancel-calls   cancelCalls campaigns.controller.ts
+GET    /accounts/:accountId/retention-rules   list campaigns.controller.ts
+POST   /accounts/:accountId/retention-rules   create campaigns.controller.ts
+PATCH  /accounts/:accountId/retention-rules/:id   update campaigns.controller.ts
+DELETE /accounts/:accountId/retention-rules/:id   delete campaigns.controller.ts
+GET    /accounts/:accountId/companies   list companies.controller.ts
+GET    /accounts/:accountId/companies/clients   listClients companies.controller.ts
+GET    /accounts/:accountId/companies/:id   get companies.controller.ts
+GET    /accounts/:accountId/companies/:id/contacts   listContacts companies.controller.ts
+POST   /accounts/:accountId/companies   create companies.controller.ts
+POST   /accounts/:accountId/companies/link   link companies.controller.ts
+POST   /accounts/:accountId/companies/link/import   linkImport companies.controller.ts
+PATCH  /accounts/:accountId/companies/:id   update companies.controller.ts
+DELETE /accounts/:accountId/companies/:id   remove companies.controller.ts
+DELETE /accounts/:accountId/companies   deleteAll companies.controller.ts
+GET    /accounts/:accountId/dnc   list compliance.controller.ts
+POST   /accounts/:accountId/dnc   add compliance.controller.ts
+DELETE /accounts/:accountId/dnc/:id   remove compliance.controller.ts
+GET    /accounts/:accountId/compliance-policy   get compliance.controller.ts
+PUT    /accounts/:accountId/compliance-policy   save compliance.controller.ts
+GET    /accounts/:accountId/contacts   list contacts.controller.ts
+GET    /accounts/:accountId/contacts/candidates   candidates contacts.controller.ts
+POST   /accounts/:accountId/contacts   create contacts.controller.ts
+PATCH  /accounts/:accountId/contacts/:id   updateOps contacts.controller.ts
+POST   /accounts/:accountId/contacts/import   importCsv contacts.controller.ts
+POST   /accounts/:accountId/contacts/bulk/owner   bulkAssignOwner contacts.controller.ts
+POST   /accounts/:accountId/contacts/bulk/lifecycle   bulkSetLifecycle contacts.controller.ts
+POST   /accounts/:accountId/contacts/bulk/operational-status   bulkSetOperationalStatus contacts.controller.ts
+POST   /accounts/:accountId/contacts/bulk/tag   bulkAddTag contacts.controller.ts
+POST   /accounts/:accountId/contacts/bulk/round-robin   bulkRoundRobin contacts.controller.ts
+POST   /accounts/:accountId/contacts/bulk/campaign   bulkAddToCampaign contacts.controller.ts
+GET    /accounts/:accountId/contacts/tags/suggestions   tagSuggestions contacts.controller.ts
+GET    /accounts/:accountId/contacts/productivity   productivity contacts.controller.ts
+GET    /accounts/:accountId/contacts/:id/variables   getVariables contacts.controller.ts
+PATCH  /accounts/:accountId/contacts/:id/variables   setVariables contacts.controller.ts
+GET    /accounts/:accountId/contacts/:id/timeline   timeline contacts.controller.ts
+GET    /accounts/:accountId/contacts/editable-campaigns   editableCampaigns contacts.controller.ts
+GET    /accounts/:accountId/contact-lists   list contacts.controller.ts
+POST   /accounts/:accountId/contact-lists   create contacts.controller.ts
+GET    /accounts/:accountId/contact-lists/:listId   getOne contacts.controller.ts
+PATCH  /accounts/:accountId/contact-lists/:listId   update contacts.controller.ts
+DELETE /accounts/:accountId/contact-lists/:listId   remove contacts.controller.ts
+POST   /accounts/:accountId/contact-lists/:listId/members   addMembers contacts.controller.ts
+GET    /accounts/:accountId/contact-lists/:listId/members   listMembers contacts.controller.ts
+GET    /accounts/:accountId/contact-lists/:listId/documents   listDocuments contacts.controller.ts
+GET    /accounts/:accountId/dashboards/sdr-snapshot   sdrSnapshot dashboards.controller.ts
+GET    /accounts/:accountId/dashboards/mission-control   missionControlSnapshot dashboards.controller.ts
+GET    /accounts/:accountId/dashboards/agent-analytics   agentAnalyticsResult dashboards.controller.ts
+GET    /accounts/:accountId/elevenlabs/voices   list elevenlabs.controller.ts
+PATCH  /accounts/:accountId/elevenlabs/voices/:voiceId/settings   updateSettings elevenlabs.controller.ts
+DELETE /accounts/:accountId/elevenlabs/voices/:voiceId   remove elevenlabs.controller.ts
+POST   /accounts/:accountId/elevenlabs/preview   preview elevenlabs.controller.ts
+POST   /accounts/:accountId/elevenlabs/agent-sync   syncAgent elevenlabs.controller.ts
+GET    /accounts/:accountId/elevenlabs/agent-info/:agentId   getAgentInfo elevenlabs.controller.ts
+POST   /accounts/:accountId/elevenlabs/kb-add   addKnowledgeBase elevenlabs.controller.ts
+POST   /accounts/:accountId/elevenlabs/call-audio   callAudio elevenlabs.controller.ts
+GET    /accounts/:accountId/evolution   list evolution.controller.ts
+POST   /accounts/:accountId/evolution/test   test evolution.controller.ts
+POST   /accounts/:accountId/evolution/provision   provision evolution.controller.ts
+GET    /accounts/:accountId/evolution/channels/:channelId/qrcode   qrcode evolution.controller.ts
+GET    /accounts/:accountId/evolution/channels/:channelId/status   status evolution.controller.ts
+DELETE /accounts/:accountId/evolution/channels/:channelId   remove evolution.controller.ts
+DELETE /accounts/:accountId/contacts/:id/lgpd   lgpdDelete gdpr.controller.ts
+POST   /accounts/:accountId/contacts/merge   merge gdpr.controller.ts
+GET    /accounts/:accountId/google-calendar/status   status google-calendar.controller.ts
+GET    /accounts/:accountId/google-calendar/connect   connect google-calendar.controller.ts
+DELETE /accounts/:accountId/google-calendar   disconnect google-calendar.controller.ts
+GET    /google-calendar/callback P callback google-calendar.controller.ts
+GET    /accounts/:accountId/agent-sources   list agent-sources.controller.ts
+POST   /accounts/:accountId/agent-sources/n8n/ensure-node   ensureN8nNode agent-sources.controller.ts
+POST   /accounts/:accountId/agent-sources/n8n/add-node   addN8nNode agent-sources.controller.ts
+POST   /accounts/:accountId/agent-sources/n8n/sync-all   syncAllToN8n agent-sources.controller.ts
+POST   /accounts/:accountId/agent-sources   create agent-sources.controller.ts
+PATCH  /accounts/:accountId/agent-sources/:id   update agent-sources.controller.ts
+POST   /accounts/:accountId/agent-sources/:id/run   run agent-sources.controller.ts
+GET    /accounts/:accountId/agent-sources/:id/failures   failures agent-sources.controller.ts
+POST   /accounts/:accountId/agent-sources/resolve-failure   resolveFailure agent-sources.controller.ts
+DELETE /accounts/:accountId/agent-sources/:id   remove agent-sources.controller.ts
+GET    /accounts/:accountId/api-keys   list api-keys.controller.ts
+POST   /accounts/:accountId/api-keys   create api-keys.controller.ts
+DELETE /accounts/:accountId/api-keys/:id   revoke api-keys.controller.ts
+POST   /ingest/operational-list P operationalList ingest.controller.ts
+POST   /ingest/agent-contact P agentContact ingest.controller.ts
+GET    /ingest/operational-list/:listKey/outcomes P outcomes ingest.controller.ts
+POST   /accounts/:accountId/integrations-status   check integrations-status.controller.ts
+GET    /accounts/:accountId/meetings   list meetings.controller.ts
+POST   /accounts/:accountId/meetings   create meetings.controller.ts
+PATCH  /accounts/:accountId/meetings/:id   update meetings.controller.ts
+PATCH  /accounts/:accountId/meetings/:id/reschedule   reschedule meetings.controller.ts
+DELETE /accounts/:accountId/meetings/:id   cancel meetings.controller.ts
+PATCH  /accounts/:accountId/meetings/:id/outcome   setOutcome meetings.controller.ts
+GET    /accounts/:accountId/availability   get meetings.controller.ts
+PUT    /accounts/:accountId/availability   set meetings.controller.ts
+GET    /accounts/:accountId/doctors   list meetings.controller.ts
+POST   /accounts/:accountId/doctors   create meetings.controller.ts
+PATCH  /accounts/:accountId/doctors/:id   update meetings.controller.ts
+DELETE /accounts/:accountId/doctors/:id   delete meetings.controller.ts
+PUT    /accounts/:accountId/doctors/:id/availability   setAvailability meetings.controller.ts
+POST   /accounts/:accountId/messages/send   send chat-send.controller.ts
+GET    /accounts/:accountId/conversations   list conversations.controller.ts
+POST   /accounts/:accountId/conversations/start   start conversations.controller.ts
+GET    /accounts/:accountId/conversations/:conversationId/messages   messages conversations.controller.ts
+PATCH  /accounts/:accountId/conversations/:conversationId   update conversations.controller.ts
+GET    /accounts/:accountId/notifications   list notifications.controller.ts
+GET    /accounts/:accountId/notifications/unread-count   unreadCount notifications.controller.ts
+PATCH  /accounts/:accountId/notifications/:id/read   markRead notifications.controller.ts
+POST   /accounts/:accountId/notifications/read-all   markAllRead notifications.controller.ts
+GET    /accounts/:accountId/onboarding   getState onboarding.controller.ts
+POST   /accounts/:accountId/onboarding/advance   advance onboarding.controller.ts
+POST   /accounts/:accountId/onboarding/goto   goto onboarding.controller.ts
+POST   /accounts/:accountId/onboarding/skip   skip onboarding.controller.ts
+POST   /accounts/:accountId/onboarding/dismiss-checklist   dismissChecklist onboarding.controller.ts
+POST   /accounts/:accountId/onboarding/dismiss   dismiss onboarding.controller.ts
+POST   /accounts/:accountId/onboarding/reopen   reopen onboarding.controller.ts
+POST   /accounts/:accountId/onboarding/health-check   healthCheck onboarding.controller.ts
+GET    /accounts/:accountId/persona-deployments/active-for-inbox   findActiveForInbox persona-deployments.controller.ts
+POST   /accounts/:accountId/persona-deployments   deploy persona-deployments.controller.ts
+DELETE /accounts/:accountId/persona-deployments/:id   remove persona-deployments.controller.ts
+GET    /accounts/:accountId/personas   list personas.controller.ts
+POST   /accounts/:accountId/personas   create personas.controller.ts
+PATCH  /accounts/:accountId/personas/:id   update personas.controller.ts
+DELETE /accounts/:accountId/personas/:id   remove personas.controller.ts
+GET    /accounts/:accountId/personas/:id/deployments   listDeployments personas.controller.ts
+POST   /accounts/:accountId/personas/:id/distill   distill personas.controller.ts
+POST   /accounts/:accountId/personas/:id/suggest-reply   suggestReply personas.controller.ts
+POST   /accounts/:accountId/personas/:id/generate-prompt   generatePrompt personas.controller.ts
+GET    /accounts/:accountId/pipeline   get pipeline.controller.ts
+POST   /accounts/:accountId/pipeline/leads/:contactId/move   move pipeline.controller.ts
+GET    /accounts/:accountId/secrets   list secrets.controller.ts
+POST   /accounts/:accountId/secrets   set secrets.controller.ts
+DELETE /accounts/:accountId/secrets/:provider/:keyName   delete secrets.controller.ts
+POST   /accounts/:accountId/attachments/presign   presign attachments.controller.ts
+GET    /accounts/:accountId/twilio/numbers/owned   owned twilio-numbers.controller.ts
+GET    /accounts/:accountId/twilio/numbers/search   search twilio-numbers.controller.ts
+POST   /accounts/:accountId/twilio/numbers/buy   buy twilio-numbers.controller.ts
+POST   /accounts/:accountId/twilio/numbers/import   import twilio-numbers.controller.ts
+GET    /accounts/:accountId/phone-numbers   list phone-numbers.controller.ts
+POST   /accounts/:accountId/phone-numbers   create phone-numbers.controller.ts
+PATCH  /accounts/:accountId/phone-numbers/:id   update phone-numbers.controller.ts
+DELETE /accounts/:accountId/phone-numbers/:id   remove phone-numbers.controller.ts
+POST   /accounts/:accountId/phone-numbers/:id/activate-elevenlabs   activateElevenLabs phone-numbers.controller.ts
+POST   /accounts/:accountId/voice-clone   clone voice-clone.controller.ts
+GET    /accounts/:accountId/voice/calls   list voice-outbound.controller.ts
+GET    /accounts/:accountId/voice/calls/:id   get voice-outbound.controller.ts
+POST   /accounts/:accountId/voice/calls   placeCall voice-outbound.controller.ts
+POST   /accounts/:accountId/voice/calls/:id/summary   generateSummary voice-outbound.controller.ts
+POST   /accounts/:accountId/voice/calls/:id/transcribe   retryTranscription voice-outbound.controller.ts
+POST   /accounts/:accountId/voice/calls/:id/cancel   cancelCall voice-outbound.controller.ts
+POST   /accounts/:accountId/voice/calls/:id/reclassify   reclassify voice-outbound.controller.ts
+GET    /accounts/:accountId/webhook-endpoints   list webhook-endpoints.controller.ts
+POST   /accounts/:accountId/webhook-endpoints   create webhook-endpoints.controller.ts
+PATCH  /accounts/:accountId/webhook-endpoints/:id   update webhook-endpoints.controller.ts
+POST   /accounts/:accountId/webhook-endpoints/:id/rotate-secret   rotateSecret webhook-endpoints.controller.ts
+DELETE /accounts/:accountId/webhook-endpoints/:id   remove webhook-endpoints.controller.ts
+GET    /accounts/:accountId/webhook-deliveries   list webhook-log.controller.ts
+POST   /webhooks/elevenlabs/events P events elevenlabs-webhooks.controller.ts
+POST   /webhooks/elevenlabs/personalization P personalizationWebhook elevenlabs-webhooks.controller.ts
+POST   /webhooks/evolution/incoming P incoming evolution-webhooks.controller.ts
+POST   /webhooks/meta/data-deletion P dataDeletion meta-webhooks.controller.ts
+POST   /webhooks/twilio/incoming P incoming twilio-webhooks.controller.ts
+POST   /webhooks/twilio/sms-incoming P smsIncoming twilio-webhooks.controller.ts
+POST   /webhooks/twilio/status P status twilio-webhooks.controller.ts
+POST   /webhooks/twilio/recording-status P recordingStatus twilio-webhooks.controller.ts

@@ -11,7 +11,8 @@ import { CAMPAIGN_KINDS } from '../../campaigns/dto/create-campaign.dto';
 
 /**
  * Recebimento de um contato para automação de agente. O telefone é a chave —
- * mandar a mesma pessoa duas vezes atualiza, não duplica.
+ * mandar a mesma pessoa duas vezes é ignorado (insert-only), não duplica nem
+ * atualiza.
  */
 export class IngestAgentContactDto {
   /**
@@ -38,11 +39,60 @@ export class IngestAgentContactDto {
   @MaxLength(255)
   email?: string;
 
-  /** Código do registro no sistema de origem. Enriquecimento, não chave. */
+  /**
+   * Código do cliente no sistema de origem. Chave de deduplicação do
+   * contato E da empresa vinculada (`public.companies`, achada/criada por
+   * este mesmo external_id) — sem ele, razaoSocial/nomeFantasia/vendedorNome
+   * abaixo são ignorados (não dá pra saber a qual cliente pertencem).
+   */
   @IsOptional()
   @IsString()
   @MaxLength(128)
   externalId?: string;
+
+  /**
+   * "empresa_id" — chave da EMPRESA no sistema de origem, separada de
+   * `externalId` (que identifica o contato/pessoa). Antes, `externalId`
+   * fazia as duas coisas: se a fonte mapeasse um código por pessoa nesse
+   * campo (não por empresa), cada cliente virava sua própria empresa. Achada/
+   * criada em `public.companies` por este campo — sem ele, a linha é
+   * bloqueada quando a persona é de cobrança/orçamento (document_kind).
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  empresaId?: string;
+
+  /** Nome da empresa, como o ERP manda — prioridade máxima como nome de
+   * `companies.name` na criação (antes de razaoSocial/nomeFantasia). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  empresaNome?: string;
+
+  /** Razão social do cliente — vai para `companies.razao_social`, não para o contato. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  razaoSocial?: string;
+
+  /** Nome fantasia do cliente — vai para `companies.nome_fantasia`. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  nomeFantasia?: string;
+
+  /**
+   * Nome do vendedor responsável, como o ERP manda. É casado contra os
+   * usuários da conta; achando exatamente um, vira `companies.vendedor_id`
+   * (a pessoa de verdade). Sem match (ou mais de um), fica só como texto em
+   * `companies.vendedor_nome_erp` — nunca é perdido, mas também não linka a
+   * pessoa errada.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  vendedorNome?: string;
 
   /** Contexto que a agente usa na fala (valor, pedido, interesse…). */
   @IsOptional()
@@ -68,4 +118,15 @@ export class IngestAgentContactDto {
   @IsString()
   @MaxLength(255)
   listName?: string;
+
+  /**
+   * Empresa já resolvida manualmente (fluxo de reconciliação da tela de
+   * Cobranças/Orçamentos, quando a linha original não trouxe `externalId` e
+   * o operador escolheu ou criou a empresa à mão). Quando presente, ignora
+   * o casamento/criação por `externalId` e usa esta empresa diretamente —
+   * ver `AgentSourcesService.resolveSyncFailure`.
+   */
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
 }

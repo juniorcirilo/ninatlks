@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { buildSystemPromptWithGuardrails } from './sdr-guardrails.util';
+import { transferDepartamento } from '../sales-reps/sales-reps.util';
 
 const PT_LANGUAGE = 'pt';
 const PT_BR_LANGUAGE_INSTRUCTION =
@@ -193,6 +194,7 @@ export class CallPersonalizationService {
 
     const promptWithGuardrails = buildSystemPromptWithGuardrails(
       personaSystemPrompt ?? '',
+      transferDepartamento({ persona: { name: personaName } }),
     );
     const enrichedPrompt = `${promptWithGuardrails}${contextBlock}${PT_BR_LANGUAGE_INSTRUCTION}`;
 

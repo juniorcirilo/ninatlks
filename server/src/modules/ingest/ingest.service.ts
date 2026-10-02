@@ -27,6 +27,31 @@ export interface IngestResult {
   }[];
 }
 
+/** Resultado de uma linha do lote — skipped=true e sem `contactId` é o que
+ * vira "falha" na tela de sincronização (não chegou a virar contato nem
+ * título/orçamento); skipped=true com `contactId` presente é só o contato em
+ * si que não foi atualizado (ingest_mode='insert'), o que não impede o
+ * título/orçamento daquele contato de ter sido gravado. */
+export interface IngestRowResult {
+  phone: string;
+  name: string | null;
+  skipped: boolean;
+  reason?: string;
+  contactId?: string;
+  created?: boolean;
+  listId?: string;
+  listKey?: string;
+}
+
+export interface IngestBatchResult {
+  processed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  results: IngestRowResult[];
+  pendingBatches: IngestResult['pendingBatches'];
+}
+
 /**
  * Ingestão de lista operacional vinda de sistema externo (ERP → n8n).
  *
@@ -174,7 +199,7 @@ export class IngestService {
   async ingestAgentContacts(
     accountId: string,
     rows: IngestAgentContactDto[],
-  ): Promise<Record<string, unknown>> {
+  ): Promise<IngestBatchResult> {
     const normalized = rows.map((dto) => ({ dto, phone: toE164(dto.phone) }));
     const invalidPhones = normalized
       .filter((r) => !r.phone)
@@ -194,7 +219,7 @@ export class IngestService {
       rows.map((r) => r.agent),
     );
 
-    const results: Record<string, unknown>[] = [];
+    const results: IngestRowResult[] = [];
     // Map em vez de Set: o convite precisa da lista *e* da chave dela, e a
     // chave é o que aparece no aviso para o operador.
     const lists = new Map<string, string>();
@@ -207,19 +232,37 @@ export class IngestService {
         skipped += 1;
         results.push({
           phone: dto.phone,
+          name: dto.name ?? null,
           skipped: true,
           reason: 'telefone inválido',
         });
         continue;
       }
 
-      const row = await this.insertAgentContact(
-        accountId,
-        dto,
-        phone,
-        agentNames.get(dto.agent),
-      );
-      results.push(row);
+      // Try/catch por linha: uma linha com dado ruim (ex.: valor que a
+      // função no banco rejeita) não pode derrubar as linhas seguintes do
+      // mesmo lote — sem isto, uma exceção no meio de 300 linhas jogava fora
+      // tudo que ainda não tinha sido processado, sem nenhum aviso de qual
+      // linha causou.
+      let row: Record<string, unknown>;
+      try {
+        row = await this.insertAgentContact(
+          accountId,
+          dto,
+          phone,
+          agentNames.get(dto.agent),
+        );
+      } catch (err) {
+        skipped += 1;
+        results.push({
+          phone,
+          name: dto.name ?? null,
+          skipped: true,
+          reason: err instanceof Error ? err.message : 'falha desconhecida',
+        });
+        continue;
+      }
+      results.push({ ...row, name: dto.name ?? null } as IngestRowResult);
 
       if (row.skipped) {
         skipped += 1;
@@ -308,6 +351,11 @@ export class IngestService {
         name: dto.name ?? null,
         email: dto.email ?? null,
         externalId: dto.externalId ?? null,
+        empresaId: dto.empresaId ?? null,
+        empresaNome: dto.empresaNome ?? null,
+        razaoSocial: dto.razaoSocial ?? null,
+        nomeFantasia: dto.nomeFantasia ?? null,
+        vendedorNome: dto.vendedorNome ?? null,
         variables: dto.variables ?? {},
         campaignKind: dto.campaignKind ?? null,
         listKey: dto.listKey ?? null,
@@ -317,6 +365,7 @@ export class IngestService {
         // Nome usado apenas na criação: a chave é `agent:<uuid>` (estável), mas
         // o operador vê "Agente Carla" na tela de listas, não um uuid.
         defaultListName: agentName ? `Agente ${agentName}` : null,
+        companyId: dto.companyId ?? null,
       }),
     ]);
 

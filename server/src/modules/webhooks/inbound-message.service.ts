@@ -41,6 +41,8 @@ export class InboundMessageService {
     content: string;
     hasMedia: boolean;
     mediaUrls?: string[];
+    /** Sobrescreve content_attributes (anexo salvo, resposta interativa…). */
+    contentAttributes?: Record<string, unknown>;
     externalSourceIds: Record<string, unknown>;
   }): Promise<{ inserted: boolean }> {
     const {
@@ -55,16 +57,19 @@ export class InboundMessageService {
       content,
       hasMedia,
       mediaUrls,
+      contentAttributes: attributesOverride,
       externalSourceIds,
     } = args;
 
     const contentType = hasMedia ? 1 : 0;
-    const contentAttributes = hasMedia
-      ? {
-          kind: 'image',
-          media_urls: mediaUrls?.length ? mediaUrls : undefined,
-        }
-      : { kind: 'text' };
+    const contentAttributes =
+      attributesOverride ??
+      (hasMedia
+        ? {
+            kind: 'image',
+            media_urls: mediaUrls?.length ? mediaUrls : undefined,
+          }
+        : { kind: 'text' });
 
     const [row] = await this.dataSource.query<
       {

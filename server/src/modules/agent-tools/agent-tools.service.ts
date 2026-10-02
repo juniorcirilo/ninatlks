@@ -13,9 +13,11 @@ import {
   GetAvailabilityDto,
   QualifyLeadDto,
   RegistrarDesfechoCobrancaDto,
+  RegistrarTransferenciaDto,
   RescheduleMeetingDto,
   ScheduleMeetingDto,
 } from './dto/agent-tools.dto';
+import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { MeetingNotificationsService } from '../meeting-notifications/meeting-notifications.service';
 
 export interface ToolResponse {
@@ -150,6 +152,7 @@ export class AgentToolsService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly meetingNotifications: MeetingNotificationsService,
+    private readonly googleCalendar: GoogleCalendarService,
   ) {}
 
   async confirmMeeting(dto: ConfirmMeetingDto): Promise<ToolResponse> {
@@ -191,39 +194,46 @@ export class AgentToolsService {
 
     const conditions: string[] = ['account_id = $1', 'active = true'];
     const params: unknown[] = [accountId];
-    if (dto.doctor_id) {
-      params.push(dto.doctor_id);
+    const consultorId = dto.consultor_id ?? dto.doctor_id;
+    const consultorNome = dto.consultor_nome ?? dto.doctor_name;
+    if (consultorId) {
+      params.push(consultorId);
       conditions.push(`id = $${params.length}`);
     } else if (dto.specialty) {
       params.push(`%${dto.specialty}%`);
       conditions.push(`specialty ILIKE $${params.length}`);
-    } else if (dto.doctor_name) {
-      params.push(`%${dto.doctor_name}%`);
+    } else if (consultorNome) {
+      params.push(`%${consultorNome}%`);
       conditions.push(`name ILIKE $${params.length}`);
     }
 
-    const doctors = await this.dataSource.query<
-      {
-        id: string;
-        name: string;
-        specialty: string | null;
-        modalities: string[];
-        default_duration_minutes: number;
-      }[]
-    >(
-      `SELECT id, name, specialty, modalities, default_duration_minutes FROM doctors WHERE ${conditions.join(' AND ')}`,
+    type DoctorRow = {
+      id: string;
+      name: string;
+      specialty: string | null;
+      modalities: string[];
+      default_duration_minutes: number;
+    };
+    const doctorsSql = (where: string[]) =>
+      `SELECT id, name, specialty, modalities, default_duration_minutes FROM doctors WHERE ${where.join(' AND ')}`;
+    let doctors = await this.dataSource.query<DoctorRow[]>(
+      doctorsSql(conditions),
       params,
     );
+    // O LLM costuma inventar specialty/doctor_name (ex.: "Gestão de Negociação").
+    // Sem match por filtro (e sem doctor_id explícito), cai para toda a agenda ativa.
+    if (doctors.length === 0 && !consultorId && conditions.length > 2) {
+      doctors = await this.dataSource.query<DoctorRow[]>(
+        doctorsSql(conditions.slice(0, 2)),
+        [accountId],
+      );
+    }
 
     if (doctors.length === 0) {
-      const filterDesc = dto.specialty
-        ? `pra especialidade "${dto.specialty}"`
-        : dto.doctor_name
-          ? `pra ${dto.doctor_name}`
-          : 'cadastrado';
+      const filterDesc = consultorNome ? `chamado ${consultorNome}` : 'cadastrado';
       return ok({
         slots: [],
-        friendly_message: `Não encontrei nenhum médico ${filterDesc} aqui na agenda. Posso te transferir pra recepção pra ela te ajudar?`,
+        friendly_message: `Não há nenhum consultor de agenda ${filterDesc}. Avise o lead que um colega vai retornar para marcar o horário e chame registrar_transferencia se ele quiser falar com humano.`,
       });
     }
 
@@ -263,7 +273,7 @@ export class AgentToolsService {
       return ok({
         slots: [],
         friendly_message:
-          'A agenda do médico ainda não foi configurada aqui no sistema. Posso te transferir pra recepção?',
+          'A agenda do consultor ainda não foi configurada no sistema. Avise o lead que um colega retornará para marcar o horário.',
       });
     }
 
@@ -281,14 +291,14 @@ export class AgentToolsService {
       return ok({
         slots: [],
         friendly_message:
-          'Não tenho horários livres nas próximas semanas pra esse médico. Posso te ligar de volta quando abrir vaga, ou te passar pra recepção?',
+          'Não há horários livres nas próximas semanas. Avise o lead que um colega retornará assim que abrir agenda.',
       });
     }
 
     const seenDays = new Set<string>();
     const picked: typeof slots = [];
     for (const s of slots) {
-      const dayKey = s.starts_at.slice(0, 10) + ':' + s.doctor_id;
+      const dayKey = s.starts_at.slice(0, 10) + ':' + s.consultor_id;
       if (seenDays.has(dayKey)) continue;
       seenDays.add(dayKey);
       picked.push(s);
@@ -336,9 +346,8 @@ export class AgentToolsService {
     } = args;
     const now = new Date();
     const out: Array<{
-      doctor_id: string;
-      doctor_name: string;
-      specialty: string | null;
+      consultor_id: string;
+      consultor_nome: string;
       modalities: string[];
       starts_at: string;
       ends_at: string;
@@ -359,17 +368,17 @@ export class AgentToolsService {
       const duration = doc.default_duration_minutes ?? durationDefault;
 
       for (let dayOffset = 0; dayOffset <= daysAhead; dayOffset++) {
-        const d = new Date(now);
-        d.setDate(d.getDate() + dayOffset);
-        const weekday = d.getDay();
+        // Dia/semana em America/Sao_Paulo (UTC-3 fixo desde 2019), não em UTC do servidor.
+        const d = new Date(now.getTime() - 3 * 3600_000 + dayOffset * 86400_000);
+        const weekday = d.getUTCDay();
         const dayKey = d.toISOString().slice(0, 10);
 
         for (const a of docAvail) {
           if (a.weekday !== weekday) continue;
           const [sh, sm] = String(a.start_time).split(':').map(Number);
           const [eh, em] = String(a.end_time).split(':').map(Number);
-          const slotStart = new Date(`${dayKey}T${pad(sh)}:${pad(sm)}:00`);
-          const slotEnd = new Date(`${dayKey}T${pad(eh)}:${pad(em)}:00`);
+          const slotStart = new Date(`${dayKey}T${pad(sh)}:${pad(sm)}:00-03:00`);
+          const slotEnd = new Date(`${dayKey}T${pad(eh)}:${pad(em)}:00-03:00`);
           let cursor = new Date(slotStart);
 
           while (cursor.getTime() + duration * 60_000 <= slotEnd.getTime()) {
@@ -395,14 +404,15 @@ export class AgentToolsService {
             );
             if (!conflictMeeting && !conflictBlock) {
               out.push({
-                doctor_id: doc.id,
-                doctor_name: doc.name,
-                specialty: doc.specialty,
-                modalities: doc.modalities,
+                consultor_id: doc.id,
+                consultor_nome: doc.name,
+                modalities: doc.modalities.map((m) =>
+                  m === 'teleconsulta' ? 'online' : m,
+                ),
                 starts_at: cursor.toISOString(),
                 ends_at: slotEndsAt.toISOString(),
                 duration_min: duration,
-                label: `${formatPtBr(cursor)} com ${doc.name}${doc.specialty ? ` (${doc.specialty})` : ''}`,
+                label: `${formatPtBr(cursor)} com ${doc.name}`,
               });
             }
             cursor = new Date(cursor.getTime() + duration * 60_000);
@@ -894,6 +904,8 @@ export class AgentToolsService {
   }
 
   async scheduleMeeting(dto: ScheduleMeetingDto): Promise<ToolResponse> {
+    const hostId = dto.consultor_id ?? dto.doctor_id;
+    if (!hostId) return fail('consultor_id required', 400);
     const startsAt = new Date(dto.starts_at);
     if (Number.isNaN(startsAt.getTime())) return fail('invalid starts_at', 400);
     if (startsAt.getTime() < Date.now() + 5 * 60_000) {
@@ -906,10 +918,12 @@ export class AgentToolsService {
         account_id: string;
         conversation_id: string | null;
         from_number: string | null;
+        to_number: string | null;
+        direction: string | null;
         classification: Record<string, unknown> | null;
       }[]
     >(
-      `SELECT id, account_id, conversation_id, from_number, classification FROM voice_calls WHERE source_id = $1 LIMIT 1`,
+      `SELECT id, account_id, conversation_id, from_number, to_number, direction, classification FROM voice_calls WHERE source_id = $1 LIMIT 1`,
       [dto.conversation_id],
     );
     const call = callRows[0];
@@ -925,10 +939,10 @@ export class AgentToolsService {
     >(
       `SELECT id, name, specialty, default_duration_minutes FROM doctors
        WHERE id = $1 AND account_id = $2 AND active = true LIMIT 1`,
-      [dto.doctor_id, call.account_id],
+      [hostId, call.account_id],
     );
     const doctor = doctorRows[0];
-    if (!doctor) return fail('doctor not found in this clinic', 404);
+    if (!doctor) return fail('consultor não encontrado nesta conta', 404);
 
     const durationMin = clampInt(
       dto.duration_minutes ?? doctor.default_duration_minutes ?? 30,
@@ -954,10 +968,12 @@ export class AgentToolsService {
       ]);
       contactId = convRows[0]?.contact_id ?? null;
     }
-    if (!contactId && call.from_number) {
+    const leadPhoneForLookup =
+      call.direction === 'outbound' ? call.to_number : call.from_number;
+    if (!contactId && leadPhoneForLookup) {
       const cRows = await this.dataSource.query<{ id: string }[]>(
         `SELECT id FROM contacts WHERE account_id = $1 AND phone_number = $2 LIMIT 1`,
-        [call.account_id, call.from_number],
+        [call.account_id, leadPhoneForLookup],
       );
       contactId = cRows[0]?.id ?? null;
     }
@@ -965,10 +981,10 @@ export class AgentToolsService {
     const conflicts = await this.dataSource.query<{ id: string }[]>(
       `SELECT id FROM scheduled_meetings
        WHERE account_id = $1 AND doctor_id = $2 AND status = 'scheduled' AND starts_at < $3 AND ends_at > $4`,
-      [call.account_id, dto.doctor_id, endsAt, startsAt],
+      [call.account_id, hostId, endsAt, startsAt],
     );
     if (conflicts.length > 0) {
-      return fail('slot already booked for this doctor', 409, {
+      return fail('horário já ocupado para este consultor', 409, {
         conflict_meeting_id: conflicts[0].id,
       });
     }
@@ -978,10 +994,13 @@ export class AgentToolsService {
       null;
     const summary =
       (call.classification?.summary as string | undefined) ?? null;
-    const title = dto.title ?? `Consulta com ${doctor.name}`;
+    const title = dto.title ?? `Reunião com ${doctor.name}`;
 
     let inviteeName: string | null = null;
-    let inviteePhone: string | null = call.from_number ?? null;
+    // Outbound: o lead é quem recebeu a ligação (to_number); from_number é o nosso.
+    const leadPhone =
+      call.direction === 'outbound' ? call.to_number : call.from_number;
+    let inviteePhone: string | null = leadPhone ?? null;
     let inviteeEmail: string | null = null;
     if (contactId) {
       const cRows = await this.dataSource.query<
@@ -999,6 +1018,41 @@ export class AgentToolsService {
       inviteePhone = cRows[0]?.phone_number ?? inviteePhone;
     }
 
+    // Cria o evento no Google Calendar/Meet se a conta estiver conectada.
+    // Falha aqui não derruba o agendamento: segue como 'internal'.
+    let provider = 'internal';
+    let providerEventId = `nina-${call.id}-${Date.now()}`;
+    let meetingUrl: string | null = null;
+    try {
+      const gStatus = await this.googleCalendar.getStatus(call.account_id);
+      if (gStatus.connected) {
+        const event = await this.googleCalendar.createMeetEvent(
+          call.account_id,
+          {
+            title,
+            description:
+              [
+                dto.assunto ?? dto.notes,
+                summary,
+                inviteePhone ? `Telefone: ${inviteePhone}` : null,
+              ]
+                .filter(Boolean)
+                .join('\n\n') || null,
+            startsAt,
+            endsAt,
+            attendeeEmails: inviteeEmail ? [inviteeEmail] : [],
+          },
+        );
+        provider = 'google_calendar';
+        providerEventId = event.providerEventId;
+        meetingUrl = event.meetingUrl;
+      }
+    } catch (err) {
+      this.logger.error(
+        `google calendar falhou call=${call.id}: ${(err as Error).message}`,
+      );
+    }
+
     let meeting: { id: string; starts_at: string; ends_at: string } | undefined;
     try {
       const rows = await this.dataSource.query<
@@ -1007,15 +1061,15 @@ export class AgentToolsService {
         `INSERT INTO scheduled_meetings
            (account_id, contact_id, doctor_id, provider, provider_event_id, title, starts_at, ends_at,
             duration_minutes, status, modality, invitee_name, invitee_email, invitee_phone, briefing, sdr_call_id,
-            payload, created_at, updated_at)
-         VALUES ($1, $2, $3, 'internal', $4, $5, $6, $7, $8, 'scheduled', $9, $10, $11, $12, $13::jsonb, $14,
-                 $15::jsonb, now(), now())
+            payload, meeting_url, created_at, updated_at)
+         VALUES ($1, $2, $3, $16, $4, $5, $6, $7, $8, 'scheduled', $9, $10, $11, $12, $13::jsonb, $14,
+                 $15::jsonb, $17, now(), now())
          RETURNING id, starts_at, ends_at`,
         [
           call.account_id,
           contactId,
-          dto.doctor_id,
-          `nina-${call.id}-${Date.now()}`,
+          hostId,
+          providerEventId,
           title,
           startsAt,
           endsAt,
@@ -1028,11 +1082,13 @@ export class AgentToolsService {
           call.id,
           JSON.stringify({
             scheduled_via: 'agent_tool',
-            agent_notes: dto.notes ?? null,
+            agent_notes: dto.assunto ?? dto.notes ?? null,
             summary,
             doctor_name: doctor.name,
             specialty: doctor.specialty,
           }),
+          provider,
+          meetingUrl,
         ],
       );
       meeting = rows[0];
@@ -1057,7 +1113,7 @@ export class AgentToolsService {
     }
 
     this.logger.log(
-      `meeting=${meeting.id} doctor=${dto.doctor_id} contact=${contactId} starts=${startsAt.toISOString()}`,
+      `meeting=${meeting.id} consultor=${hostId} contact=${contactId} starts=${startsAt.toISOString()}`,
     );
 
     this.meetingNotifications
@@ -1068,7 +1124,7 @@ export class AgentToolsService {
         startsAt,
         endsAt,
         durationMinutes: durationMin,
-        meetingUrl: null,
+        meetingUrl,
         status: 'scheduled',
         hostUserId: null,
         inviteeName,
@@ -1084,10 +1140,67 @@ export class AgentToolsService {
       meeting_id: meeting.id,
       starts_at: meeting.starts_at,
       ends_at: meeting.ends_at,
-      doctor_name: doctor.name,
-      modality,
-      confirmation_message: `Consulta agendada para ${formatPtBr(startsAt)} com ${doctor.name}${modality ? ` (${modality})` : ''}.`,
+      consultor_nome: doctor.name,
+      modality: modality === 'teleconsulta' ? 'online' : modality,
+      confirmation_message: `Reunião agendada para ${formatPtBr(startsAt)} com ${doctor.name}${modality ? ` (${modality === 'teleconsulta' ? 'online' : modality})` : ''}.`,
     });
+  }
+
+  async registrarTransferencia(
+    dto: RegistrarTransferenciaDto,
+    conversationIdHeader: string | null,
+  ): Promise<ToolResponse> {
+    const conversationId = dto.conversation_id || conversationIdHeader;
+    if (!conversationId) return fail('conversation_id required', 400);
+
+    const rows = await this.dataSource.query<
+      { id: string; metadata: Record<string, unknown> | null }[]
+    >(
+      `SELECT id, metadata FROM voice_calls WHERE source_id = $1 LIMIT 1`,
+      [conversationId],
+    );
+    const call = rows[0];
+    if (!call) {
+      this.logger.warn(
+        `registrarTransferencia: call not found for conversation_id=${conversationId}`,
+      );
+      return ok({ friendly_message: 'Transferindo para um atendente. Um momento.' });
+    }
+
+    // Busca o número de transferência configurado na campanha
+    const campaignId = call.metadata?.campaign_id as string | undefined;
+    let transferTarget: string | null = null;
+    if (campaignId) {
+      const campRows = await this.dataSource.query<
+        { escalation_target_number: string | null }[]
+      >(
+        `SELECT escalation_target_number FROM voice_campaigns WHERE id = $1 LIMIT 1`,
+        [campaignId],
+      );
+      transferTarget = campRows[0]?.escalation_target_number ?? null;
+    }
+
+    const escalationReason = dto.motivo ?? 'solicitou_humano';
+
+    await this.dataSource.query(
+      `UPDATE voice_calls
+       SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+         'transfer_target', $2::text,
+         'escalation_reason', $3::text
+       )
+       WHERE id = $1`,
+      [call.id, transferTarget, escalationReason],
+    );
+
+    this.logger.log(
+      `registrarTransferencia call=${call.id} target=${transferTarget ?? 'desconhecido'} reason=${escalationReason}`,
+    );
+
+    const friendlyMessage = transferTarget
+      ? `Transferindo para ${transferTarget}. Um momento, por favor.`
+      : 'Transferindo para um atendente humano. Um momento, por favor.';
+
+    return ok({ transfer_target: transferTarget, friendly_message: friendlyMessage });
   }
 }
 

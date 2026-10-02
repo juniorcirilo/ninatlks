@@ -10,6 +10,7 @@ import {
   X,
   Eye,
   Inbox,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
@@ -21,6 +22,7 @@ import {
   fetchBatchPreview,
   decideEnrollmentBatch,
   updateCampaignStatus,
+  retryFailedCampaignContacts,
   CAMPAIGN_KIND_LABEL,
   CAMPAIGN_STATUS_LABEL,
   type CampaignDetail,
@@ -224,6 +226,33 @@ function CampaignDetailPage() {
     }
   };
 
+  const failedContacts = contacts.filter(
+    (c) => c.status === "failed" || (c.status === "queued" && !!c.last_error),
+  ).length;
+
+  const canRetry = (c: ContactRow) =>
+    campaign?.status !== "canceled" &&
+    (c.status === "failed" || (c.status === "queued" && !!c.last_error));
+
+  const retryFailed = async (contactRowId?: string) => {
+    if (!accountId) return;
+    try {
+      const { requeued } = await retryFailedCampaignContacts(
+        accountId,
+        campaignId,
+        contactRowId,
+      );
+      toast.success(
+        requeued > 0
+          ? `${requeued} contato${requeued > 1 ? "s" : ""} de volta na fila`
+          : "Nenhum contato com falha",
+      );
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "falha ao reenfileirar contatos");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -247,7 +276,7 @@ function CampaignDetailPage() {
       : 0;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="w-full space-y-6 p-6">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Link to="/campanhas" className="inline-flex items-center gap-1 hover:text-foreground">
           <ArrowLeft className="h-3 w-3" /> Campanhas
@@ -288,6 +317,14 @@ function CampaignDetailPage() {
               <Play className="h-4 w-4" /> Iniciar
             </button>
           )}
+          {failedContacts > 0 && campaign.status !== "canceled" && (
+            <button
+              onClick={() => retryFailed()}
+              className="inline-flex items-center gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              <RotateCcw className="h-4 w-4" /> Tentar novamente ({failedContacts})
+            </button>
+          )}
           {campaign.status === "running" && (
             <button
               onClick={() => setStatus("paused")}
@@ -314,13 +351,20 @@ function CampaignDetailPage() {
         onDecided={refresh}
       />
 
-      {/* Funnel cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Metric label="Total" value={campaign.total_contacts} />
-        <Metric label="Discadas" value={campaign.placed_count} />
-        <Metric label="Atendidas" value={campaign.connected_count} accent />
-        <Metric label="Escaladas" value={campaign.escalated_count} />
-        <Metric label="Falhas" value={campaign.failed_count} tone="bad" />
+      {/* Funnel cards — ao vivo + histórico */}
+      <div className="space-y-3">
+        <div className="grid grid-cols-3 gap-3">
+          <Metric label="Na fila agora" value={campaign.queued_count ?? 0} live />
+          <Metric label="Chamando agora" value={campaign.ringing_count ?? 0} live />
+          <Metric label="Em ligação agora" value={campaign.in_progress_count ?? 0} live accent />
+        </div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <Metric label="Total" value={campaign.total_contacts} />
+          <Metric label="Discadas" value={campaign.placed_count} />
+          <Metric label="Atendidas" value={campaign.connected_count} accent />
+          <Metric label="Escaladas" value={campaign.escalated_count} />
+          <Metric label="Falhas" value={campaign.failed_count} tone="bad" />
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-4">
@@ -365,6 +409,7 @@ function CampaignDetailPage() {
                 <th className="px-4 py-2 font-medium">Tentativas</th>
                 <th className="px-4 py-2 font-medium">Última tentativa</th>
                 <th className="px-4 py-2 font-medium">Erro</th>
+                <th className="px-4 py-2 font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -429,11 +474,21 @@ function CampaignDetailPage() {
                   <td className="px-4 py-2 text-xs text-destructive/80">
                     {c.status === "queued" ? "" : (c.last_error ?? "")}
                   </td>
+                  <td className="px-4 py-2 text-right">
+                    {canRetry(c) && (
+                      <button
+                        onClick={() => retryFailed(c.id)}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1 text-xs hover:bg-muted"
+                      >
+                        <RotateCcw className="h-3 w-3" /> Tentar novamente
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {contacts.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-xs text-muted-foreground">
+                  <td colSpan={7} className="py-8 text-center text-xs text-muted-foreground">
                     Nenhum contato.
                   </td>
                 </tr>
@@ -647,24 +702,34 @@ function Metric({
   value,
   accent,
   tone,
+  live,
 }: {
   label: string;
   value: number;
   accent?: boolean;
   tone?: "bad";
+  live?: boolean;
 }) {
   return (
     <div
       className={cn(
         "rounded-xl border bg-card p-3",
-        accent ? "border-primary/30 bg-primary/[0.03]" : "border-border",
+        live && !accent ? "border-sky-500/20 bg-sky-500/[0.03]" : "",
+        accent && live ? "border-sky-500/40 bg-sky-500/[0.05]" : "",
+        accent && !live ? "border-primary/30 bg-primary/[0.03]" : "",
+        !accent && !live ? "border-border" : "",
       )}
     >
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className={cn("flex items-center gap-1.5 text-[11px] uppercase tracking-wider", live ? "text-sky-600" : "text-muted-foreground")}>
+        {live && <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500" />}
+        {label}
+      </div>
       <div
         className={cn(
           "mt-1 text-2xl font-semibold tabular-nums",
-          accent && "text-primary",
+          live && !accent && "text-sky-600",
+          live && accent && "text-sky-500",
+          !live && accent && "text-primary",
           tone === "bad" && "text-destructive",
         )}
       >

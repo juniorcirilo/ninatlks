@@ -194,7 +194,7 @@ function MeetingsPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-6 py-6">
+      <div className="w-full px-6 py-6">
         <div className="mb-4 h-16 animate-pulse rounded-xl bg-muted/40" />
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -207,7 +207,7 @@ function MeetingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       <PageHeader
         eyebrow="Agenda"
         title="Reuniões"

@@ -133,6 +133,7 @@ export function AgentEditor({
         variable_schema: (draft.variable_schema ?? [])
           .map((f) => ({ ...f, field: f.field.trim() }))
           .filter((f) => f.field),
+        ingest_mode: draft.ingest_mode,
       });
       // Auto-sync com ElevenLabs após salvar — evita que o agente continue
       // rodando com prompt/voz/modelo antigos no EL.
@@ -751,6 +752,25 @@ function DadosTab({
 
   return (
     <div className="space-y-6">
+      <Section
+        title="Modo de inserção do webhook"
+        desc="Como o recebimento de contato (POST /ingest/agent-contact, e a busca ativa em Fonte de dados) trata quem já existe na base."
+      >
+        <select
+          value={draft.ingest_mode ?? "insert"}
+          onChange={(e) => update("ingest_mode", e.target.value as Persona["ingest_mode"])}
+          className="w-full max-w-sm rounded-md border border-input bg-background px-3 py-1.5 text-[13px]"
+        >
+          <option value="insert">Somente inserir — contato existente é ignorado (padrão)</option>
+          <option value="upsert">Upsert — contato existente é atualizado</option>
+        </select>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          {draft.ingest_mode === "upsert"
+            ? "Uma carga repetida do mesmo telefone/external_id atualiza nome, telefone, e-mail e variáveis do contato."
+            : "Uma carga repetida do mesmo telefone/external_id é ignorada — nada é atualizado no contato já cadastrado."}
+        </p>
+      </Section>
+
       <Section
         title="Campos de contato"
         desc={

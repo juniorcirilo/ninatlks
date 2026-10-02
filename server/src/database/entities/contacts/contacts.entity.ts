@@ -90,6 +90,9 @@ export class Contacts {
   @Column('uuid', { name: 'owner_user_id', nullable: true })
   ownerUserId?: string | null;
 
+  @Column('uuid', { name: 'source_agent_id', nullable: true })
+  sourceAgentId?: string | null;
+
   @Column('timestamptz', { name: 'last_call_at', nullable: true })
   lastCallAt?: Date | null;
 

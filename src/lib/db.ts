@@ -16,6 +16,55 @@ export async function getOne<T = any>(text: string, params?: any[]): Promise<T |
   return rows[0] ?? null;
 }
 
+/**
+ * Mesmo que `query()`, mas roda dentro de uma transação com
+ * `app.current_user_id`/`app.current_account_id` setados via `set_config`
+ * (escopo local à transação — some sozinho no COMMIT/ROLLBACK, então não
+ * vaza pra próxima query que pegar essa conexão de volta do pool). É o
+ * equivalente, para as server functions do frontend, do que
+ * TenantContextInterceptor já faz para toda requisição do backend NestJS —
+ * necessário porque tabelas com FORCE ROW LEVEL SECURITY (companies,
+ * cobranca_titulos, orcamentos_erp) exigem esse contexto pra `is_account_member`
+ * autorizar a query; sem ele, a policy nega e a query some (zero linhas),
+ * mesmo vindo do dono da tabela.
+ *
+ * `userId`/`accountId` DEVEM vir de `context` (requireSessionAuth), nunca de
+ * `data` — são exatamente o que a RLS está verificando.
+ */
+export async function queryAsAccount<T = any>(
+  userId: string,
+  accountId: string,
+  text: string,
+  params?: any[],
+): Promise<T[]> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `SELECT set_config('app.current_user_id', $1, true), set_config('app.current_account_id', $2, true)`,
+      [userId, accountId],
+    );
+    const result = await client.query(text, params);
+    await client.query("COMMIT");
+    return result.rows;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getOneAsAccount<T = any>(
+  userId: string,
+  accountId: string,
+  text: string,
+  params?: any[],
+): Promise<T | null> {
+  const rows = await queryAsAccount<T>(userId, accountId, text, params);
+  return rows[0] ?? null;
+}
+
 export async function insert<T = any>(table: string, data: Record<string, any>): Promise<T[]> {
   const keys = Object.keys(data);
   const values = Object.values(data);

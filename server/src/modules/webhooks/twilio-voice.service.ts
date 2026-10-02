@@ -326,6 +326,19 @@ export class TwilioVoiceService {
       );
     }
 
+    // Persiste o resultado do AMD da Twilio (AnsweredBy) no metadata — útil
+    // para auditoria pós-chamada (distingue humano de máquina, secretária, etc).
+    // Só grava quando presente para não inflar metadata com nulos.
+    const answeredBy = form.AnsweredBy;
+    if (updated && answeredBy) {
+      await this.dataSource.query(
+        `UPDATE voice_calls
+         SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('answered_by', $2::text)
+         WHERE id = $1`,
+        [updated.id, answeredBy],
+      );
+    }
+
     if (
       updated &&
       recordingUrl &&

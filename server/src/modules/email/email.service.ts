@@ -61,6 +61,7 @@ export class EmailService {
         subject: input.subject,
         html: input.html,
       });
+      this.logger.log(`e-mail enviado account=${input.accountId} to=${input.to}`);
       return { sent: true };
     } catch (err) {
       this.logger.error(

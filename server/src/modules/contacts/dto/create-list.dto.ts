@@ -75,6 +75,12 @@ export class UpdateListDto {
   @IsString()
   @MaxLength(128)
   externalKey?: string | null;
+
+  /** 'finalizada' fecha a lista — sync de cobrança/orçamento passa a ignorá-la
+   * ao decidir se um título/orçamento já está "em aberto" em alguma lista. */
+  @IsOptional()
+  @IsIn(['aberta', 'finalizada'])
+  status?: string;
 }
 
 export class AddToListDto {

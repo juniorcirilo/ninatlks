@@ -8,6 +8,7 @@ export interface AgentSource {
   id: string;
   agent_id: string;
   agent_name: string | null;
+  document_kind: string | null;
   name: string;
   url: string;
   method: "GET" | "POST";
@@ -55,6 +56,9 @@ export interface AgentSourceInput {
 
 export interface RunResult {
   ok: boolean;
+  /** Persona (uuid) da fonte — usado pra resolver manualmente uma falha de
+   * "empresa não identificada" sem o operador ter que informar de novo. */
+  agentId?: string;
   fetched: number;
   processed: number;
   created: number;
@@ -64,6 +68,26 @@ export interface RunResult {
   sample: Record<string, unknown>[];
   /** Variáveis mapeadas que não vieram em nenhuma linha. Informativo, não erro. */
   emptyVariables?: string[];
+  /** Linhas que não chegaram a virar contato nem título/orçamento no banco, com o motivo. */
+  failures: {
+    label: string;
+    externalId?: string;
+    vendedor?: string;
+    reason: string;
+    details: Record<string, unknown>;
+  }[];
+  /** Empresas dos clientes desta corrida, agrupadas — aba "Empresas" do
+   * preview de sincronização. */
+  companies: {
+    companyId: string | null;
+    companyName: string;
+    externalId: string | null;
+    contacts: { name: string | null; phone: string }[];
+  }[];
+  /** Lista operacional criada nesta corrida com os títulos/orçamentos novos
+   * (agentes de cobrança/orçamento) — `null` se a fonte não for desse tipo
+   * ou se não achou nada novo (tudo já estava numa lista em aberto). */
+  operationalList: { id: string; name: string; itemCount: number } | null;
 }
 
 /** Campos nossos que o mapeamento pode preencher. `phone` é a chave do upsert. */
@@ -78,9 +102,21 @@ export const MAPPABLE_FIELDS: Array<{
   { field: "email", label: "E-mail", required: false, placeholder: "cliente_email" },
   {
     field: "externalId",
-    label: "Código de origem",
+    label: "Código de origem (cliente)",
     required: false,
     placeholder: "cod_cliente",
+  },
+  {
+    field: "empresaId",
+    label: "Empresa (empresa_id)",
+    required: false,
+    placeholder: "cod_empresa — diferente do código do cliente",
+  },
+  {
+    field: "empresaNome",
+    label: "Nome da empresa",
+    required: false,
+    placeholder: "empresa_nome",
   },
 ];
 
@@ -113,4 +149,32 @@ export async function runAgentSource(
   id: string,
 ): Promise<RunResult> {
   return apiClient.post<RunResult>(`/accounts/${accountId}/agent-sources/${id}/run`);
+}
+
+/** Falhas da última corrida desta fonte — sobrevive ao fechamento do modal de
+ * sincronização, pra investigar depois sem sincronizar de novo. */
+export async function fetchAgentSourceFailures(
+  accountId: string,
+  id: string,
+): Promise<RunResult['failures']> {
+  return apiClient.get(`/accounts/${accountId}/agent-sources/${id}/failures`);
+}
+
+/**
+ * Reconciliação manual de uma linha de sync bloqueada por "empresa não
+ * identificada" — reenvia os dados que a falha já trouxe (telefone/nome/
+ * email/variables, tirados do `details`) mais a empresa escolhida/criada.
+ */
+export async function resolveAgentSourceFailure(
+  accountId: string,
+  input: {
+    agent: string;
+    phone: string;
+    name?: string | null;
+    email?: string | null;
+    variables?: Record<string, unknown>;
+    companyId: string;
+  },
+): Promise<{ ok: boolean; skipped: boolean; reason?: string }> {
+  return apiClient.post(`/accounts/${accountId}/agent-sources/resolve-failure`, input);
 }

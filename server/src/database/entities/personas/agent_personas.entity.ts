@@ -99,6 +99,12 @@ export class AgentPersonas {
    * o formulário de "adicionar contato específico" na criação de lista e o
    * template de webhook/n8n gerado para este agente.
    */
+  @Column('text', { name: 'document_kind', nullable: true })
+  documentKind?: string | null;
+
+  @Column('text', { name: 'ingest_mode', default: 'insert' }) // Postgres check constraint enforces 'insert' | 'upsert'
+  ingestMode!: string;
+
   @Column('jsonb', { name: 'variable_schema', default: '[]' })
   variableSchema!: Array<{
     field: string;

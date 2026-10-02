@@ -6,7 +6,7 @@
 // uma referência a `Buffer` (Node) vazou pro bundle do browser e quebrou a
 // tela com "Buffer is not defined".
 
-import { query } from "@/lib/db";
+import { query, queryAsAccount } from "@/lib/db";
 
 export interface QuoteItem {
   sku: string;
@@ -33,6 +33,8 @@ export interface QuoteRow {
 }
 
 export interface ErpQuoteRow {
+  /** Id da linha em `orcamentos_erp` — um cliente pode ter vários orçamentos. */
+  id: string;
   contactId: string;
   customerName: string | null;
   phoneNumber: string | null;
@@ -45,10 +47,15 @@ export interface ErpQuoteRow {
   vendedorNome: string | null;
   statusOrcamento: string | null;
   pedidoCliente: string | null;
+  companyId: string | null;
+  razaoSocial: string | null;
+  nomeFantasia: string | null;
 }
 
-/** Orçamentos com persona_id apontando para a persona "Bruno" desta conta —
- * é o que define "controlado pelo agente Bruno" nesta tela. */
+/** Orçamentos com persona_id apontando pra persona de orçamento (document_kind
+ * = 'orcamento', hoje a Sofia) desta conta — join estável por document_kind
+ * em vez do nome livre da persona, que qualquer admin pode renomear em
+ * Configurações > Agentes (ver 20260904010000-CobrancaOrcamentoTables). */
 export async function fetchChatQuotes(accountId: string): Promise<QuoteRow[]> {
   const rows = await query<{
     id: string;
@@ -69,7 +76,7 @@ export async function fetchChatQuotes(accountId: string): Promise<QuoteRow[]> {
             q.validity_days, q.created_at
        FROM public.quotes q
        JOIN public.agent_personas p ON p.id = q.persona_id
-      WHERE q.account_id = $1 AND p.name = 'Bruno'
+      WHERE q.account_id = $1 AND p.document_kind = 'orcamento'
       ORDER BY q.created_at DESC`,
     [accountId],
   );
@@ -91,52 +98,71 @@ export async function fetchChatQuotes(accountId: string): Promise<QuoteRow[]> {
 }
 
 /**
- * Orçamentos recebidos pelo webhook de integração (n8n → ERP) do Bruno —
- * ver Configurações > Webhooks > Recebimento > Templates por agente. Cada
- * linha é um contato da lista operacional `agent:<persona Bruno>`, com os
- * campos do ERP (numero_orcamento, valor_total, status_orcamento, ...)
- * gravados em `contacts.custom_attributes.ingest_variables` — não existe
- * tabela própria para isso, a integração escreve direto no contato (ver
- * `ingest_agent_contact`, AgentInboundUpsert20260730190000).
+ * Orçamentos recebidos pelo webhook de integração (n8n → ERP) da Sofia —
+ * uma linha por orçamento (`public.orcamentos_erp`, ver migration
+ * CobrancaOrcamentoTables20260904010000). Antes disso vivia dentro de
+ * `contacts.custom_attributes.ingest_variables`, um blob por contato que só
+ * guardava o último orçamento recebido; a tabela dedicada permite vários
+ * orçamentos por cliente sem perder nenhum.
  */
-export async function fetchErpQuotes(accountId: string): Promise<ErpQuoteRow[]> {
-  const rows = await query<{
+export async function fetchErpQuotes(userId: string, accountId: string): Promise<ErpQuoteRow[]> {
+  const rows = await queryAsAccount<{
     id: string;
+    contact_id: string;
     name: string | null;
     phone_number: string | null;
     email: string | null;
     external_id: string | null;
-    vars: Record<string, unknown> | null;
-    created_at: string;
+    numero_orcamento: string | null;
+    pedido_cliente: string | null;
+    valor_total: string | null;
+    data_emissao: string | null;
+    data_previsao: string | null;
+    status_orcamento: string | null;
+    company_id: string | null;
+    razao_social: string | null;
+    nome_fantasia: string | null;
+    vendedor_nome_erp: string | null;
+    vendedor_resolved_nome: string | null;
   }>(
-    `SELECT c.id, c.name, c.phone_number, c.email, c.external_id,
-            c.custom_attributes -> 'ingest_variables' AS vars, c.created_at
-       FROM public.contacts c
-       JOIN public.contact_list_members m ON m.contact_id = c.id
-       JOIN public.contact_lists l ON l.id = m.list_id
-       JOIN public.agent_personas p ON p.account_id = l.account_id AND p.name = 'Bruno'
-      WHERE l.account_id = $1
-        AND l.external_key = 'agent:' || p.id::text
+    userId,
+    accountId,
+    `SELECT o.id, o.contact_id, c.name, c.phone_number, c.email, c.external_id,
+            o.numero_orcamento, o.pedido_cliente, o.valor_total, o.data_emissao,
+            o.data_previsao, o.status_orcamento,
+            co.id AS company_id, co.razao_social, co.nome_fantasia, co.vendedor_nome_erp,
+            coalesce(p.display_name, p.name, p.email) AS vendedor_resolved_nome
+       FROM public.orcamentos_erp o
+       JOIN public.contacts c ON c.id = o.contact_id
+       LEFT JOIN public.companies co ON co.id = c.company_id
+       LEFT JOIN public.account_users au ON au.user_id = co.vendedor_id AND au.account_id = o.account_id
+       LEFT JOIN public.profiles p ON p.id = au.user_id
+      WHERE o.account_id = $1
         AND c.deleted_at IS NULL
-      ORDER BY c.created_at DESC`,
+      ORDER BY o.created_at DESC`,
     [accountId],
   );
 
-  return rows.map((r) => {
-    const v = r.vars ?? {};
-    return {
-      contactId: r.id,
-      customerName: r.name,
-      phoneNumber: r.phone_number,
-      email: r.email,
-      externalId: r.external_id,
-      numeroOrcamento: v.numero_orcamento != null ? String(v.numero_orcamento) : null,
-      valorTotal: v.valor_total != null ? Number(v.valor_total) : null,
-      dataEmissao: typeof v.data_emissao === "string" ? v.data_emissao : null,
-      dataPrevisao: typeof v.data_previsao === "string" ? v.data_previsao : null,
-      vendedorNome: typeof v.vendedor_nome === "string" ? v.vendedor_nome : null,
-      statusOrcamento: typeof v.status_orcamento === "string" ? v.status_orcamento : null,
-      pedidoCliente: typeof v.pedido_cliente === "string" ? v.pedido_cliente : null,
-    };
-  });
+  return rows.map((r) => ({
+    id: r.id,
+    contactId: r.contact_id,
+    customerName: r.name,
+    phoneNumber: r.phone_number,
+    email: r.email,
+    externalId: r.external_id,
+    numeroOrcamento: r.numero_orcamento,
+    valorTotal: r.valor_total != null ? Number(r.valor_total) : null,
+    dataEmissao: r.data_emissao,
+    dataPrevisao: r.data_previsao,
+    vendedorNome: r.vendedor_resolved_nome ?? r.vendedor_nome_erp,
+    statusOrcamento: r.status_orcamento,
+    pedidoCliente: r.pedido_cliente,
+    companyId: r.company_id,
+    // Ver mesmo fallback em cobranca-data.server.ts: `companies.razao_social`
+    // só vem preenchida via webhook de push; a busca ativa ainda manda a
+    // razão social dentro de `c.name` (field_map "name" -> "razao_social",
+    // não existe outro campo de nome pra cliente B2B).
+    razaoSocial: r.razao_social ?? r.name,
+    nomeFantasia: r.nome_fantasia,
+  }));
 }

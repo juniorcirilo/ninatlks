@@ -71,7 +71,7 @@ function DashboardPage() {
   const firstName = (user?.displayName ?? user?.name)?.split(" ")[0] ?? "tudo bem";
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="w-full px-6 py-8">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Olá, {firstName}.</h1>
         <p className="mt-1 text-sm text-muted-foreground">

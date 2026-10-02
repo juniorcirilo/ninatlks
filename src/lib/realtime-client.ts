@@ -104,3 +104,14 @@ export function useRealtimeRefresh(
     };
   }, [accountId, key, debounceMs]);
 }
+
+export type PresenceEvent = { jid: string; presence: string };
+
+/** "digitando…" do contato (evento efêmero, não vem do banco). */
+export function subscribePresence(cb: (event: PresenceEvent) => void): () => void {
+  const s = getSocket();
+  s.on("presence", cb);
+  return () => {
+    s.off("presence", cb);
+  };
+}

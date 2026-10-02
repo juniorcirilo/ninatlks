@@ -37,6 +37,17 @@ export class ContactLists {
   @Column('integer', { name: 'member_count', default: 0 })
   memberCount!: number;
 
+  /** 'aberta' | 'finalizada' — ver OperationalListSyncRun20260923010000. */
+  @Column('text', { name: 'status', default: 'aberta' })
+  status!: string;
+
+  /** Número sequencial só em lista gerada por sincronização de cobrança/orçamento. */
+  @Column('bigint', { name: 'list_number', nullable: true })
+  listNumber?: number | null;
+
+  @Column('timestamptz', { name: 'finalized_at', nullable: true })
+  finalizedAt?: Date | null;
+
   @Column('uuid', { name: 'created_by_id', nullable: true })
   createdById?: string | null;
 

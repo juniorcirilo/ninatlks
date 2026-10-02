@@ -12,6 +12,14 @@ export type CallStatus =
 
 export type CallDirection = "inbound" | "outbound";
 
+export type CallTransfer = {
+  state: "transferring" | "transferred";
+  /** número de destino da transferência */
+  number: string | null;
+  /** result_value do tool_result (objeto, quando era JSON) */
+  details: unknown;
+};
+
 export type CallSummary = {
   id: string;
   direction: CallDirection;
@@ -31,6 +39,7 @@ export type CallSummary = {
   persona_name: string | null;
   recording_url: string | null;
   has_transcript: boolean;
+  transfer: CallTransfer | null;
 };
 
 export type TranscriptTurn = {
@@ -58,6 +67,7 @@ export type CallDetail = CallSummary & {
   metadata: Record<string, unknown>;
   recording_storage_path: string | null;
   ai_summary: string | null;
+  el_conversation_id: string | null;
 };
 
 export const CALL_DIRECTION_LABEL: Record<CallDirection, string> = {
@@ -131,6 +141,7 @@ interface CallDetailApiRow extends CallApiRow {
   recording_storage_path: string | null;
   classification: CallDetail["classification"];
   ai_summary: string | null;
+  source_id: string | null;
 }
 
 function hasTranscript(transcript: unknown): boolean {
@@ -160,6 +171,7 @@ function mapSummary(r: CallApiRow): CallSummary {
     persona_name: r.persona_name,
     recording_url: r.recording_url,
     has_transcript: hasTranscript(r.transcript),
+    transfer: extractTransfer(r.transcript),
   };
 }
 
@@ -202,6 +214,7 @@ export async function fetchCallDetail(
     metadata: r.metadata ?? {},
     recording_storage_path: r.recording_storage_path ?? null,
     ai_summary: r.ai_summary ?? null,
+    el_conversation_id: r.source_id ?? null,
     sentiment_aggregate: (sentiment?.aggregate as CallSummary["sentiment_aggregate"]) ?? null,
   };
 }
@@ -212,6 +225,59 @@ export async function generateCallSummary(
   force = false,
 ): Promise<{ ok: boolean; ai_summary?: string; skipped?: boolean; error?: string }> {
   return apiClient.post(`/accounts/${accountId}/voice/calls/${callId}/summary`, { force });
+}
+
+/**
+ * Transferência para humano (tool `transfer_to_number` da ElevenLabs):
+ * tool_calls[].tool_name == transfer_to_number → "Transferindo";
+ * tool_results[].result.result_type == transfer_to_number_twilio_success →
+ * "Transferido", com os detalhes em result.result_value.
+ */
+function extractTransfer(transcript: unknown): CallTransfer | null {
+  if (!Array.isArray(transcript)) return null;
+  let transfer: CallTransfer | null = null;
+  for (const turn of transcript as Array<Record<string, unknown>>) {
+    const calls = Array.isArray(turn.tool_calls) ? (turn.tool_calls as Array<Record<string, unknown>>) : [];
+    const call = calls.find((c) => c?.tool_name === "transfer_to_number");
+    if (call) {
+      let number: string | null = null;
+      try {
+        const params = JSON.parse(String(call.params_as_json ?? "{}")) as Record<string, unknown>;
+        if (typeof params.transfer_number === "string") number = params.transfer_number;
+      } catch {
+        /* sem número */
+      }
+      transfer ??= { state: "transferring", number, details: null };
+    }
+    const results = Array.isArray(turn.tool_results)
+      ? (turn.tool_results as Array<Record<string, unknown>>)
+      : [];
+    for (const tr of results) {
+      const res = (tr?.result ?? tr) as Record<string, unknown> | undefined;
+      if (res?.result_type !== "transfer_to_number_twilio_success") continue;
+      // No payload real o result_value (JSON em texto) fica ao lado de `result`,
+      // não dentro dele; `result` já traz os mesmos campos como objeto.
+      let details = tr.result_value ?? res.result_value ?? res;
+      if (typeof details === "string") {
+        try {
+          details = JSON.parse(details);
+        } catch {
+          /* mantém como texto */
+        }
+      }
+      const number =
+        (details as { transfer_number?: unknown } | null)?.transfer_number ??
+        res.transfer_number ??
+        transfer?.number ??
+        null;
+      transfer = {
+        state: "transferred",
+        number: typeof number === "string" ? number : null,
+        details,
+      };
+    }
+  }
+  return transfer;
 }
 
 function extractTurns(

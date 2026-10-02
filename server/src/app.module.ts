@@ -18,6 +18,8 @@ import { SystemSettingsModule } from './modules/accounts/system-settings/system-
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PersonasModule } from './modules/personas/personas.module';
 import { ContactsModule } from './modules/contacts/contacts.module';
+import { CompaniesModule } from './modules/companies/companies.module';
+import { SalesRepsModule } from './modules/sales-reps/sales-reps.module';
 import { PipelineModule } from './modules/pipeline/pipeline.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
@@ -64,6 +66,8 @@ import { MeetingNotificationsModule } from './modules/meeting-notifications/meet
     NotificationsModule,
     PersonasModule,
     ContactsModule,
+    CompaniesModule,
+    SalesRepsModule,
     PipelineModule,
     CampaignsModule,
     MeetingsModule,

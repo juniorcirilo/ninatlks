@@ -67,11 +67,10 @@ export class RealtimeGateway
       // `account_users` has RLS keyed on auth.uid(), never set on this
       // pre-tenant-context handshake connection — same reasoning as the
       // Guards, see migrations/20260720110000-RealtimeMembershipBypass.ts.
-      const memberships = await this.dataSource.query<
-        { account_id: string }[]
-      >(`SELECT * FROM public.auth_get_account_ids_for_user($1)`, [
-        session.userId,
-      ]);
+      const memberships = await this.dataSource.query<{ account_id: string }[]>(
+        `SELECT * FROM public.auth_get_account_ids_for_user($1)`,
+        [session.userId],
+      );
 
       await socket.join(`user:${session.userId}`);
       for (const m of memberships) {
@@ -87,6 +86,14 @@ export class RealtimeGateway
 
   handleDisconnect(): void {
     // Rooms are cleaned up automatically by socket.io on disconnect.
+  }
+
+  /** Presença efêmera (digitando…) — não passa pelo banco. */
+  emitPresence(
+    accountId: string,
+    payload: { jid: string; presence: string },
+  ): void {
+    this.server.to(`account:${accountId}`).emit('presence', payload);
   }
 
   broadcast(payload: AppChangePayload): void {

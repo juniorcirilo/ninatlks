@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -11,7 +12,11 @@ import { AccountMemberGuard } from '../../common/guards/account-member.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { EvolutionService } from './evolution.service';
-import { TestEvolutionDto, ProvisionEvolutionDto } from './dto/evolution.dto';
+import {
+  TestEvolutionDto,
+  ProvisionEvolutionDto,
+  UpdateEvolutionChannelDto,
+} from './dto/evolution.dto';
 
 @UseGuards(AccountMemberGuard, RolesGuard)
 @Controller('accounts/:accountId/evolution')
@@ -21,6 +26,11 @@ export class EvolutionController {
   @Get()
   list(@Param('accountId') accountId: string) {
     return this.evolutionService.listChannels(accountId);
+  }
+
+  @Get('sessions')
+  sessions(@Param('accountId') accountId: string) {
+    return this.evolutionService.listSessions(accountId);
   }
 
   @Post('test')
@@ -54,6 +64,34 @@ export class EvolutionController {
     @Param('channelId') channelId: string,
   ) {
     return this.evolutionService.getStatus(accountId, channelId);
+  }
+
+  @Post('channels/:channelId/restart')
+  @Roles('admin')
+  restart(
+    @Param('accountId') accountId: string,
+    @Param('channelId') channelId: string,
+  ) {
+    return this.evolutionService.restart(accountId, channelId);
+  }
+
+  @Post('channels/:channelId/logout')
+  @Roles('admin')
+  logout(
+    @Param('accountId') accountId: string,
+    @Param('channelId') channelId: string,
+  ) {
+    return this.evolutionService.logout(accountId, channelId);
+  }
+
+  @Patch('channels/:channelId')
+  @Roles('admin')
+  update(
+    @Param('accountId') accountId: string,
+    @Param('channelId') channelId: string,
+    @Body() dto: UpdateEvolutionChannelDto,
+  ) {
+    return this.evolutionService.updateChannel(accountId, channelId, dto);
   }
 
   @Delete('channels/:channelId')

@@ -355,7 +355,12 @@ export const askBruno = createServerFn({ method: "POST" })
   .middleware([requireSessionAuth])
   .inputValidator((d) =>
     z.object({
-      accountId: z.string().uuid(),
+      // accountId aceito por compatibilidade com chamadores existentes, mas
+      // nunca usado — vem sempre de context.accountId (sessão), nunca do
+      // body: usar o valor do client permitiria a um usuário de qualquer
+      // conta rodar tools do Bruno (preços, catálogo, orçamentos) contra os
+      // dados de outra conta só trocando esse campo.
+      accountId: z.string().uuid().optional(),
       userMessage: z.string().min(1).max(2000),
       conversationId: z.string().uuid().optional(),
       history: z.array(z.object({
@@ -366,11 +371,13 @@ export const askBruno = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { userId } = context;
+    if (!context.accountId) throw new Error("Usuário sem conta associada.");
+    const accountId = context.accountId;
 
     // Acha persona "Bruno" (cria sob demanda na primeira chamada).
-    const personaId = await ensureBrunoPersona(data.accountId, userId);
+    const personaId = await ensureBrunoPersona(accountId, userId);
 
-    const llm = await resolveLlmConfig(data.accountId, MODEL);
+    const llm = await resolveLlmConfig(accountId, MODEL);
 
     const messages: AgentMessage[] = [
       { role: "system", content: BRUNO_SYSTEM },
@@ -412,17 +419,17 @@ export const askBruno = createServerFn({ method: "POST" })
         let result: unknown;
         switch (tc.function.name) {
           case "search_glass":
-            result = await execSearchGlass(data.accountId, parsed as { category?: string; thickness_mm?: number });
+            result = await execSearchGlass(accountId, parsed as { category?: string; thickness_mm?: number });
             break;
           case "list_fittings":
-            result = await execListFittings(data.accountId, parsed as { category?: string; thickness_mm?: number });
+            result = await execListFittings(accountId, parsed as { category?: string; thickness_mm?: number });
             break;
           case "calculate_quote":
-            result = await execCalculateQuote(data.accountId, parsed as Parameters<typeof execCalculateQuote>[1]);
+            result = await execCalculateQuote(accountId, parsed as Parameters<typeof execCalculateQuote>[1]);
             break;
           case "generate_quote_pdf":
             result = await execGenerateQuotePdf(
-              data.accountId,
+              accountId,
               personaId,
               data.conversationId ?? null,
               parsed as Parameters<typeof execGenerateQuotePdf>[3],
@@ -430,7 +437,7 @@ export const askBruno = createServerFn({ method: "POST" })
             break;
           case "request_handoff":
             result = await execRequestHandoff(
-              data.accountId,
+              accountId,
               data.conversationId ?? null,
               personaId,
               parsed as { reason: string; target: "human" | "persona"; target_persona_id?: string },

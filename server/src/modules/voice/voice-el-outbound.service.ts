@@ -17,6 +17,7 @@ import {
   PlaceCallResult,
 } from './voice-outbound.service';
 import { buildSystemPromptWithGuardrails } from './sdr-guardrails.util';
+import { transferDepartamento } from '../sales-reps/sales-reps.util';
 import { PlaceCallDto } from './dto/place-call.dto';
 
 const EL_TIMEOUT_MS = 15_000;
@@ -117,7 +118,7 @@ export class VoiceElOutboundService {
       );
     }
     const personaName = persona?.name ?? 'Nina';
-    const systemPrompt = `${buildSystemPromptWithGuardrails(persona?.system_prompt)}${PT_BR_LANGUAGE_INSTRUCTION}`;
+    const systemPrompt = `${buildSystemPromptWithGuardrails(persona?.system_prompt, transferDepartamento({ persona: { name: persona?.name } }))}${PT_BR_LANGUAGE_INSTRUCTION}`;
     const firstMessage =
       persona?.first_message ??
       'Oi {{lead_name}}, aqui é {{agent_name}} da {{company_name}}. Esta chamada pode ser gravada. Em que posso ajudar?';

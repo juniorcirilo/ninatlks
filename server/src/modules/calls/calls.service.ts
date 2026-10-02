@@ -25,6 +25,8 @@ export interface CallDetailRow extends CallSummaryRow {
   recording_storage_path: string | null;
   classification: Record<string, unknown> | null;
   ai_summary: string | null;
+  /** conversation_id da ElevenLabs (voice_calls.source_id) */
+  source_id: string | null;
 }
 
 /** Ported from src/lib/calls.ts (read-only voice_calls + contact-name join). */
@@ -74,7 +76,7 @@ export class CallsService {
       `SELECT vc.id, vc.account_id, vc.direction, vc.status, vc.from_number, vc.to_number, vc.started_at,
               vc.ended_at, vc.duration_seconds, vc.outcome_category, vc.outcome_summary, vc.sentiment,
               vc.metadata, vc.recording_url, vc.recording_storage_path, vc.transcript, vc.classification,
-              vc.ai_summary,
+              vc.ai_summary, vc.source_id,
               c.name AS contact_name,
               ap.name AS persona_name
          FROM voice_calls vc

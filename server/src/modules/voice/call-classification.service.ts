@@ -337,6 +337,7 @@ export class CallClassificationService {
           kind: (call.metadata?.campaign_kind as string | undefined) ?? 'sdr',
           disposition,
           durationSec,
+          callMetadata: call.metadata,
         });
       } catch (err) {
         smartRetry = { error: (err as Error).message };
@@ -365,6 +366,7 @@ export class CallClassificationService {
     kind: string;
     disposition?: CallDisposition;
     durationSec?: number | null;
+    callMetadata?: Record<string, unknown> | null;
   }): Promise<unknown> {
     const RETRYABLE = new Set([
       'no_answer',
@@ -418,10 +420,52 @@ export class CallClassificationService {
       // status='completed' sem outcome assume "atendeu", então uma ligação
       // que a EL marcou como falha (disposition='nao_completou') aparecia
       // como atendida normalmente.
+      //
+      // Caso especial: quando a classificação identifica transferência
+      // (outcomeCode='escalated'), usamos 'escalada' para separar escaladas de
+      // atendidas e incrementar escalated_count (não connected_count).
+      const effectiveDisposition: string =
+        args.outcomeCode === 'escalated' ? 'escalada' : (args.disposition ?? 'atendida');
       await this.dataSource.query(
         `SELECT public.voice_campaign_contact_disposition($1, $2, $3)`,
-        [args.campaignContactId, args.disposition ?? 'atendida', args.durationSec ?? null],
+        [args.campaignContactId, effectiveDisposition, args.durationSec ?? null],
       );
+
+      // Quando escalada, propaga transfer_target e escalation_reason para o
+      // contato de campanha — primeiro tenta o valor gravado pela tool
+      // registrar_transferencia durante a ligação, depois busca o número
+      // configurado na campanha como fallback.
+      if (args.outcomeCode === 'escalated') {
+        let transferTarget =
+          (args.callMetadata?.transfer_target as string | null | undefined) ?? null;
+        const escalationReason =
+          (args.callMetadata?.escalation_reason as string | null | undefined) ?? 'escalated';
+
+        if (!transferTarget) {
+          const campRows = await this.dataSource.query<
+            { escalation_target_number: string | null }[]
+          >(
+            `SELECT escalation_target_number FROM voice_campaigns WHERE id = $1 LIMIT 1`,
+            [args.campaignId],
+          );
+          transferTarget = campRows[0]?.escalation_target_number ?? null;
+        }
+
+        if (transferTarget || escalationReason) {
+          await this.dataSource.query(
+            `UPDATE voice_campaign_contacts
+             SET transfer_target    = COALESCE($2, transfer_target),
+                 escalation_reason  = COALESCE($3, escalation_reason)
+             WHERE id = $1`,
+            [args.campaignContactId, transferTarget, escalationReason],
+          ).catch((err: unknown) =>
+            this.logger.error(
+              `falha ao gravar transfer_target em ${String(args.campaignContactId)}: ${(err as Error).message}`,
+            ),
+          );
+        }
+      }
+
       return { action: 'completed', outcome: args.outcomeCode, terminal };
     }
 

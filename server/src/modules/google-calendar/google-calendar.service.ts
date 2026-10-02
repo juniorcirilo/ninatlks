@@ -309,7 +309,7 @@ export class GoogleCalendarService {
     input: CreateMeetEventInput,
   ): Promise<CreateMeetEventResult> {
     const accessToken = await this.getValidAccessToken(accountId);
-    const res = await fetch(`${GOOGLE_EVENTS_URL}?conferenceDataVersion=1`, {
+    const res = await fetch(`${GOOGLE_EVENTS_URL}?conferenceDataVersion=1&sendUpdates=all`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,

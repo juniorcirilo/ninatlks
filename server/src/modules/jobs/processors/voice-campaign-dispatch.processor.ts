@@ -1,3 +1,10 @@
+import {
+  normalizeE164,
+  recordSalesRepPendencia,
+  resolveTransferDestination,
+  transferDepartamento,
+  type Departamento,
+} from '../../sales-reps/sales-reps.util';
 import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
@@ -463,6 +470,97 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
     );
   }
 
+  /**
+   * Destino de transferência da ligação, segregado por departamento (ver
+   * `resolveTransferDestination`): COMERCIAL → vendedor do lead → atendente padrão comercial
+   * → número da campanha/persona (legado); FINANCEIRO → SEMPRE o atendente padrão financeiro,
+   * sem fallback (cobrança nunca vai para vendedor). Pendências registradas para o time
+   * cadastrar. Nunca lança: falha aqui não pode impedir a ligação.
+   */
+  private async resolveTransferTarget(
+    row: PendingRow,
+    departamento: Departamento,
+  ): Promise<{
+    phone: string | null;
+    atendenteNome: string | null;
+    vendedorNome: string | null;
+  }> {
+    try {
+      const vars = (row.variables ?? {}) as Record<string, unknown>;
+      // `vendedor_responsavel` (carteira/lista, editável pelo time) vence `vendedor_nome`
+      // (vendedor da cotação no ERP): um contato pode ter as duas chaves com valores
+      // diferentes, e a edição deliberada na lista é a intenção do operador.
+      let leadVendedor = ['vendedor_responsavel', 'vendedor_nome', 'vendedor']
+        .map((k) => vars[k])
+        .find((v) => typeof v === 'string' && v.trim() !== '') as string | undefined;
+      if (!leadVendedor && row.contact_id && departamento === 'COMERCIAL') {
+        const co = await this.dataSource.query<{ vendedor_nome_erp: string | null }[]>(
+          `SELECT co.vendedor_nome_erp FROM contacts c
+             JOIN companies co ON co.id = c.company_id
+            WHERE c.id = $1 LIMIT 1`,
+          [row.contact_id],
+        );
+        leadVendedor = co[0]?.vendedor_nome_erp ?? undefined;
+      }
+
+      const dest = await resolveTransferDestination(this.dataSource, {
+        accountId: row.account_id,
+        departamento,
+        vendedorNome: leadVendedor,
+      });
+
+      let phone = dest.phone;
+      let atendenteNome = dest.atendenteNome;
+      // Legado (só COMERCIAL): sem vendedor e sem atendente padrão, usa o número da
+      // campanha — ou o da campanha mais recente da mesma persona (o mesmo que o sync grava
+      // como padrão no agente). FINANCEIRO nunca cai aqui.
+      if (!phone && departamento === 'COMERCIAL') {
+        const camp = await this.dataSource.query<
+          { escalation_target_number: string | null }[]
+        >(
+          `SELECT escalation_target_number FROM voice_campaigns WHERE id = $1 LIMIT 1`,
+          [row.campaign_id],
+        );
+        phone = normalizeE164(camp[0]?.escalation_target_number);
+        if (!phone) {
+          const persona = await this.dataSource.query<
+            { escalation_target_number: string | null }[]
+          >(
+            `SELECT escalation_target_number FROM voice_campaigns
+              WHERE persona_id = $1 AND account_id = $2
+                AND COALESCE(btrim(escalation_target_number), '') <> ''
+              ORDER BY (status = 'running') DESC, updated_at DESC LIMIT 1`,
+            [row.campaign_persona_id, row.account_id],
+          );
+          phone = normalizeE164(persona[0]?.escalation_target_number);
+        }
+        if (phone) atendenteNome = 'nossa central de atendimento';
+      }
+
+      if (dest.pendencia) {
+        await recordSalesRepPendencia(this.dataSource, {
+          accountId: row.account_id,
+          departamento,
+          key: dest.pendencia.key,
+          vendedorNome: leadVendedor ?? null,
+          reason: dest.pendencia.reason,
+          campaignId: row.campaign_id,
+          fallbackNumber: phone,
+        });
+      }
+      return {
+        phone,
+        atendenteNome,
+        vendedorNome: dest.vendedorNome ?? leadVendedor ?? null,
+      };
+    } catch (err) {
+      this.logger.error(
+        `resolveTransferTarget falhou campaign=${row.campaign_id}: ${(err as Error).message}`,
+      );
+      return { phone: null, atendenteNome: null, vendedorNome: null };
+    }
+  }
+
   private async dispatchOne(row: PendingRow): Promise<void> {
     if (!row.campaign_phone_number_id)
       throw new Error('campaign has no phone_number_id');
@@ -485,9 +583,10 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
         name: string | null;
         system_prompt: string | null;
         voice_clone_id: string | null;
+        config: Record<string, unknown> | null;
       }[]
     >(
-      `SELECT elevenlabs_agent_id, name, system_prompt, voice_clone_id FROM agent_personas WHERE id = $1 LIMIT 1`,
+      `SELECT elevenlabs_agent_id, name, system_prompt, voice_clone_id, config FROM agent_personas WHERE id = $1 LIMIT 1`,
       [row.campaign_persona_id],
     );
     const persona = personaRows[0];
@@ -539,6 +638,12 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       elKeyRows[0]?.decrypted_secret || process.env.ELEVENLABS_API_KEY || '';
     if (!elKey) throw new Error('ELEVENLABS_API_KEY not configured');
 
+    const departamento = transferDepartamento({
+      persona: { name: persona.name, config: persona.config },
+      campaignKind: row.campaign_campaign_kind,
+    });
+    const transfer = await this.resolveTransferTarget(row, departamento);
+
     const dynamicVariables: Record<string, string> = {
       ...Object.fromEntries(
         Object.entries(row.variables ?? {}).map(([k, v]) => [k, String(v)]),
@@ -555,12 +660,25 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       lead_name: (row.contact_name ?? '').split(' ')[0] || '',
       company_name: row.company_display_name ?? 'nossa empresa',
       voice_call_id: voiceCallId,
+      // Destino da transfer_to_number (phone_dynamic_variable no agente) e como a IA o cita.
+      // Strings vazias NÃO são enviadas: sobrescreveriam o placeholder padrão do agente.
+      atendente_departamento: departamento,
+      ...(transfer.phone ? { telefone_atendente: transfer.phone } : {}),
+      ...(transfer.atendenteNome ? { atendente_nome: transfer.atendenteNome } : {}),
+      // Compat com o agente comercial já sincronizado ({{vendedor_nome}}/telefone_vendedor).
+      // FINANCEIRO não recebe nada de vendedor: nunca pode transbordar para o comercial.
+      ...(departamento === 'COMERCIAL' && transfer.phone
+        ? { telefone_vendedor: transfer.phone }
+        : {}),
+      ...(departamento === 'COMERCIAL' && transfer.vendedorNome
+        ? { vendedor_nome: transfer.vendedorNome }
+        : {}),
     };
     const outcomesBlock = await this.buildOutcomesPromptBlock(
       row.account_id,
       row.campaign_campaign_kind ?? 'sdr',
     );
-    const systemPrompt = `${buildFollowupSystemPrompt(persona.system_prompt)}${outcomesBlock}`;
+    const systemPrompt = `${buildFollowupSystemPrompt(persona.system_prompt, departamento)}${outcomesBlock}`;
 
     const el = await callElevenLabsOutbound({
       elKey,

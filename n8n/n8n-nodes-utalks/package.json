@@ -1,0 +1,32 @@
+{
+  "name": "n8n-nodes-utalks",
+  "version": "0.1.0",
+  "description": "Nó n8n para o utalks: contatos, ligações, campanhas, agentes, reuniões, mensagens, cadências, pipeline e triggers de eventos.",
+  "keywords": ["n8n-community-node-package", "utalks"],
+  "license": "MIT",
+  "author": { "name": "UBVA" },
+  "main": "index.js",
+  "scripts": {
+    "gen": "python3 scripts/gen-operations.py",
+    "build": "tsc && node scripts/copy-assets.js",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "files": ["dist"],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": ["dist/credentials/UtalksApi.credentials.js"],
+    "nodes": [
+      "dist/nodes/Utalks/Utalks.node.js",
+      "dist/nodes/UtalksTrigger/UtalksTrigger.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "n8n-workflow": "*",
+    "typescript": "^5.5.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}

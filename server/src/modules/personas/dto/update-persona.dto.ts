@@ -111,4 +111,10 @@ export class UpdatePersonaDto {
   @ValidateNested({ each: true })
   @Type(() => PersonaVariableFieldDto)
   variableSchema?: PersonaVariableFieldDto[];
+
+  /** Modo do webhook de contato deste agente: 'insert' (ignora se já existe,
+   * padrão) ou 'upsert' (atualiza se já existe). */
+  @IsOptional()
+  @IsIn(['insert', 'upsert'])
+  ingestMode?: string;
 }

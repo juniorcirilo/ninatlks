@@ -100,6 +100,7 @@ export class MeetingNotificationsService {
       month: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
     }).format(meeting.startsAt);
     await this.dataSource.query(
       `INSERT INTO public.notifications (account_id, user_id, kind, title, body, link_to, metadata, created_at)
@@ -126,6 +127,7 @@ export class MeetingNotificationsService {
       month: 'long',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: 'America/Sao_Paulo',
     }).format(meeting.startsAt);
     const duration = formatDuration(meeting.durationMinutes);
 

@@ -153,6 +153,19 @@ export class CampaignsController {
     return this.campaignsService.updateStatus(accountId, id, dto.status);
   }
 
+  @Post(':id/retry-failed')
+  retryFailed(
+    @Param('accountId') accountId: string,
+    @Param('id') id: string,
+    @Body() body?: { contactRowId?: string },
+  ) {
+    return this.campaignsService.retryFailedContacts(
+      accountId,
+      id,
+      body?.contactRowId,
+    );
+  }
+
   /**
    * Ported from supabase/functions/voice-call-cancel (campaign_id branch) —
    * hard-stops in-flight calls (Twilio hangup + best-effort EL conversation

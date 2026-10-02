@@ -100,7 +100,7 @@ function statusOf(p: ProviderReport): Status {
   return "unknown";
 }
 
-export function IntegrationsTab() {
+export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () => void } = {}) {
   const { accountId } = useAccount();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -267,7 +267,7 @@ export function IntegrationsTab() {
               key={p.key}
               report={p}
               onConfigure={(k) => setCredDialogFor(k)}
-              onEvolutionConnect={() => setEvolutionOpen(true)}
+              onEvolutionConnect={() => (onManageEvolution ? onManageEvolution() : setEvolutionOpen(true))}
               onSyncN8n={handleSyncN8n}
               syncingN8n={syncingN8n}
             />
@@ -372,7 +372,10 @@ function ProviderCard({
   const isEvolution = report.key === "evolution";
 
   return (
-    <div className="glass flex flex-col gap-3 rounded-lg p-4">
+    <div
+      className={cn("glass flex flex-col gap-3 rounded-lg p-4", isEvolution && "cursor-pointer transition-colors hover:bg-white/[0.04]")}
+      onClick={isEvolution ? onEvolutionConnect : undefined}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div

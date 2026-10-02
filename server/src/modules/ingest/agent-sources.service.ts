@@ -6,7 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { IngestService } from './ingest.service';
+import { IngestService, IngestBatchResult } from './ingest.service';
+import { ResolveSyncFailureDto } from './dto/resolve-sync-failure.dto';
 
 /** Fonte lenta não pode segurar o job: corta em 20s. */
 const FETCH_TIMEOUT_MS = 20_000;
@@ -39,6 +40,9 @@ export interface AgentSourceRow {
 
 export interface RunResult {
   ok: boolean;
+  /** Persona (uuid) da fonte — usado pela tela pra resolver manualmente uma
+   * falha de "empresa não identificada" sem o operador precisar informar. */
+  agentId?: string;
   fetched: number;
   processed: number;
   created: number;
@@ -54,6 +58,41 @@ export interface RunResult {
    * ligasse sem o dado.
    */
   emptyVariables: string[];
+  /**
+   * Linhas que não chegaram a virar contato nem título/orçamento no banco,
+   * com o motivo. Não inclui o skip "contato já existe" — esse ainda grava o
+   * título/orçamento (ver contactId em IngestRowResult), só não atualiza nome/telefone
+   * do contato.
+   */
+  failures: {
+    label: string;
+    externalId?: string;
+    vendedor?: string;
+    reason: string;
+    /** Tudo que se sabe da linha — o que veio da fonte (variables) mais os
+     * campos de contato — pra tela abrir "ver tudo" sem ter que adivinhar. */
+    details: Record<string, unknown>;
+  }[];
+  /**
+   * Empresas dos clientes desta corrida — agrupado por empresa, pra aba
+   * "Empresas" do preview de sincronização mostrar de cara a quais grupos os
+   * clientes recém-sincronizados pertencem (ou "sem empresa", pra quem
+   * ficou sem `empresa_id`).
+   */
+  companies: {
+    companyId: string | null;
+    companyName: string;
+    externalId: string | null;
+    contacts: { name: string | null; phone: string }[];
+  }[];
+  /**
+   * Lista operacional criada nesta corrida com os títulos/orçamentos NOVOS
+   * (ver `sync_operational_list` na migration OperationalListSyncRun) — só
+   * para fontes de agente com `document_kind` (cobrança/orçamento). `null`
+   * quando a fonte não é desse tipo, ou quando não achou item novo (tudo já
+   * estava numa lista operacional em aberto de corrida anterior).
+   */
+  operationalList: { id: string; name: string; itemCount: number } | null;
 }
 
 /**
@@ -101,7 +140,7 @@ export class AgentSourcesService {
               s.active, s.last_run_at, s.last_status, s.last_error, s.last_count,
               (s.running_since IS NOT NULL) AS running,
               coalesce(s.list_key, 'agent:' || s.agent_id::text) AS effective_list_key,
-              p.name AS agent_name,
+              p.name AS agent_name, p.document_kind,
               exists (
                 SELECT 1 FROM public.account_secrets sec
                  WHERE sec.account_id = s.account_id
@@ -297,6 +336,10 @@ export class AgentSourcesService {
   private async runLocked(source: AgentSourceRow): Promise<RunResult> {
     const sourceId = source.id;
     const token = await this.readToken(source.account_id, source.id);
+    // Antes de tocar na fonte — é o corte que `sync_operational_list` usa
+    // pra saber quais títulos/orçamentos esta corrida específica tocou
+    // (`updated_at >= runStartedAt`).
+    const runStartedAt = new Date();
 
     let result: RunResult;
     try {
@@ -304,6 +347,15 @@ export class AgentSourcesService {
       const rows = this.extractRows(payload, source.root_path);
       const mapped = rows.slice(0, MAX_ROWS).map((r) => this.mapRow(source, r));
 
+      // Fontes de relacionamento (cobrança, por exemplo) trazem N linhas para o
+      // mesmo telefone — uma por título/parcela em aberto do cliente. Antes
+      // isso exigia um dedupe aqui (`ingest_agent_contact` só gravava um
+      // blob por contato, então múltiplas linhas do mesmo telefone se
+      // pisavam — confirmado em produção: cliente com 46 títulos em aberto
+      // ficava só com o menos urgente). Com `cobranca_titulos`/
+      // `orcamentos_erp` chaveadas por (contact_id, numero_titulo/
+      // numero_orcamento), cada linha vira sua própria upsert — não precisa
+      // mais reduzir pra uma por telefone antes de ingerir.
       const usable = mapped.filter((m) => m.phone);
       if (usable.length === 0) {
         throw new BadRequestException(
@@ -313,7 +365,21 @@ export class AgentSourcesService {
         );
       }
 
-      const ingested = (await this.ingest.ingestAgentContacts(
+      // Vendedor não é um campo de primeira classe do mapRow (só phone/name/
+      // email/externalId são) — vem solto dentro de `variables`, sob uma das
+      // duas chaves que as fontes já usam (ver legacyVendedorNome em
+      // cobranca-data.server.ts/quotes-data.server.ts). Precisa ser
+      // extraído aqui e mandado como `vendedorNome` de primeira classe para
+      // o ingest gravar em `companies.vendedor_id`/`vendedor_nome_erp` — se
+      // ficar só em `variables`, o payload da função `ingest_agent_contact`
+      // nunca tem a chave `vendedorNome` e o vendedor não aparece em
+      // Cobranças/Orçamentos.
+      const vendedorDe = (variables: Record<string, unknown>): string | undefined => {
+        const v = variables['vendedor_nome'] ?? variables['vendedor_responsavel'];
+        return typeof v === 'string' ? v : undefined;
+      };
+
+      const ingested: IngestBatchResult = await this.ingest.ingestAgentContacts(
         source.account_id,
         usable.map((m) => ({
           agent: source.agent_id,
@@ -321,33 +387,103 @@ export class AgentSourcesService {
           name: m.name,
           email: m.email,
           externalId: m.externalId,
+          empresaId: m.empresaId,
+          empresaNome: m.empresaNome,
+          vendedorNome: vendedorDe(m.variables),
           variables: m.variables,
           campaignKind: source.campaign_kind ?? undefined,
           listKey: source.list_key ?? undefined,
         })),
-      )) as unknown as {
-        processed: number;
-        created: number;
-        updated: number;
-        skipped: number;
-      };
+      );
 
       const preenchidas = new Set<string>();
       for (const m of mapped) {
         for (const key of Object.keys(m.variables)) preenchidas.add(key);
       }
+      // Por telefone: é a chave que sobrevive até o resultado de
+      // ingestAgentContacts (a linha mapeada em si não viaja até lá) — guarda
+      // a linha mapeada inteira pra poder montar o "ver tudo" da falha.
+      const mappedByPhone = new Map<string, (typeof mapped)[number]>();
+      for (const m of mapped) {
+        if (m.phone) mappedByPhone.set(m.phone, m);
+      }
+
+      // Linhas sem telefone algum não chegam a ser mandadas pro ingest — sem
+      // isso, elas simplesmente somem da contagem sem nenhum rastro de qual
+      // cliente ficou de fora e por quê.
+      const semTelefone = mapped
+        .filter((m) => !m.phone)
+        .map((m) => ({
+          label: m.name || m.externalId || '(sem telefone e sem nome)',
+          externalId: m.externalId,
+          vendedor: vendedorDe(m.variables),
+          reason: 'Sem telefone válido na resposta da fonte',
+          details: {
+            nome: m.name ?? null,
+            telefone: m.phone ?? null,
+            email: m.email ?? null,
+            codigoCliente: m.externalId ?? null,
+            ...m.variables,
+          },
+        }));
+      const naoGravadas = ingested.results
+        // contactId presente = a linha teve efeito no banco (título/orçamento
+        // gravado mesmo quando o contato em si não foi atualizado). Comparar
+        // pelo texto do motivo (BENIGN_SKIP_REASON) é frágil: um conflito de
+        // concorrência (ON CONFLICT DO NOTHING na inserção do contato) retorna
+        // o MESMO texto sem nunca ter chegado a gravar título/orçamento — só
+        // contactId distingue os dois casos (ver doc de IngestRowResult).
+        .filter((r) => r.skipped && !r.contactId)
+        .map((r) => {
+          const m = mappedByPhone.get(r.phone);
+          return {
+            label: r.name || r.phone || '(sem identificação)',
+            externalId: m?.externalId,
+            vendedor: m ? vendedorDe(m.variables) : undefined,
+            reason: r.reason ?? 'motivo desconhecido',
+            details: {
+              nome: r.name ?? m?.name ?? null,
+              telefone: r.phone ?? null,
+              email: m?.email ?? null,
+              codigoCliente: m?.externalId ?? null,
+              motivo: r.reason ?? 'motivo desconhecido',
+              ...(m?.variables ?? {}),
+            },
+          };
+        });
+
+      const operationalList = await this.syncOperationalList(source, runStartedAt);
 
       result = {
         ok: true,
+        agentId: source.agent_id,
         fetched: rows.length,
         processed: ingested.processed,
         created: ingested.created,
         updated: ingested.updated,
         skipped: ingested.skipped + (mapped.length - usable.length),
-        sample: mapped.slice(0, 3) as unknown as Record<string, unknown>[],
+        // Mescla `variables` (aninhado no mapRow) junto com os campos
+        // principais — sem isso a aba "Dados" do preview mostrava uma
+        // coluna "variables" com "[object Object]" em vez das variáveis
+        // de verdade lado a lado com nome/telefone/etc.
+        sample: mapped.slice(0, 3).map((m) => ({
+          nome: m.name ?? null,
+          telefone: m.phone ?? null,
+          email: m.email ?? null,
+          codigoCliente: m.externalId ?? null,
+          empresaId: m.empresaId ?? null,
+          empresaNome: m.empresaNome ?? null,
+          ...m.variables,
+        })),
         emptyVariables: Object.keys(source.variables_map ?? {}).filter(
           (v) => !preenchidas.has(v),
         ),
+        failures: [...semTelefone, ...naoGravadas],
+        companies: await this.companiesFor(
+          source.account_id,
+          usable.map((m) => m.phone!).filter(Boolean),
+        ),
+        operationalList,
       };
     } catch (err) {
       result = {
@@ -360,6 +496,9 @@ export class AgentSourcesService {
         error: (err as Error).message,
         sample: [],
         emptyVariables: [],
+        failures: [],
+        companies: [],
+        operationalList: null,
       };
     }
 
@@ -375,10 +514,180 @@ export class AgentSourcesService {
       ],
     );
 
+    // Só a última corrida importa pra investigar "por que X não virou
+    // contato" — substitui em vez de acumular pra não confundir com falha já
+    // resolvida numa corrida anterior. `result.ok === false` (fonte não
+    // respondeu/JSON inválido) não tem falha por linha pra gravar aqui — o
+    // erro geral já fica em `last_error`.
+    if (result.ok) {
+      await this.persistFailures(source.account_id, sourceId, result.failures);
+    }
+
     this.logger.log(
       `fonte=${source.name} agente=${source.agent_id} buscados=${result.fetched} gravados=${result.processed} erro=${result.error ?? '—'}`,
     );
     return result;
+  }
+
+  private async persistFailures(
+    accountId: string,
+    sourceId: string,
+    failures: RunResult['failures'],
+  ): Promise<void> {
+    await this.dataSource.query(
+      `DELETE FROM public.agent_source_sync_failures WHERE source_id = $1`,
+      [sourceId],
+    );
+    if (failures.length === 0) return;
+    const values: string[] = [];
+    const params: unknown[] = [];
+    failures.forEach((f, i) => {
+      const base = i * 7;
+      values.push(
+        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}::jsonb)`,
+      );
+      params.push(accountId, sourceId, f.label, f.externalId ?? null, f.vendedor ?? null, f.reason, JSON.stringify(f.details));
+    });
+    await this.dataSource.query(
+      `INSERT INTO public.agent_source_sync_failures
+         (account_id, source_id, label, external_id, vendedor, reason, details)
+       VALUES ${values.join(', ')}`,
+      params,
+    );
+  }
+
+  /** Falhas da última corrida desta fonte — sobrevive ao fechamento do modal
+   * de sincronização, pra dar pra investigar depois "por que X não virou
+   * contato" sem precisar sincronizar de novo. */
+  async listFailures(
+    accountId: string,
+    sourceId: string,
+  ): Promise<RunResult['failures']> {
+    const rows = await this.dataSource.query<
+      { label: string; external_id: string | null; vendedor: string | null; reason: string; details: Record<string, unknown> }[]
+    >(
+      `SELECT label, external_id, vendedor, reason, details
+         FROM public.agent_source_sync_failures
+        WHERE account_id = $1 AND source_id = $2
+        ORDER BY created_at ASC`,
+      [accountId, sourceId],
+    );
+    return rows.map((r) => ({
+      label: r.label,
+      externalId: r.external_id ?? undefined,
+      vendedor: r.vendedor ?? undefined,
+      reason: r.reason,
+      details: r.details,
+    }));
+  }
+
+  /**
+   * Agrupa os títulos/orçamentos NOVOS desta corrida (que não estão em
+   * nenhuma lista operacional em aberto) numa lista nova — só para agentes
+   * de cobrança/orçamento (`agent_personas.document_kind`); sem isso, no-op.
+   * `sync_operational_list` (migration OperationalListSyncRun) decide o que
+   * é "novo" e faz a gravação inteira numa transação só.
+   */
+  private async syncOperationalList(
+    source: AgentSourceRow,
+    runStartedAt: Date,
+  ): Promise<RunResult['operationalList']> {
+    const personaRows = await this.dataSource.query<
+      { document_kind: string | null }[]
+    >(
+      `SELECT document_kind FROM public.agent_personas WHERE id = $1 AND account_id = $2`,
+      [source.agent_id, source.account_id],
+    );
+    const documentKind = personaRows[0]?.document_kind ?? null;
+    if (documentKind !== 'cobranca' && documentKind !== 'orcamento') return null;
+
+    const rows = await this.dataSource.query<
+      { sync_operational_list: { created: boolean; listId?: string; listName?: string; itemCount: number } }[]
+    >(
+      `SELECT public.sync_operational_list($1, $2, $3, $4) AS sync_operational_list`,
+      [source.account_id, source.agent_id, documentKind, runStartedAt],
+    );
+    const r = rows[0]?.sync_operational_list;
+    if (!r?.created || !r.listId || !r.listName) return null;
+    return { id: r.listId, name: r.listName, itemCount: r.itemCount };
+  }
+
+  /**
+   * Reconciliação manual de uma linha de sync bloqueada por "empresa não
+   * identificada" (ver IngestRequireCompanyForDocuments20260908050000) — a
+   * tela de Cobranças/Orçamentos manda de volta os dados da falha (telefone/
+   * nome/email/variables, tirados do `details` que a corrida anterior já
+   * devolveu) mais a empresa que o operador escolheu ou acabou de criar.
+   */
+  async resolveSyncFailure(
+    accountId: string,
+    dto: ResolveSyncFailureDto,
+  ): Promise<{ ok: boolean; skipped: boolean; reason?: string }> {
+    const ingested: IngestBatchResult = await this.ingest.ingestAgentContacts(
+      accountId,
+      [
+        {
+          agent: dto.agent,
+          phone: dto.phone,
+          name: dto.name,
+          email: dto.email,
+          variables: dto.variables ?? {},
+          companyId: dto.companyId,
+        },
+      ],
+    );
+    const row = ingested.results[0];
+    // insertAgentContact captura a exceção do banco por linha (não deixa uma
+    // linha ruim derrubar o lote) e devolve como skipped+reason em vez de
+    // lançar — "companyId não pertence a esta conta" (raise dentro de
+    // ingest_agent_contact) chega aqui assim, não como exception.
+    if (row?.reason?.includes('companyId não pertence a esta conta')) {
+      throw new BadRequestException('Empresa selecionada não pertence a esta conta.');
+    }
+    return { ok: true, skipped: row?.skipped ?? false, reason: row?.reason };
+  }
+
+  /** Empresas dos clientes recém-processados, agrupadas — aba "Empresas" do
+   * preview de sincronização. */
+  private async companiesFor(
+    accountId: string,
+    phones: string[],
+  ): Promise<RunResult['companies']> {
+    if (phones.length === 0) return [];
+    const rows = await this.dataSource.query<
+      {
+        phone: string;
+        contact_name: string | null;
+        company_id: string | null;
+        company_name: string | null;
+        external_id: string | null;
+      }[]
+    >(
+      `SELECT c.phone_number AS phone, c.name AS contact_name,
+              co.id AS company_id, co.name AS company_name, co.external_id
+         FROM public.contacts c
+         LEFT JOIN public.companies co ON co.id = c.company_id
+        WHERE c.account_id = $1 AND c.phone_number = ANY($2)`,
+      [accountId, phones],
+    );
+
+    const groups = new Map<
+      string,
+      { companyId: string | null; companyName: string; externalId: string | null; contacts: { name: string | null; phone: string }[] }
+    >();
+    for (const r of rows) {
+      const key = r.company_id ?? '__none';
+      if (!groups.has(key)) {
+        groups.set(key, {
+          companyId: r.company_id,
+          companyName: r.company_name ?? 'Sem empresa vinculada',
+          externalId: r.external_id,
+          contacts: [],
+        });
+      }
+      groups.get(key)!.contacts.push({ name: r.contact_name, phone: r.phone });
+    }
+    return Array.from(groups.values());
   }
 
   /** Fontes ativas com agendamento vencido e que não estejam já rodando. */
@@ -487,6 +796,8 @@ export class AgentSourcesService {
     name?: string;
     email?: string;
     externalId?: string;
+    empresaId?: string;
+    empresaNome?: string;
     variables: Record<string, unknown>;
   } {
     const map = source.field_map ?? {};
@@ -512,6 +823,15 @@ export class AgentSourcesService {
       name: pick('name'),
       email: pick('email'),
       externalId: pick('externalId'),
+      // Campo de primeira classe separado de externalId (que identifica só o
+      // CONTATO/pessoa) — antes ingest_agent_contact usava externalId pra
+      // achar/criar a empresa também, e uma fonte que mapeia um código por
+      // PESSOA (não por empresa) nesse campo fazia cada cliente virar sua
+      // própria empresa (nome da empresa = nome do cliente). empresaId é a
+      // chave certa pra companies, configurável separadamente no mapeamento
+      // da fonte.
+      empresaId: pick('empresaId'),
+      empresaNome: pick('empresaNome'),
       variables,
     };
   }
@@ -528,10 +848,17 @@ function resolveValue(spec: string, row: Record<string, unknown>): unknown {
   return evalJsExpression(spec, row);
 }
 
+// Só nomes de propriedade que já são identificadores JS válidos viram
+// parâmetro da Function abaixo — uma chave vinda da resposta de uma fonte
+// externa (ex.: `){}();malicious()` como nome de coluna JSON) não pode mais
+// escapar da lista de parâmetros e injetar código.
+const SAFE_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
 function evalJsExpression(expr: string, row: Record<string, unknown>): unknown {
   try {
-    const keys = Object.keys(row);
-    const values = keys.map((k) => row[k]);
+    const safeEntries = Object.entries(row).filter(([k]) => SAFE_IDENTIFIER.test(k));
+    const keys = safeEntries.map(([k]) => k);
+    const values = safeEntries.map(([, v]) => v);
 
     const upper = (s: unknown): string =>
       s == null ? '' : typeof s === 'string' ? s.toUpperCase() : String(s).toUpperCase();

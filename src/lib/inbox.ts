@@ -23,8 +23,39 @@ export type ConversationMessage = {
   sender_type: string | null;
   message_type: number;
   content_type: number;
-  content_attributes: Record<string, unknown>;
+  content_attributes: MessageAttributes;
   created_at: string;
+  media_url?: string;
+};
+
+export type InteractiveButtonInput = {
+  type: "reply" | "url" | "copy" | "call";
+  displayText: string;
+  id?: string;
+  url?: string;
+  copyCode?: string;
+  phoneNumber?: string;
+};
+
+export type InteractiveSectionInput = {
+  title: string;
+  rows: { title: string; rowId: string; description?: string }[];
+};
+
+export type MessageAttributes = {
+  kind?: string;
+  mime?: string;
+  filename?: string;
+  caption?: string;
+  size?: number;
+  storage_path?: string;
+  selected_id?: string;
+  title?: string;
+  description?: string;
+  footer?: string;
+  buttons?: InteractiveButtonInput[];
+  buttonText?: string;
+  sections?: InteractiveSectionInput[];
 };
 
 export async function fetchConversations(
@@ -81,4 +112,55 @@ export async function markConversationRead(
   await apiClient.patch(`/accounts/${accountId}/conversations/${conversationId}`, {
     markRead: true,
   });
+}
+
+export type SendResult = { ok: true; message_id: string; provider_id?: string };
+
+export async function sendConversationMedia(
+  accountId: string,
+  conversationId: string,
+  file: File,
+  caption?: string,
+): Promise<SendResult> {
+  const form = new FormData();
+  form.append("conversationId", conversationId);
+  if (caption?.trim()) form.append("caption", caption.trim());
+  form.append("file", file);
+  return apiClient.post(`/accounts/${accountId}/messages/send-media`, form);
+}
+
+export type InteractiveInput =
+  | {
+      kind: "buttons";
+      title: string;
+      description: string;
+      footer?: string;
+      buttons: InteractiveButtonInput[];
+    }
+  | {
+      kind: "list";
+      title: string;
+      description?: string;
+      footer?: string;
+      buttonText: string;
+      sections: InteractiveSectionInput[];
+    };
+
+export async function sendConversationInteractive(
+  accountId: string,
+  conversationId: string,
+  input: InteractiveInput,
+): Promise<SendResult> {
+  return apiClient.post(`/accounts/${accountId}/messages/send-interactive`, {
+    conversationId,
+    ...input,
+  });
+}
+
+export async function sendConversationPresence(
+  accountId: string,
+  conversationId: string,
+  presence: "composing" | "recording" | "paused",
+): Promise<void> {
+  await apiClient.post(`/accounts/${accountId}/messages/presence`, { conversationId, presence });
 }

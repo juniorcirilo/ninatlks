@@ -1,3 +1,8 @@
+import {
+  getDefaultAtendente,
+  normalizeE164,
+  transferDepartamento,
+} from '../sales-reps/sales-reps.util';
 import { Injectable, Scope } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { TenantTxHost } from '../../common/tenant-tx.host';
@@ -81,7 +86,8 @@ export class ElevenLabsAgentService {
     const elWebhookSecret = process.env.ELEVENLABS_WEBHOOK_SECRET ?? '';
 
     const voiceId = persona.voice_clone_id ?? 'cjVigY5qzO86Huf0OWal';
-    const systemPrompt = `${buildSystemPromptWithGuardrails(persona.system_prompt ?? '')}${PT_BR_LANGUAGE_INSTRUCTION}`;
+    const departamento = transferDepartamento({ persona });
+    const systemPrompt = `${buildSystemPromptWithGuardrails(persona.system_prompt ?? '', departamento)}${PT_BR_LANGUAGE_INSTRUCTION}`;
     const firstMessage =
       persona.first_message ??
       'Oi {{lead_name}}, aqui é {{agent_name}} da {{company_name}}. Esta chamada pode ser gravada. Em que posso ajudar?';
@@ -91,7 +97,10 @@ export class ElevenLabsAgentService {
     const asrKeywords = Array.isArray(persona.asr_keywords)
       ? persona.asr_keywords
       : [];
-    const llmModel = persona.llm_model ?? 'gemini-2.5-flash';
+    // ElevenLabs expects bare model IDs (e.g. "gemini-2.5-flash"), not OpenRouter-style
+    // prefixed ones (e.g. "google/gemini-2.5-flash"). Strip the provider prefix if present.
+    const rawModel = persona.llm_model ?? 'gemini-2.5-flash';
+    const llmModel = rawModel.includes('/') ? rawModel.split('/').slice(1).join('/') : rawModel;
     const customLlm =
       llmModel === 'custom-llm'
         ? await this.resolveCustomLlm(accountId, persona, creds)
@@ -105,6 +114,36 @@ export class ElevenLabsAgentService {
       persona.llm_max_tokens >= 200
         ? persona.llm_max_tokens
         : 400;
+
+    // Destino da transferência humana, SEGREGADO por departamento (Larrisa → COMERCIAL,
+    // Diego/cobrança → FINANCEIRO): atendente padrão do departamento em sales_reps.
+    // COMERCIAL ainda cai no número da campanha mais recente da persona (legado).
+    // FINANCEIRO nunca usa número de campanha: cobrança não pode transbordar para vendas.
+    const defaultAtendente = await getDefaultAtendente(
+      this.tx.manager,
+      accountId,
+      departamento,
+    );
+    let transferNumber: string | null = defaultAtendente?.phone ?? null;
+    const atendenteNomeFalado = defaultAtendente?.nomeFalado ?? null;
+    if (!transferNumber && departamento === 'COMERCIAL') {
+      const transferRows = await this.tx.manager.query<
+        { escalation_target_number: string }[]
+      >(
+        `SELECT escalation_target_number FROM voice_campaigns
+          WHERE persona_id = $1 AND account_id = $2
+            AND COALESCE(btrim(escalation_target_number), '') <> ''
+          ORDER BY (status = 'running') DESC, updated_at DESC
+          LIMIT 1`,
+        [persona.id, accountId],
+      );
+      transferNumber = normalizeE164(transferRows[0]?.escalation_target_number);
+    }
+    // Sem destino resolvido: NÃO apagamos a transferência que já existe no agente
+    // (`tools` substitui a lista inteira) — ela é reenviada como está.
+    const preservedTransferTools = transferNumber
+      ? []
+      : await this.fetchLiveTransferTools(creds, persona.elevenlabs_agent_id);
 
     const dynamicVariablePlaceholders: Record<string, string> = {
       company_name: 'nossa empresa',
@@ -123,6 +162,13 @@ export class ElevenLabsAgentService {
       lead_score: '0',
       open_conversations: '0',
       has_history: 'não',
+      vendedor_nome: 'o vendedor responsável',
+      // Padrões (destino do departamento) p/ qualquer caminho que não injete o telefone:
+      // inbound, lembretes, cadência. telefone_vendedor é só compat do agente comercial.
+      telefone_atendente: transferNumber ?? '',
+      atendente_nome: atendenteNomeFalado ?? 'nosso atendimento',
+      atendente_departamento: departamento,
+      telefone_vendedor: departamento === 'COMERCIAL' ? (transferNumber ?? '') : '',
     };
 
     const evaluationCriteria = [
@@ -158,9 +204,12 @@ export class ElevenLabsAgentService {
       },
     ];
 
-    const toolHeaders = elWebhookSecret
-      ? { 'x-el-webhook-secret': elWebhookSecret }
-      : {};
+    // x-conversation-id é fallback: o servidor prefere o header ao body, pois o
+    // LLM chegou a inventar conversation_id ("current_conversation_id") → 404.
+    const toolHeaders: Record<string, string> = {
+      ...(elWebhookSecret ? { 'x-el-webhook-secret': elWebhookSecret } : {}),
+      'x-conversation-id': '{{system__conversation_id}}',
+    };
 
     // persona.config.kind é o sinal canônico, mas personas mais antigas (ex.:
     // "Diego Cobrança" seedado antes do config.kind existir) ficam com
@@ -276,7 +325,7 @@ export class ElevenLabsAgentService {
                 type: 'webhook',
                 name: 'ver_disponibilidade',
                 description:
-                  "Consulta horários livres na agenda dos médicos da clínica. Use ANTES de tentar agendar. Pode filtrar por especialidade (ex.: 'Ortopedia') ou por nome do médico. Retorna friendly_message com até 4 opções formatadas em PT-BR pra você ler em voz alta — cada slot já vem com doctor_id que você usa em agendar_reuniao.",
+                  'Consulta horários livres na agenda do time comercial/gestão. SEMPRE chame ANTES de dizer que vai agendar ou prometer retorno — nunca diga que não tem acesso à agenda. Não precisa informar nenhum filtro (deixe vazio), a menos que o lead peça um consultor específico. Se o lead pediu um dia/horário, passe days_ahead cobrindo essa data. Retorna friendly_message com opções em PT-BR pra ler em voz alta — cada slot já vem com consultor_id que você usa em agendar_reuniao.',
                 api_schema: {
                   url: `${base}/agent-tools/get-availability`,
                   method: 'POST',
@@ -287,23 +336,17 @@ export class ElevenLabsAgentService {
                     properties: {
                       conversation_id: {
                         type: 'string',
-                        description:
-                          'ID da conversa atual (system var conversation_id).',
+                        dynamic_variable: 'system__conversation_id',
                       },
-                      specialty: {
+                      consultor_nome: {
                         type: 'string',
                         description:
-                          "Especialidade médica solicitada pelo paciente (ex.: 'Ortopedia esportiva', 'Fisiatria', 'Nutrição esportiva'). Match parcial.",
-                      },
-                      doctor_name: {
-                        type: 'string',
-                        description:
-                          "Nome (ou parte) do médico, se o paciente pedir alguém específico (ex.: 'Dr. João'). Match parcial.",
+                          "Nome (ou parte) do consultor/vendedor, SOMENTE se o lead pedir alguém específico (ex.: nome do consultor). Match parcial. Normalmente deixe vazio.",
                       },
                       duration_minutes: {
                         type: 'integer',
                         description:
-                          'Duração desejada em minutos. Default: duração padrão do médico (geralmente 30).',
+                          'Duração desejada em minutos. Default: duração padrão da agenda (geralmente 30).',
                       },
                       days_ahead: {
                         type: 'integer',
@@ -325,24 +368,23 @@ export class ElevenLabsAgentService {
                 type: 'webhook',
                 name: 'agendar_reuniao',
                 description:
-                  'Marca a consulta na agenda do médico. CHAME quando o paciente confirmar um horário que você ofereceu via ver_disponibilidade. Use exatamente o doctor_id e starts_at do slot escolhido. Antes de chamar, repita o horário, médico e modalidade em voz alta e peça confirmação. Após sucesso, leia o confirmation_message.',
+                  'Marca a reunião na agenda do time comercial/gestão e envia o convite com link do Google Meet ao lead. CHAME quando o lead confirmar um horário que você ofereceu via ver_disponibilidade. Use exatamente o consultor_id e starts_at do slot escolhido. Antes de chamar, repita dia, horário e modalidade em voz alta e peça confirmação. Após sucesso, leia o confirmation_message.',
                 api_schema: {
                   url: `${base}/agent-tools/schedule-meeting`,
                   method: 'POST',
                   request_headers: toolHeaders,
                   request_body_schema: {
                     type: 'object',
-                    required: ['conversation_id', 'doctor_id', 'starts_at'],
+                    required: ['conversation_id', 'consultor_id', 'starts_at'],
                     properties: {
                       conversation_id: {
                         type: 'string',
-                        description:
-                          'ID da conversa atual (system var conversation_id).',
+                        dynamic_variable: 'system__conversation_id',
                       },
-                      doctor_id: {
+                      consultor_id: {
                         type: 'string',
                         description:
-                          'ID do médico, retornado em cada slot pelo ver_disponibilidade. Obrigatório.',
+                          'ID do consultor, retornado em cada slot pelo ver_disponibilidade. Obrigatório.',
                       },
                       starts_at: {
                         type: 'string',
@@ -352,22 +394,22 @@ export class ElevenLabsAgentService {
                       duration_minutes: {
                         type: 'integer',
                         description:
-                          'Duração em minutos. Default: padrão do médico (geralmente 30).',
+                          'Duração em minutos. Default: padrão da agenda (geralmente 30).',
                       },
                       modality: {
                         type: 'string',
                         description:
-                          "Modalidade: 'presencial' ou 'teleconsulta'. Pergunte ao paciente.",
+                          "Modalidade: 'online' (Google Meet) ou 'presencial'. Pergunte ao lead se não estiver claro.",
                       },
                       title: {
                         type: 'string',
                         description:
-                          "Título da consulta. Default: 'Consulta com {nome do médico}'.",
+                          "Título da reunião. Default: 'Reunião com {nome do consultor}'.",
                       },
-                      notes: {
+                      assunto: {
                         type: 'string',
                         description:
-                          'Observações livres (motivo da falta anterior, queixa, preferências do paciente).',
+                          'Assunto/contexto da reunião (ex.: motivo da cotação não fechada, objeção de preço/prazo, preferências do lead).',
                       },
                     },
                   },
@@ -391,7 +433,7 @@ export class ElevenLabsAgentService {
                     properties: {
                       conversation_id: {
                         type: 'string',
-                        description: 'ID da conversa atual.',
+                        dynamic_variable: 'system__conversation_id',
                       },
                       meeting_id: {
                         type: 'string',
@@ -421,7 +463,7 @@ export class ElevenLabsAgentService {
                     properties: {
                       conversation_id: {
                         type: 'string',
-                        description: 'ID da conversa atual.',
+                        dynamic_variable: 'system__conversation_id',
                       },
                       meeting_id: {
                         type: 'string',
@@ -570,7 +612,74 @@ export class ElevenLabsAgentService {
                   conversation_id: '{{system__conversation_id}}',
                 },
               },
+              {
+                type: 'webhook',
+                name: 'registrar_transferencia',
+                description:
+                  'CHAME IMEDIATAMENTE antes de transferir a chamada para um humano — registra o destino da transferência no sistema. Sempre chame antes de encerrar a chamada por motivo de escalada para humano.',
+                api_schema: {
+                  url: `${base}/agent-tools/registrar-transferencia`,
+                  method: 'POST',
+                  request_headers: {
+                    ...toolHeaders,
+                    'x-conversation-id': '{{system__conversation_id}}',
+                  },
+                  request_body_schema: {
+                    type: 'object',
+                    required: ['conversation_id'],
+                    properties: {
+                      conversation_id: {
+                        type: 'string',
+                        dynamic_variable: 'system__conversation_id',
+                      },
+                      motivo: {
+                        type: 'string',
+                        description:
+                          "Motivo da transferência (ex.: 'solicitou_humano', 'reclamacao', 'negociacao_complexa', 'wrong_number').",
+                      },
+                    },
+                  },
+                },
+                dynamic_variables: {
+                  conversation_id: '{{system__conversation_id}}',
+                },
+              },
               ...(isCobranca ? [cobrancaTool] : []),
+              // `tools` SUBSTITUI a lista inteira no ElevenLabs, inclusive as ferramentas de
+              // sistema (testado: PATCH só com webhooks apaga transfer_to_number, e
+              // `built_in_tools` enviado junto é ignorado). Por isso transfer_to_number vai AQUI.
+              // transfer_to_agent não é enviado: transferia para o PRÓPRIO agente.
+              ...(transferNumber
+                ? [
+                    {
+                      type: 'system',
+                      name: 'transfer_to_number',
+                      description:
+                        departamento === 'FINANCEIRO'
+                          ? 'Transfere a ligação para o setor financeiro (atendente humano habilitado). Use quando o cliente pedir para falar com um atendente/humano ou a negociação precisar de alguém com alçada. Antes, despeça-se em uma frase curta e educada e chame registrar_transferencia. O destino é sempre o financeiro, definido por ligação.'
+                          : 'Transfere a ligação para o vendedor responsável pelo lead ou, sem vendedor, para a central de atendimento comercial (o destino é definido por ligação). Use quando o lead pedir para falar com o vendedor, com um atendente comercial ou com um humano. Antes, despeça-se em uma frase curta e educada e chame registrar_transferencia.',
+                      params: {
+                        system_tool_type: 'transfer_to_number',
+                        transfers: [
+                          {
+                            // Por ligação: o disparo preenche `telefone_atendente` (vendedor do
+                            // lead / atendente padrão do departamento); o padrão do agente
+                            // (placeholder) cobre os caminhos que não passam pelo disparador.
+                            transfer_destination: {
+                              type: 'phone_dynamic_variable',
+                              phone_number: 'telefone_atendente',
+                            },
+                            transfer_type: 'conference',
+                            condition:
+                              departamento === 'FINANCEIRO'
+                                ? 'O cliente pediu para falar com um atendente, com o financeiro ou com um humano.'
+                                : 'O lead pediu para falar com o vendedor responsável, com um atendente comercial ou com um humano.',
+                          },
+                        ],
+                      },
+                    },
+                  ]
+                : preservedTransferTools),
             ],
             tool_ids: [],
             knowledge_base: persona.elevenlabs_knowledge_base_ids ?? [],
@@ -646,12 +755,60 @@ export class ElevenLabsAgentService {
     if (!elAgentId)
       throw new ElevenLabsError(502, 'ElevenLabs did not return an agent id');
 
+    if (transferNumber) {
+      const live = await this.client.request<{
+        conversation_config?: {
+          agent?: { prompt?: { tools?: { name?: string }[] } };
+        };
+      }>({
+        method: 'GET',
+        path: `/v1/convai/agents/${elAgentId}`,
+        credentials: creds,
+      });
+      const hasTransfer = live.conversation_config?.agent?.prompt?.tools?.some(
+        (t) => t.name === 'transfer_to_number',
+      );
+      if (!hasTransfer) {
+        throw new ElevenLabsError(
+          502,
+          'sync concluído, mas transfer_to_number não está ativa no agente ElevenLabs',
+        );
+      }
+    }
+
     await this.tx.manager.query(
       `UPDATE agent_personas SET elevenlabs_agent_id = $2, updated_at = now() WHERE id = $1`,
       [persona.id, elAgentId],
     );
 
     return { ok: true, elevenlabs_agent_id: elAgentId, persona_id: persona.id };
+  }
+
+  /**
+   * Ferramentas de transferência hoje ativas no agente ElevenLabs. Usadas quando a sync não
+   * tem destino resolvido, para não apagar uma transferência já configurada. Falha → [].
+   */
+  private async fetchLiveTransferTools(
+    creds: ElevenLabsCredentials,
+    agentId: string | null,
+  ): Promise<Record<string, unknown>[]> {
+    if (!agentId) return [];
+    try {
+      const live = await this.client.request<{
+        conversation_config?: {
+          agent?: { prompt?: { tools?: Record<string, unknown>[] } };
+        };
+      }>({
+        method: 'GET',
+        path: `/v1/convai/agents/${agentId}`,
+        credentials: creds,
+      });
+      return (live.conversation_config?.agent?.prompt?.tools ?? []).filter(
+        (t) => t.type === 'system' && t.name === 'transfer_to_number',
+      );
+    } catch {
+      return [];
+    }
   }
 
   /**

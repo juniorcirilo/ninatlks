@@ -25,7 +25,7 @@ export class GdprController {
 
   @Post('merge')
   @Roles('admin')
-  merge(@Param('accountId') _accountId: string, @Body() dto: MergeContactsDto) {
-    return this.gdprService.mergeContacts(dto.primaryId, dto.duplicateIds);
+  merge(@Param('accountId') accountId: string, @Body() dto: MergeContactsDto) {
+    return this.gdprService.mergeContacts(accountId, dto.primaryId, dto.duplicateIds);
   }
 }

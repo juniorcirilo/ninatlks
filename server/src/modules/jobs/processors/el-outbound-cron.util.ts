@@ -79,6 +79,24 @@ export async function resolveElevenLabsApiKey(
   return key;
 }
 
+/**
+ * A ElevenLabs derruba a conversa (logo depois da saudação, quando o LLM
+ * começa a responder) se o prompt referencia {{variavel}} sem valor. Completa
+ * com '' as que não vieram — variáveis de sistema (system__*) são dela.
+ */
+export function fillMissingDynamicVariables(
+  dynamicVariables: Record<string, string>,
+  ...texts: Array<string | null | undefined>
+): Record<string, string> {
+  const filled = { ...dynamicVariables };
+  for (const text of texts) {
+    for (const m of (text ?? '').matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)) {
+      if (!(m[1] in filled)) filled[m[1]] = '';
+    }
+  }
+  return filled;
+}
+
 export async function callElevenLabsOutbound(args: {
   elKey: string;
   agentId: string;
@@ -117,7 +135,11 @@ export async function callElevenLabsOutbound(args: {
             },
             tts: { voice_id: args.voiceCloneId ?? undefined },
           },
-          dynamic_variables: args.dynamicVariables,
+          dynamic_variables: fillMissingDynamicVariables(
+            args.dynamicVariables,
+            args.systemPrompt,
+            args.firstMessage,
+          ),
         },
       }),
     },
@@ -128,8 +150,9 @@ export async function callElevenLabsOutbound(args: {
 
 export function buildFollowupSystemPrompt(
   systemPrompt: string | null | undefined,
+  departamento: 'COMERCIAL' | 'FINANCEIRO' = 'COMERCIAL',
 ): string {
-  return `${buildSystemPromptWithGuardrails(systemPrompt)}${PT_BR_LANGUAGE_INSTRUCTION}`;
+  return `${buildSystemPromptWithGuardrails(systemPrompt, departamento)}${PT_BR_LANGUAGE_INSTRUCTION}`;
 }
 
 export function formatMeetingTimeHuman(iso: string): string {

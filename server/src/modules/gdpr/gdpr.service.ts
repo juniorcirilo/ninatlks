@@ -29,11 +29,22 @@ export class GdprService {
    * function did that check in TypeScript before calling it with the
    * service-role key. RolesGuard('admin') at the controller is the ONLY
    * authorization gate here, not a second layer — do not remove it.
+   *
+   * `accountId` (from the guarded route, already verified by
+   * AccountMemberGuard/RolesGuard) is passed through only so callers keep
+   * an explicit account-scoped signature — the actual enforcement is the
+   * `app.current_account_id` check inside merge_contacts itself (see
+   * 20260908010000-MergeContactsAccountScopeAndCascadeFix.ts), which
+   * rejects the merge if the contacts' real account doesn't match the
+   * request's tenant, closing an IDOR where primaryId/duplicateIds could
+   * belong to a different account than the URL's.
    */
   async mergeContacts(
+    accountId: string,
     primaryId: string,
     duplicateIds: string[],
   ): Promise<MergeResult> {
+    void accountId;
     const rows = await this.tx.manager.query<MergeResult[]>(
       `SELECT * FROM public.merge_contacts($1, $2)`,
       [primaryId, duplicateIds],

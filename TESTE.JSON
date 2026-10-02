@@ -1,0 +1,946 @@
+[
+    {
+        "id": null,
+        "role": "agent",
+        "message": "Olá, tudo bem?",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": null,
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": "gpt-4o",
+        "source_medium": null,
+        "agent_metadata": {
+            "agent_id": "agent_4701kzadrr7kejyb5etayw0hfavk",
+            "branch_id": "agtbrch_4301kzadrrzdekna23dgrqgvstc5",
+            "version_id": "agtvrsn_6301m3ccr1a9facr3d18r8r3q6ny",
+            "workflow_node_id": null
+        },
+        "source_event_id": 1,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 0,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_tts_service_ttfb": {
+                    "elapsed_time": 0.2137535170004412
+                },
+                "convai_ttf_audio_since_silence": {
+                    "elapsed_time": 0.2180096570009482
+                },
+                "convai_turn_silence_before_initiation": {
+                    "elapsed_time": 0
+                }
+            },
+            "convai_tts_model": "eleven_flash_v2_5",
+            "convai_tts_cascade": null,
+            "convai_asr_provider": null
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "user",
+        "message": "Tudo bem.",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": null,
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": null,
+        "source_medium": "audio",
+        "agent_metadata": null,
+        "source_event_id": 31,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 2,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_asr_trailing_service_latency": {
+                    "elapsed_time": 0.05664550899746246
+                }
+            },
+            "convai_tts_model": null,
+            "convai_tts_cascade": null,
+            "convai_asr_provider": "Scribe v2 Realtime"
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "agent",
+        "message": "Que bom! Aqui é o Diego Cobrança da nossa empresa. Posso falar com o responsável pelo setor financeiro ou com o Junior? Esta chamada pode ser gravada para nossa segurança.",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": {
+            "model_usage": {
+                "gpt-4o": {
+                    "input": {
+                        "price": 0.000375,
+                        "tokens": 150
+                    },
+                    "output_total": {
+                        "price": 0.00039,
+                        "tokens": 39
+                    },
+                    "input_cache_read": {
+                        "price": 0.0056,
+                        "tokens": 4480
+                    },
+                    "input_cache_write": {
+                        "price": 0,
+                        "tokens": 0
+                    }
+                }
+            },
+            "detailed_model_usage": [
+                {
+                    "usage": {
+                        "input": {
+                            "price": 0.000375,
+                            "tokens": 150
+                        },
+                        "output_total": {
+                            "price": 0.00039,
+                            "tokens": 39
+                        },
+                        "input_cache_read": {
+                            "price": 0.0056,
+                            "tokens": 4480
+                        },
+                        "input_cache_write": {
+                            "price": 0,
+                            "tokens": 0
+                        }
+                    },
+                    "config": {
+                        "model": "gpt-4o",
+                        "service_tier": "standard"
+                    }
+                }
+            ]
+        },
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": "gpt-4o",
+        "source_medium": null,
+        "agent_metadata": {
+            "agent_id": "agent_4701kzadrr7kejyb5etayw0hfavk",
+            "branch_id": "agtbrch_4301kzadrrzdekna23dgrqgvstc5",
+            "version_id": "agtvrsn_6301m3ccr1a9facr3d18r8r3q6ny",
+            "workflow_node_id": null
+        },
+        "source_event_id": 31,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 5,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_llm_service_ttfb": {
+                    "elapsed_time": 0.5901158609995036
+                },
+                "convai_tts_service_ttfb": {
+                    "elapsed_time": 0.07716737800001283
+                },
+                "convai_turn_asr_latency": {
+                    "elapsed_time": 0.05664550899746246
+                },
+                "convai_ttf_audio_since_silence": {
+                    "elapsed_time": 2.1866939369987812
+                },
+                "convai_llm_service_ttf_sentence": {
+                    "elapsed_time": 0.5993604510003934
+                },
+                "convai_llm_service_tt_last_sentence": {
+                    "elapsed_time": 0.8042746270002681
+                },
+                "convai_turn_silence_before_initiation": {
+                    "elapsed_time": 1.44
+                }
+            },
+            "convai_tts_model": "eleven_flash_v2_5",
+            "convai_tts_cascade": null,
+            "convai_asr_provider": null
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "user",
+        "message": "É o Junior.",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": null,
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": null,
+        "source_medium": "audio",
+        "agent_metadata": null,
+        "source_event_id": 106,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 15,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_asr_trailing_service_latency": {
+                    "elapsed_time": 0.08179313899745466
+                }
+            },
+            "convai_tts_model": null,
+            "convai_tts_cascade": null,
+            "convai_asr_provider": "Scribe v2 Realtime"
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "agent",
+        "message": "Ótimo, Junior! Estou entrando em contato sobre uma pendência financeira referente ao Pedido cento e quarenta e cinco mil e Título catorze mil duzentos e sessenta e seis. Consta um saldo devedor de onze mil novecentos e setenta e dois reais e oitenta e dois centavos, com vencimento original em cinco de março de dois mil e vinte e seis. Teve algum imprevisto com o boleto ou com o pagamento desse título?",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": {
+            "model_usage": {
+                "gpt-4o": {
+                    "input": {
+                        "price": 0.0005,
+                        "tokens": 200
+                    },
+                    "output_total": {
+                        "price": 0.001,
+                        "tokens": 100
+                    },
+                    "input_cache_read": {
+                        "price": 0.0056,
+                        "tokens": 4480
+                    },
+                    "input_cache_write": {
+                        "price": 0,
+                        "tokens": 0
+                    }
+                }
+            },
+            "detailed_model_usage": [
+                {
+                    "usage": {
+                        "input": {
+                            "price": 0.0005,
+                            "tokens": 200
+                        },
+                        "output_total": {
+                            "price": 0.001,
+                            "tokens": 100
+                        },
+                        "input_cache_read": {
+                            "price": 0.0056,
+                            "tokens": 4480
+                        },
+                        "input_cache_write": {
+                            "price": 0,
+                            "tokens": 0
+                        }
+                    },
+                    "config": {
+                        "model": "gpt-4o",
+                        "service_tier": "standard"
+                    }
+                }
+            ]
+        },
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": "gpt-4o",
+        "source_medium": null,
+        "agent_metadata": {
+            "agent_id": "agent_4701kzadrr7kejyb5etayw0hfavk",
+            "branch_id": "agtbrch_4301kzadrrzdekna23dgrqgvstc5",
+            "version_id": "agtvrsn_6301m3ccr1a9facr3d18r8r3q6ny",
+            "workflow_node_id": null
+        },
+        "source_event_id": 106,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 17,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_llm_service_ttfb": {
+                    "elapsed_time": 0.5866008209995925
+                },
+                "convai_tts_service_ttfb": {
+                    "elapsed_time": 0.08314874899951974
+                },
+                "convai_turn_asr_latency": {
+                    "elapsed_time": 0.08179313899745466
+                },
+                "convai_ttf_audio_since_silence": {
+                    "elapsed_time": 1.3018506970013841
+                },
+                "convai_llm_service_ttf_sentence": {
+                    "elapsed_time": 0.6108456299989484
+                },
+                "convai_llm_service_tt_last_sentence": {
+                    "elapsed_time": 1.2705158299977484
+                },
+                "convai_turn_silence_before_initiation": {
+                    "elapsed_time": 0.512
+                }
+            },
+            "convai_tts_model": "eleven_flash_v2_5",
+            "convai_tts_cascade": null,
+            "convai_asr_provider": null
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "user",
+        "message": "Sim.",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": null,
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": null,
+        "source_medium": "audio",
+        "agent_metadata": null,
+        "source_event_id": 251,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 38,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_asr_trailing_service_latency": {
+                    "elapsed_time": 0.06201859899738338
+                }
+            },
+            "convai_tts_model": null,
+            "convai_tts_cascade": null,
+            "convai_asr_provider": "Scribe v2 Realtime"
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "agent",
+        "message": "Entendo. Você gostaria de discutir uma forma de resolver essa pendência ou precisa de alguma informação adicional para regularizar a situação?",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": {
+            "model_usage": {
+                "gpt-4o": {
+                    "input": {
+                        "price": 0.0004525,
+                        "tokens": 181
+                    },
+                    "output_total": {
+                        "price": 0.00027,
+                        "tokens": 27
+                    },
+                    "input_cache_read": {
+                        "price": 0.00576,
+                        "tokens": 4608
+                    },
+                    "input_cache_write": {
+                        "price": 0,
+                        "tokens": 0
+                    }
+                }
+            },
+            "detailed_model_usage": [
+                {
+                    "usage": {
+                        "input": {
+                            "price": 0.0004525,
+                            "tokens": 181
+                        },
+                        "output_total": {
+                            "price": 0.00027,
+                            "tokens": 27
+                        },
+                        "input_cache_read": {
+                            "price": 0.00576,
+                            "tokens": 4608
+                        },
+                        "input_cache_write": {
+                            "price": 0,
+                            "tokens": 0
+                        }
+                    },
+                    "config": {
+                        "model": "gpt-4o",
+                        "service_tier": "standard"
+                    }
+                }
+            ]
+        },
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": "gpt-4o",
+        "source_medium": null,
+        "agent_metadata": {
+            "agent_id": "agent_4701kzadrr7kejyb5etayw0hfavk",
+            "branch_id": "agtbrch_4301kzadrrzdekna23dgrqgvstc5",
+            "version_id": "agtvrsn_6301m3ccr1a9facr3d18r8r3q6ny",
+            "workflow_node_id": null
+        },
+        "source_event_id": 251,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 40,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_llm_service_ttfb": {
+                    "elapsed_time": 0.5576682800019626
+                },
+                "convai_tts_service_ttfb": {
+                    "elapsed_time": 0.07581836899771588
+                },
+                "convai_turn_asr_latency": {
+                    "elapsed_time": 0.06201859899738338
+                },
+                "convai_ttf_audio_since_silence": {
+                    "elapsed_time": 1.1470740379980415
+                },
+                "convai_llm_service_ttf_sentence": {
+                    "elapsed_time": 0.5806364900017797
+                },
+                "convai_llm_service_tt_last_sentence": {
+                    "elapsed_time": 0.7311668180009292
+                },
+                "convai_turn_silence_before_initiation": {
+                    "elapsed_time": 0.416
+                }
+            },
+            "convai_tts_model": "eleven_flash_v2_5",
+            "convai_tts_cascade": null,
+            "convai_asr_provider": null
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "user",
+        "message": "Ah, me passa prum atendente aí.",
+        "analysis": {
+            "user_sentiment_score": -0.2,
+            "user_frustration_score": 0.3
+        },
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": null,
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": null,
+        "source_medium": "audio",
+        "agent_metadata": null,
+        "source_event_id": 325,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 50,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_asr_trailing_service_latency": {
+                    "elapsed_time": 0.03885575900130789
+                }
+            },
+            "convai_tts_model": null,
+            "convai_tts_cascade": null,
+            "convai_asr_provider": "Scribe v2 Realtime"
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "agent",
+        "message": "Claro, Junior. Vou te transferir agora para o nosso setor de negociação, que poderá ajudar diretamente. Um momento, por favor.",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": {
+            "model_usage": {
+                "gpt-4o": {
+                    "input": {
+                        "price": 0.0005625,
+                        "tokens": 225
+                    },
+                    "output_total": {
+                        "price": 0.00028,
+                        "tokens": 28
+                    },
+                    "input_cache_read": {
+                        "price": 0.00576,
+                        "tokens": 4608
+                    },
+                    "input_cache_write": {
+                        "price": 0,
+                        "tokens": 0
+                    }
+                }
+            },
+            "detailed_model_usage": [
+                {
+                    "usage": {
+                        "input": {
+                            "price": 0.0005625,
+                            "tokens": 225
+                        },
+                        "output_total": {
+                            "price": 0.00028,
+                            "tokens": 28
+                        },
+                        "input_cache_read": {
+                            "price": 0.00576,
+                            "tokens": 4608
+                        },
+                        "input_cache_write": {
+                            "price": 0,
+                            "tokens": 0
+                        }
+                    },
+                    "config": {
+                        "model": "gpt-4o",
+                        "service_tier": "standard"
+                    }
+                }
+            ]
+        },
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": "gpt-4o",
+        "source_medium": null,
+        "agent_metadata": {
+            "agent_id": "agent_4701kzadrr7kejyb5etayw0hfavk",
+            "branch_id": "agtbrch_4301kzadrrzdekna23dgrqgvstc5",
+            "version_id": "agtvrsn_6301m3ccr1a9facr3d18r8r3q6ny",
+            "workflow_node_id": null
+        },
+        "source_event_id": 325,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 52,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_llm_service_ttfb": {
+                    "elapsed_time": 0.5917357109974546
+                },
+                "convai_tts_service_ttfb": {
+                    "elapsed_time": 0.08929206899847486
+                },
+                "convai_turn_asr_latency": {
+                    "elapsed_time": 0.03885575900130789
+                },
+                "convai_ttf_audio_since_silence": {
+                    "elapsed_time": 1.0870202779991087
+                },
+                "convai_llm_service_ttf_sentence": {
+                    "elapsed_time": 0.6250671800007694
+                },
+                "convai_llm_service_tt_last_sentence": {
+                    "elapsed_time": 0.7985585370006447
+                },
+                "convai_turn_silence_before_initiation": {
+                    "elapsed_time": 0.32
+                }
+            },
+            "convai_tts_model": "eleven_flash_v2_5",
+            "convai_tts_cascade": null,
+            "convai_asr_provider": null
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "user",
+        "message": "...",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": null,
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": null,
+        "source_medium": "audio",
+        "agent_metadata": null,
+        "source_event_id": 389,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 62,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_asr_trailing_service_latency": {
+                    "elapsed_time": 0.050706309997622157
+                }
+            },
+            "convai_tts_model": null,
+            "convai_tts_cascade": null,
+            "convai_asr_provider": "Scribe v2 Realtime"
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "agent",
+        "message": "Aguarde um momento, por favor. Estamos transferindo você para o setor de negociação.",
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": null,
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": "gpt-4o",
+        "source_medium": null,
+        "agent_metadata": {
+            "agent_id": "agent_4701kzadrr7kejyb5etayw0hfavk",
+            "branch_id": "agtbrch_4301kzadrrzdekna23dgrqgvstc5",
+            "version_id": "agtvrsn_6301m3ccr1a9facr3d18r8r3q6ny",
+            "workflow_node_id": null
+        },
+        "source_event_id": 389,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 63,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_llm_service_ttfb": {
+                    "elapsed_time": 1.4886954860012338
+                },
+                "convai_tts_service_ttfb": {
+                    "elapsed_time": 0.09290016800150624
+                },
+                "convai_turn_asr_latency": {
+                    "elapsed_time": 0.050706309997622157
+                },
+                "convai_ttf_audio_since_silence": {
+                    "elapsed_time": 11.196546773998852
+                },
+                "convai_turn_silence_before_initiation": {
+                    "elapsed_time": 9.6
+                },
+                "convai_llm_tool_request_generation_latency": {
+                    "elapsed_time": 1.4894506659984472
+                }
+            },
+            "convai_tts_model": "eleven_flash_v2_5",
+            "convai_tts_cascade": null,
+            "convai_asr_provider": null
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "agent",
+        "message": null,
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": {
+            "model_usage": {
+                "gpt-4o": {
+                    "input": {
+                        "price": 0.0073725,
+                        "tokens": 2949
+                    },
+                    "output_total": {
+                        "price": 0.00097,
+                        "tokens": 97
+                    },
+                    "input_cache_read": {
+                        "price": 0.0024,
+                        "tokens": 1920
+                    },
+                    "input_cache_write": {
+                        "price": 0,
+                        "tokens": 0
+                    }
+                }
+            },
+            "detailed_model_usage": [
+                {
+                    "usage": {
+                        "input": {
+                            "price": 0.0073725,
+                            "tokens": 2949
+                        },
+                        "output_total": {
+                            "price": 0.00097,
+                            "tokens": 97
+                        },
+                        "input_cache_read": {
+                            "price": 0.0024,
+                            "tokens": 1920
+                        },
+                        "input_cache_write": {
+                            "price": 0,
+                            "tokens": 0
+                        }
+                    },
+                    "config": {
+                        "model": "gpt-4o",
+                        "service_tier": "standard"
+                    }
+                }
+            ]
+        },
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [
+            {
+                "type": "system",
+                "tool_name": "transfer_to_number",
+                "request_id": "call_OnClDpNDaGW1SIfbrZWR7ZgH",
+                "tool_details": null,
+                "params_as_json": "{\"reason\":\"Solicitação do cliente para negociação especial.\",\"transfer_number\":\"+554135120652\",\"agent_message\":\"Cliente Junior solicitou transferência para negociação de pendência financeira referente ao Pedido 145000, Título 14266, com saldo devedor de R$ 11.972,82.\",\"system__message_to_speak\":\"Aguarde um momento, por favor. Estamos transferindo você para o setor de negociação.\"}",
+                "tool_has_been_called": true
+            }
+        ],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [],
+        "producing_llm": "gpt-4o",
+        "source_medium": null,
+        "agent_metadata": {
+            "agent_id": "agent_4701kzadrr7kejyb5etayw0hfavk",
+            "branch_id": "agtbrch_4301kzadrrzdekna23dgrqgvstc5",
+            "version_id": "agtvrsn_6301m3ccr1a9facr3d18r8r3q6ny",
+            "workflow_node_id": null
+        },
+        "source_event_id": 389,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 63,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": {
+            "metrics": {
+                "convai_llm_service_ttfb": {
+                    "elapsed_time": 1.4886954860012338
+                },
+                "convai_tts_service_ttfb": {
+                    "elapsed_time": 0.09290016800150624
+                },
+                "convai_turn_asr_latency": {
+                    "elapsed_time": 0.050706309997622157
+                },
+                "convai_ttf_audio_since_silence": {
+                    "elapsed_time": 11.196546773998852
+                },
+                "convai_turn_silence_before_initiation": {
+                    "elapsed_time": 9.6
+                },
+                "convai_llm_tool_request_generation_latency": {
+                    "elapsed_time": 1.4894506659984472
+                }
+            },
+            "convai_tts_model": "eleven_flash_v2_5",
+            "convai_tts_cascade": null,
+            "convai_asr_provider": null
+        },
+        "used_static_kb_document_ids": []
+    },
+    {
+        "id": null,
+        "role": "agent",
+        "message": null,
+        "analysis": null,
+        "feedback": null,
+        "reasoned": false,
+        "llm_usage": null,
+        "reasoning": [],
+        "compaction": null,
+        "file_input": null,
+        "tool_calls": [],
+        "file_inputs": [],
+        "interrupted": false,
+        "llm_override": null,
+        "tool_results": [
+            {
+                "type": "system",
+                "result": {
+                    "note": null,
+                    "reason": "Solicitação do cliente para negociação especial.",
+                    "status": "success",
+                    "result_type": "transfer_to_number_twilio_success",
+                    "agent_message": "Cliente Junior solicitou transferência para negociação de pendência financeira referente ao Pedido 145000, Título 14266, com saldo devedor de R$ 11.972,82.",
+                    "client_message": "Aguarde um momento, por favor. Estamos transferindo você para o setor de negociação.",
+                    "conference_name": "blind",
+                    "transfer_number": "+554135120652",
+                    "post_dial_digits": null
+                },
+                "is_error": false,
+                "tool_name": "transfer_to_number",
+                "error_type": "",
+                "is_blocked": false,
+                "request_id": "call_OnClDpNDaGW1SIfbrZWR7ZgH",
+                "result_value": "{\"result_type\":\"transfer_to_number_twilio_success\",\"status\":\"success\",\"transfer_number\":\"+554135120652\",\"reason\":\"Solicitação do cliente para negociação especial.\",\"client_message\":\"Aguarde um momento, por favor. Estamos transferindo você para o setor de negociação.\",\"agent_message\":\"Cliente Junior solicitou transferência para negociação de pendência financeira referente ao Pedido 145000, Título 14266, com saldo devedor de R$ 11.972,82.\",\"conference_name\":\"blind\",\"post_dial_digits\":null,\"note\":null}",
+                "raw_error_message": "",
+                "tool_latency_secs": 0.16632540700084064,
+                "tool_has_been_called": true,
+                "dynamic_variable_updates": []
+            }
+        ],
+        "producing_llm": null,
+        "source_medium": null,
+        "agent_metadata": {
+            "agent_id": "agent_4701kzadrr7kejyb5etayw0hfavk",
+            "branch_id": "agtbrch_4301kzadrrzdekna23dgrqgvstc5",
+            "version_id": "agtvrsn_6301m3ccr1a9facr3d18r8r3q6ny",
+            "workflow_node_id": null
+        },
+        "source_event_id": 389,
+        "user_identifier": null,
+        "original_message": null,
+        "time_in_call_secs": 69,
+        "config_snapshot_id": null,
+        "multivoice_message": null,
+        "rag_retrieval_info": null,
+        "triggered_guardrails": [],
+        "contextual_update_info": null,
+        "ignored_as_backchannel": false,
+        "conversation_turn_metrics": null,
+        "used_static_kb_document_ids": []
+    }
+]

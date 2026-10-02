@@ -33,11 +33,11 @@ export interface QuotesAnalysis {
 
 const DAY_MS = 86_400_000;
 
-const SYSTEM_PROMPT = `Você é um analista de operações comercial analisando os orçamentos de vidros da UBVA (controlados pelo agente Bruno).
+const SYSTEM_PROMPT = `Você é um analista de operações comercial analisando os orçamentos de vidros da UBVA (controlados pelo agente Sofia).
 
 Você recebe um JSON com duas listas:
 - "erp": orçamentos recebidos via integração com o ERP (numero, cliente, vendedor, status, valor, diasDesdeEmissao, diasAtePrevisao — negativo significa que já passou do prazo previsto).
-- "chat": orçamentos calculados e emitidos em conversa pelo Bruno (cliente, projeto, status, total, diasDesdeCriacao).
+- "chat": orçamentos calculados e emitidos em conversa pela Sofia (cliente, projeto, status, total, diasDesdeCriacao).
 
 Sua tarefa:
 1. Identificar quais orçamentos precisam de intervenção humana AGORA — priorize: prazo previsto já vencido (diasAtePrevisao < 0) sem status final; parados há muito tempo (diasDesdeEmissao ou diasDesdeCriacao alto) num status intermediário; valor alto parado. Não invente motivos genéricos — use os números recebidos.
@@ -60,11 +60,14 @@ function extractJson(s: string): string {
 
 export const analyzeQuotes = createServerFn({ method: "POST" })
   .middleware([requireSessionAuth])
-  .inputValidator((d) => z.object({ accountId: z.string().uuid() }).parse(d))
-  .handler(async ({ data }): Promise<QuotesAnalysis> => {
+  .inputValidator((d) => z.object({ accountId: z.string().uuid().optional() }).parse(d))
+  .handler(async ({ context }): Promise<QuotesAnalysis> => {
+    // accountId sempre da sessão, nunca do body — ver quotes.functions.ts.
+    if (!context.accountId) throw new Error("Usuário sem conta associada.");
+    const accountId = context.accountId;
     const [erp, chat] = await Promise.all([
-      fetchErpQuotes(data.accountId),
-      fetchChatQuotes(data.accountId),
+      fetchErpQuotes(context.userId, accountId),
+      fetchChatQuotes(accountId),
     ]);
 
     const now = Date.now();
@@ -92,11 +95,11 @@ export const analyzeQuotes = createServerFn({ method: "POST" })
       };
     }
 
-    const llm = await resolveLlmConfig(data.accountId);
+    const llm = await resolveLlmConfig(accountId);
 
     const payload = {
       erp: erpEnriched.map((q) => ({
-        id: q.contactId,
+        id: q.id,
         numero: q.numeroOrcamento,
         cliente: q.customerName,
         vendedor: q.vendedorNome,
@@ -137,7 +140,7 @@ export const analyzeQuotes = createServerFn({ method: "POST" })
       );
     }
 
-    const validIds = new Set([...erp.map((q) => q.contactId), ...chat.map((q) => q.id)]);
+    const validIds = new Set([...erp.map((q) => q.id), ...chat.map((q) => q.id)]);
     const interventions = (Array.isArray(parsed.interventions) ? parsed.interventions : []).filter(
       (i): i is QuoteIntervention =>
         Boolean(i) && typeof i.id === "string" && validIds.has(i.id) && (i.source === "erp" || i.source === "chat"),

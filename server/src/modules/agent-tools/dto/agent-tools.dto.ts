@@ -18,6 +18,16 @@ export class GetAvailabilityDto {
   @IsString()
   conversation_id!: string;
 
+  /** Consultor/vendedor da agenda (nome do contrato público das tools). */
+  @IsOptional()
+  @IsUUID()
+  consultor_id?: string;
+
+  @IsOptional()
+  @IsString()
+  consultor_nome?: string;
+
+  /** Legado (agentes ainda não ressincronizados). */
   @IsOptional()
   @IsString()
   specialty?: string;
@@ -168,12 +178,27 @@ export class RegistrarDesfechoCobrancaDto {
   observacao?: string;
 }
 
+export class RegistrarTransferenciaDto {
+  @IsString()
+  conversation_id!: string;
+
+  @IsOptional()
+  @IsString()
+  motivo?: string;
+}
+
 export class ScheduleMeetingDto {
   @IsString()
   conversation_id!: string;
 
+  @IsOptional()
   @IsUUID()
-  doctor_id!: string;
+  consultor_id?: string;
+
+  /** Legado (agentes ainda não ressincronizados). */
+  @IsOptional()
+  @IsUUID()
+  doctor_id?: string;
 
   @IsISO8601()
   starts_at!: string;
@@ -195,4 +220,8 @@ export class ScheduleMeetingDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  assunto?: string;
 }

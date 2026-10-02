@@ -17,6 +17,8 @@ import {
   ChevronDown,
   DatabaseZap,
   Bot,
+  RotateCcw,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAccount } from "@/lib/account-context";
@@ -66,6 +68,41 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type ListDocumentItem = {
+  id: string;
+  numero: string | null;
+  valor: number | null;
+  status: string | null;
+  diasEmAtraso?: number | null;
+  contactId: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  contactExternalId: string | null;
+};
+type ListDocumentsResult = { cobranca: ListDocumentItem[]; orcamento: ListDocumentItem[] };
+
+const BRL = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+/** Unifica cobrança+orçamento por cliente (contactId — já é a unidade real de
+ * "código do cliente": o casamento na ingestão dedupe por external_id, então
+ * um cliente nunca tem mais de um contato aqui) — sem isso a mesma pessoa
+ * aparecia uma vez por título/orçamento, repetindo nome/telefone à toa. */
+function groupListDocumentsByClient(items: ListDocumentItem[]) {
+  const groups = new Map<string, { contactName: string | null; contactPhone: string | null; contactExternalId: string | null; items: ListDocumentItem[] }>();
+  for (const it of items) {
+    if (!groups.has(it.contactId)) {
+      groups.set(it.contactId, {
+        contactName: it.contactName,
+        contactPhone: it.contactPhone,
+        contactExternalId: it.contactExternalId,
+        items: [],
+      });
+    }
+    groups.get(it.contactId)!.items.push(it);
+  }
+  return Array.from(groups.entries()).map(([contactId, g]) => ({ contactId, ...g }));
+}
 
 const TAB_CAPTION: Record<"lists" | "retention" | "compliance" | "dnc", string> = {
   lists: "Contatos agrupados por finalidade, para usar como público-alvo de campanhas.",
@@ -264,6 +301,12 @@ function ListsPage() {
   const [step, setStep] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<ContactListRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [listSearch, setListSearch] = useState("");
+  const [listStatusFilter, setListStatusFilter] = useState<"all" | "aberta" | "finalizada">("all");
+  const [finalizingId, setFinalizingId] = useState<string | null>(null);
+  const [editingDocuments, setEditingDocuments] = useState<ListDocumentsResult | null>(null);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
 
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -309,9 +352,59 @@ function ListsPage() {
     }
   }, [accountId]);
 
+  // Lista gerada por sincronização de cobrança/orçamento carrega os títulos/
+  // orçamentos linkados (operational_list_id) ao abrir a edição — sem isso
+  // o operador só via nome/telefone dos contatos, sem saber qual título ou
+  // orçamento exatamente colocou cada um ali.
+  useEffect(() => {
+    setExpandedClientId(null);
+    if (!accountId || !editingId) {
+      setEditingDocuments(null);
+      return;
+    }
+    setLoadingDocuments(true);
+    apiClient
+      .get<ListDocumentsResult>(`/accounts/${accountId}/contact-lists/${editingId}/documents`)
+      .then(setEditingDocuments)
+      .catch(() => setEditingDocuments(null))
+      .finally(() => setLoadingDocuments(false));
+  }, [accountId, editingId]);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const filteredRows = useMemo(() => {
+    let list = rows;
+    if (listStatusFilter !== "all") {
+      list = list.filter((r) => (r.status ?? "aberta") === listStatusFilter);
+    }
+    const q = listSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          (r.persona_name && r.persona_name.toLowerCase().includes(q)) ||
+          (r.description && r.description.toLowerCase().includes(q)),
+      );
+    }
+    return list;
+  }, [rows, listSearch, listStatusFilter]);
+
+  async function toggleFinalize(r: ContactListRow) {
+    if (!accountId || finalizingId) return;
+    const nextStatus = (r.status ?? "aberta") === "finalizada" ? "aberta" : "finalizada";
+    setFinalizingId(r.id);
+    try {
+      await apiClient.patch(`/accounts/${accountId}/contact-lists/${r.id}`, { status: nextStatus });
+      toast.success(nextStatus === "finalizada" ? "Lista finalizada" : "Lista reaberta");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao atualizar status da lista");
+    } finally {
+      setFinalizingId(null);
+    }
+  }
 
   useEffect(() => {
     if (!accountId) return;
@@ -710,7 +803,7 @@ function ListsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="w-full space-y-6 p-6">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Listas operacionais</h1>
@@ -783,6 +876,103 @@ function ListsPage() {
               {identityBlock}
               {audienceBlock}
               {importBlock}
+
+              {loadingDocuments ? (
+                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando itens da lista…
+                </div>
+              ) : (
+                editingDocuments &&
+                (editingDocuments.cobranca.length > 0 || editingDocuments.orcamento.length > 0) && (() => {
+                  const allItems = [...editingDocuments.cobranca, ...editingDocuments.orcamento];
+                  const clients = groupListDocumentsByClient(allItems);
+                  return (
+                    <div className="space-y-2 border-t border-border pt-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Itens desta lista ({allItems.length} em {clients.length} cliente
+                        {clients.length === 1 ? "" : "s"})
+                      </h3>
+                      <div className="max-h-72 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                        {clients.map((g) => {
+                          const expanded = expandedClientId === g.contactId;
+                          const total = g.items.reduce((acc, it) => acc + (it.valor ?? 0), 0);
+                          return (
+                            <div key={g.contactId} className={cn(expanded && "bg-primary/[0.06]")}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedClientId((prev) => (prev === g.contactId ? null : g.contactId))
+                                }
+                                className={cn(
+                                  "flex w-full items-center gap-2 border-l-2 px-3 py-2 text-left text-xs hover:bg-muted/40",
+                                  expanded ? "border-primary" : "border-transparent",
+                                )}
+                              >
+                                <ChevronDown
+                                  className={cn(
+                                    "h-3.5 w-3.5 shrink-0 transition-transform",
+                                    expanded ? "text-primary" : "-rotate-90 text-muted-foreground",
+                                  )}
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className={cn("truncate", expanded ? "font-semibold text-foreground" : "font-medium")}>
+                                    {g.contactName ?? "Sem nome"}
+                                    {g.contactExternalId && (
+                                      <span className="ml-1.5 font-normal text-muted-foreground">
+                                        · cód. {g.contactExternalId}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-muted-foreground">{g.contactPhone ?? "—"}</div>
+                                </div>
+                                <span
+                                  className={cn(
+                                    "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                                    expanded ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                                  )}
+                                >
+                                  {g.items.length} item{g.items.length === 1 ? "" : "ns"}
+                                </span>
+                                <span className="shrink-0 tabular-nums font-medium">{BRL(total)}</span>
+                              </button>
+                              {expanded && (
+                                <table className="w-full text-xs">
+                                  <thead className="border-y border-border/50 bg-muted/20 text-left uppercase tracking-wider text-muted-foreground">
+                                    <tr>
+                                      <th className="py-1 pl-10 pr-3 font-medium">Nº</th>
+                                      <th className="px-3 py-1 font-medium">Status</th>
+                                      <th className="px-3 py-1 text-right font-medium">Valor</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {g.items.map((d) => (
+                                      <tr key={d.id} className="border-b border-border/30 last:border-0">
+                                        <td className="py-1.5 pl-10 pr-3 tabular-nums">{d.numero ?? "—"}</td>
+                                        <td className="px-3 py-1.5">
+                                          {d.status ?? "—"}
+                                          {d.diasEmAtraso != null && d.diasEmAtraso > 0 && (
+                                            <span className="ml-1 text-amber-600 dark:text-amber-400">
+                                              ({d.diasEmAtraso}d atraso)
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className="px-3 py-1.5 text-right tabular-nums">
+                                          {d.valor != null ? BRL(d.valor) : "—"}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+
               <div className="flex justify-end gap-2 border-t border-border pt-3">
                 <button
                   onClick={() => {
@@ -884,6 +1074,36 @@ function ListsPage() {
             </div>
           )}
 
+          {rows.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative max-w-sm flex-1 min-w-[200px]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  placeholder="Buscar por nome, agente ou descrição…"
+                  className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm"
+                />
+              </div>
+              <div className="flex gap-1 rounded-md border border-border p-0.5">
+                {(["all", "aberta", "finalizada"] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setListStatusFilter(s)}
+                    className={cn(
+                      "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                      listStatusFilter === s
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {s === "all" ? "Todas" : s === "aberta" ? "Abertas" : "Finalizadas"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="rounded-xl border border-border bg-card">
             {loading ? (
               <div className="flex h-40 items-center justify-center">
@@ -900,19 +1120,25 @@ function ListsPage() {
                   <Plus className="h-4 w-4" /> Criar sua primeira lista
                 </button>
               </div>
+            ) : filteredRows.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 text-sm text-muted-foreground">
+                <Search className="h-6 w-6" />
+                <span>Nenhuma lista com esses filtros.</span>
+              </div>
             ) : (
               <table className="w-full text-sm">
                 <thead className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <tr>
                     <th className="px-4 py-2 font-medium">Nome</th>
                     <th className="px-4 py-2 font-medium">Tipo</th>
+                    <th className="px-4 py-2 font-medium">Status</th>
                     <th className="px-4 py-2 font-medium">Prontidão</th>
                     <th className="px-4 py-2 font-medium">Criada em</th>
                     <th className="px-4 py-2"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r) => (
+                  {filteredRows.map((r) => (
                     <tr
                       key={r.id}
                       className="border-b border-border last:border-0 hover:bg-muted/30"
@@ -952,7 +1178,19 @@ function ListsPage() {
                           {r.campaign_kind
                             ? (CAMPAIGN_KIND_LABEL[r.campaign_kind as CampaignKind] ??
                               r.campaign_kind)
-                            : "—"}
+                            : (r.persona_name ?? "—")}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span
+                          className={cn(
+                            "rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset",
+                            (r.status ?? "aberta") === "finalizada"
+                              ? "bg-muted text-muted-foreground ring-border"
+                              : "bg-emerald-500/10 text-emerald-600 ring-emerald-500/30 dark:text-emerald-400",
+                          )}
+                        >
+                          {(r.status ?? "aberta") === "finalizada" ? "Finalizada" : "Aberta"}
                         </span>
                       </td>
                       <td className="px-4 py-2">
@@ -1006,6 +1244,21 @@ function ListsPage() {
                             className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
                           >
                             <UserPlus className="h-3 w-3" /> Contatos
+                          </button>
+                          <button
+                            onClick={() => toggleFinalize(r)}
+                            disabled={finalizingId === r.id}
+                            title={(r.status ?? "aberta") === "finalizada" ? "Reabrir lista" : "Finalizar lista"}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                          >
+                            {finalizingId === r.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (r.status ?? "aberta") === "finalizada" ? (
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            )}
+                            {(r.status ?? "aberta") === "finalizada" ? "Reabrir" : "Finalizar"}
                           </button>
                           <button
                             onClick={() => startEdit(r)}

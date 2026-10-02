@@ -5,6 +5,7 @@ import {
   Scope,
 } from '@nestjs/common';
 import { TenantTxHost } from '../../common/tenant-tx.host';
+import { StorageService } from '../storage/storage.service';
 
 export interface ConversationListItem {
   id: string;
@@ -31,6 +32,8 @@ export interface MessageListItem {
   content_type: number;
   content_attributes: Record<string, unknown>;
   created_at: string;
+  /** URL assinada (temporária) do anexo, quando houver. */
+  media_url?: string;
 }
 
 /**
@@ -42,7 +45,10 @@ export interface MessageListItem {
  */
 @Injectable({ scope: Scope.REQUEST })
 export class ConversationsService {
-  constructor(private readonly tx: TenantTxHost) {}
+  constructor(
+    private readonly tx: TenantTxHost,
+    private readonly storage: StorageService,
+  ) {}
 
   async list(
     accountId: string,
@@ -96,7 +102,26 @@ export class ConversationsService {
         LIMIT $4`,
       [conversationId, accountId, before ?? null, limit],
     );
-    return rows.reverse();
+    const ordered = rows.reverse();
+    await Promise.all(
+      ordered.map(async (m) => {
+        const path = m.content_attributes?.storage_path;
+        // Só assina caminhos desta conta (defesa contra atributo adulterado).
+        if (typeof path !== 'string' || !path.includes(`/${accountId}/`))
+          return;
+        const slash = path.indexOf('/');
+        try {
+          m.media_url = await this.storage.presignDownload(
+            path.slice(slash + 1),
+            path.slice(0, slash),
+            60 * 60,
+          );
+        } catch {
+          /* sem preview */
+        }
+      }),
+    );
+    return ordered;
   }
 
   async update(

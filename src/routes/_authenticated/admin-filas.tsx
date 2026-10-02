@@ -1,13 +1,16 @@
+import React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Activity,
   AlertTriangle,
+  ArrowRightLeft,
   Clock,
   ListChecks,
   Phone,
   PhoneCall,
+  PhoneForwarded,
   PhoneOff,
   Radar,
   RefreshCw,
@@ -27,9 +30,11 @@ import {
   getQueueSummary,
   listFailedDispatch,
   listActiveCampaignsQueue,
+  listEscalatedCalls,
   type QueueSummary,
   type FailedCampaignContactRow,
   type CampaignQueueRow,
+  type EscalatedCallRow,
 } from "@/lib/admin-queues.functions";
 
 export const Route = createFileRoute("/_authenticated/admin-filas")({
@@ -52,6 +57,7 @@ function AdminFilasPage() {
   const fetchSummary = useServerFn(getQueueSummary);
   const fetchFailed = useServerFn(listFailedDispatch);
   const fetchActiveCampaigns = useServerFn(listActiveCampaignsQueue);
+  const fetchEscalated = useServerFn(listEscalatedCalls);
 
   const summary = useQuery({
     queryKey: ["admin", "queues", "summary"],
@@ -71,6 +77,12 @@ function AdminFilasPage() {
     refetchInterval: 30_000,
   });
 
+  const escalated = useQuery({
+    queryKey: ["admin", "queues", "escalated"],
+    queryFn: () => fetchEscalated(),
+    refetchInterval: 30_000,
+  });
+
   return (
     <div className="space-y-6 p-6">
       <PageHeader
@@ -84,6 +96,7 @@ function AdminFilasPage() {
               void summary.refetch();
               void activeCampaigns.refetch();
               void failed.refetch();
+              void escalated.refetch();
             }}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
@@ -112,6 +125,7 @@ function AdminFilasPage() {
                 void summary.refetch();
                 void activeCampaigns.refetch();
                 void failed.refetch();
+                void escalated.refetch();
               }}
             >
               Tentar novamente
@@ -123,6 +137,18 @@ function AdminFilasPage() {
       <SummaryGrid data={summary.data} loading={summary.isLoading} />
 
       <CampaignQueueBoard data={activeCampaigns.data} loading={activeCampaigns.isLoading} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <PhoneForwarded className="h-4 w-4 text-violet-500" />
+            Chamadas escaladas — transferidas para humano (últimas 50)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <EscalatedCallsTable data={escalated.data ?? []} loading={escalated.isLoading} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -275,7 +301,7 @@ const STATUS_PILL_CLASS: Record<string, string> = {
 const RIBBON_SEGMENTS: Array<{
   key: keyof Pick<
     CampaignQueueRow,
-    "queued" | "inFlight" | "connected" | "voicemail" | "failed" | "canceled"
+    "queued" | "inFlight" | "connected" | "escalated" | "voicemail" | "failed" | "canceled"
   >;
   label: string;
   className: string;
@@ -283,6 +309,7 @@ const RIBBON_SEGMENTS: Array<{
   { key: "queued", label: "Na fila", className: "bg-muted-foreground/25" },
   { key: "inFlight", label: "Ligando agora", className: "bg-sky-500" },
   { key: "connected", label: "Atendeu", className: "bg-emerald-500" },
+  { key: "escalated", label: "Transferido", className: "bg-violet-500" },
   { key: "voicemail", label: "Caixa postal", className: "bg-amber-500" },
   { key: "failed", label: "Não atendeu / falhou", className: "bg-rose-500" },
   { key: "canceled", label: "Cancelado", className: "bg-muted-foreground/50" },
@@ -395,10 +422,11 @@ function CampaignQueueCard({ data: c }: { data: CampaignQueueRow }) {
           })}
         </div>
 
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-5 gap-2">
           <Stat icon={PhoneOff} label="Restam" value={c.queued} />
           <Stat icon={PhoneCall} label="Ligando" value={c.inFlight} live={c.inFlight > 0} />
           <Stat icon={Phone} label="Atendeu" value={c.connected} />
+          <Stat icon={ArrowRightLeft} label="Transferiu" value={c.escalated} escalated={c.escalated > 0} />
           <Stat
             icon={TrendingUp}
             label="Positivas"
@@ -423,6 +451,7 @@ function Stat({
   value,
   sub,
   accent,
+  escalated,
   live,
 }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -430,37 +459,123 @@ function Stat({
   value: number;
   sub?: string;
   accent?: boolean;
+  escalated?: boolean;
   live?: boolean;
 }) {
+  const colorClass = accent
+    ? "text-emerald-600 dark:text-emerald-400"
+    : escalated
+      ? "text-violet-600 dark:text-violet-400"
+      : "text-foreground";
+  const bgClass = accent
+    ? "bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/25"
+    : escalated
+      ? "bg-violet-500/10 ring-1 ring-inset ring-violet-500/25"
+      : "bg-muted/40";
+
   return (
-    <div
-      className={cn(
-        "rounded-lg px-1.5 py-2 text-center",
-        accent ? "bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/25" : "bg-muted/40",
-      )}
-    >
+    <div className={cn("rounded-lg px-1.5 py-2 text-center", bgClass)}>
       <div className="flex items-center justify-center gap-1">
-        <Icon className={cn("h-3 w-3", accent ? "text-emerald-600" : "text-muted-foreground")} />
+        <Icon className={cn("h-3 w-3", accent ? "text-emerald-600" : escalated ? "text-violet-500" : "text-muted-foreground")} />
         {live && (
           <span className="text-sky-500">
             <LiveDot />
           </span>
         )}
       </div>
-      <div
-        className={cn(
-          "text-lg font-semibold tabular-nums",
-          accent ? "text-emerald-600 dark:text-emerald-400" : "text-foreground",
-        )}
-      >
+      <div className={cn("text-lg font-semibold tabular-nums", colorClass)}>
         {value.toLocaleString("pt-BR")}
       </div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
       {sub && (
-        <div className="truncate text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+        <div className={cn("truncate text-[10px] font-medium", colorClass)}>
           {sub}
         </div>
       )}
+    </div>
+  );
+}
+
+const ESCALATION_REASON_LABEL: Record<string, string> = {
+  solicitou_humano: "Pediu humano",
+  reclamacao: "Reclamação",
+  negociacao_complexa: "Negociação complexa",
+  wrong_number: "Número errado",
+  escalated: "Escalado",
+};
+
+function EscalatedCallsTable({
+  data,
+  loading,
+}: {
+  data: EscalatedCallRow[];
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-2 p-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
+    );
+  }
+  if (data.length === 0) {
+    return (
+      <div className="p-8 text-center text-sm text-muted-foreground">
+        Nenhuma chamada escalada registrada.
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="border-b bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="p-3 font-medium">Campanha</th>
+            <th className="p-3 font-medium">Telefone</th>
+            <th className="p-3 font-medium">Transferido para</th>
+            <th className="p-3 font-medium">Motivo</th>
+            <th className="p-3 font-medium">Tentativas</th>
+            <th className="p-3 font-medium">Quando</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row) => (
+            <tr key={row.id} className="border-b last:border-0 hover:bg-muted/20">
+              <td className="p-3">
+                <Badge variant="outline" className="font-mono text-[10px] uppercase">
+                  {row.campaignName}
+                </Badge>
+              </td>
+              <td className="p-3 tabular-nums">{row.phoneNumber}</td>
+              <td className="p-3">
+                {row.transferTarget ? (
+                  <span className="flex items-center gap-1.5 font-medium tabular-nums">
+                    <PhoneForwarded className="h-3.5 w-3.5 text-violet-500" />
+                    {row.transferTarget}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </td>
+              <td className="p-3">
+                {row.escalationReason ? (
+                  <Badge variant="secondary" className="text-[10px]">
+                    {ESCALATION_REASON_LABEL[row.escalationReason] ?? row.escalationReason}
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </td>
+              <td className="p-3 tabular-nums">{row.attempts}</td>
+              <td className="p-3 text-xs text-muted-foreground">
+                {formatRelative(row.updatedAt)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

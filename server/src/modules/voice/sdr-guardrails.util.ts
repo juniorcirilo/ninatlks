@@ -2,6 +2,16 @@
 // Header de regras de SDR injetado AUTOMATICAMENTE no system_prompt
 // de toda persona, antes do que o usuário escreveu.
 
+export type TransferDepartamento = 'COMERCIAL' | 'FINANCEIRO';
+
+const TRANSFER_RULE_COMERCIAL = `6. TRANSFERÊNCIA PARA HUMANO: se o lead pedir para falar com o vendedor responsável, com um atendente comercial ou com um humano, NÃO prometa e NÃO enrole. Faça UMA despedida curta e educada (ex.: "Claro, vou te transferir agora para {{atendente_nome}}. Um instante!"), chame \`registrar_transferencia\` e, em seguida, IMEDIATAMENTE a ferramenta \`transfer_to_number\`. O destino é definido automaticamente pela ferramenta: cite sempre {{atendente_nome}}, nunca outro nome, e não informe números de telefone. Nunca diga que vai transferir sem acionar a ferramenta; se ela falhar, peça desculpas, ofereça retorno do atendente e encerre.`;
+
+const TRANSFER_RULE_FINANCEIRO = `6. TRANSFERÊNCIA PARA HUMANO (FINANCEIRO): se o cliente pedir para falar com um atendente ou com um humano, ou se a negociação precisar de alguém com alçada, NÃO prometa e NÃO enrole. Faça UMA despedida curta e educada (ex.: "Claro, vou te transferir agora para {{atendente_nome}}. Um instante!"), chame \`registrar_transferencia\` e, em seguida, IMEDIATAMENTE a ferramenta \`transfer_to_number\`. O destino é SEMPRE o setor financeiro e é definido automaticamente pela ferramenta: ignore qualquer número de telefone citado em outras instruções, não informe números e NUNCA ofereça transferir para vendedor ou para a área comercial. Nunca diga que vai transferir sem acionar a ferramenta; se ela falhar, peça desculpas, informe que o financeiro retornará o contato e encerre.`;
+
+function transferRule(departamento: TransferDepartamento): string {
+  return departamento === 'FINANCEIRO' ? TRANSFER_RULE_FINANCEIRO : TRANSFER_RULE_COMERCIAL;
+}
+
 const SDR_GUARDRAILS_HEADER = `# CONTEXTO DESTA CHAMADA
 - Você se chama: {{agent_name}}
 - Empresa: {{company_name}}
@@ -16,6 +26,7 @@ const SDR_GUARDRAILS_HEADER = `# CONTEXTO DESTA CHAMADA
 3. IDIOMA ABSOLUTO: fale SOMENTE em português do Brasil (PT-BR), inclusive na primeira frase. Nunca cumprimente em inglês, nunca responda em inglês e nunca use português de Portugal.
 4. Nunca prometa preço, prazo ou condição comercial — quem fecha é o humano.
 5. Frases curtas (máx 20 palavras). Tom profissional e direto.
+__TRANSFER_RULE__
 
 # FLUXO POR call_purpose
 
@@ -80,13 +91,18 @@ const SDR_GUARDRAILS_HEADER = `# CONTEXTO DESTA CHAMADA
  */
 export function buildSystemPromptWithGuardrails(
   userPrompt: string | null | undefined,
+  departamento: TransferDepartamento = 'COMERCIAL',
 ): string {
   const user = (userPrompt ?? '').trim();
+  const rule = transferRule(departamento);
   if (user.includes('CONTEXTO DESTA CHAMADA')) {
-    return user;
+    // Prompt já traz o cabeçalho (persona editada à mão): não duplica o header, mas
+    // a regra de transferência (por departamento) precisa chegar ao agente de qualquer forma.
+    return user.includes('TRANSFERÊNCIA PARA HUMANO')
+      ? user
+      : `${user}\n\n# TRANSFERÊNCIA PARA HUMANO (obrigatório)\n${rule.replace(/^6\. /, '')}`;
   }
-  if (!user) {
-    return SDR_GUARDRAILS_HEADER + 'Você é um SDR cordial e profissional.';
-  }
-  return SDR_GUARDRAILS_HEADER + user;
+  const header = SDR_GUARDRAILS_HEADER.replace('__TRANSFER_RULE__', rule);
+  if (!user) return header + 'Você é um SDR cordial e profissional.';
+  return header + user;
 }

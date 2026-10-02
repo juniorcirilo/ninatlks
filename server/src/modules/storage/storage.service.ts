@@ -109,4 +109,12 @@ export class StorageService implements OnModuleInit {
       }),
     );
   }
+
+  async getObjectBuffer(bucket: string, key: string): Promise<Buffer> {
+    const res = await this.client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    const bytes = await res.Body!.transformToByteArray();
+    return Buffer.from(bytes);
+  }
 }

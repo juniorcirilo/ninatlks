@@ -7,6 +7,7 @@ import { DataSource } from 'typeorm';
  */
 export type CallDisposition =
   | 'atendida'
+  | 'escalada'
   | 'caixa_postal'
   | 'nao_atendeu'
   | 'recusada'

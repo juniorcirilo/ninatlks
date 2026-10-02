@@ -35,6 +35,7 @@ const WEBHOOK_EVENTS = [
   'MESSAGES_UPDATE',
   'CONNECTION_UPDATE',
   'QRCODE_UPDATED',
+  'PRESENCE_UPDATE',
 ];
 
 function webhookBody(webhookUrl: string, webhookSecret: string) {
@@ -97,6 +98,16 @@ export class EvolutionClientService {
     return { ok: true, count: Array.isArray(list) ? list.length : 0 };
   }
 
+  async fetchInstances(url: string, apiKey: string): Promise<RemoteInstance[]> {
+    const list = await this.evo<RemoteInstance[]>({
+      url,
+      apiKey,
+      method: 'GET',
+      path: '/instance/fetchInstances',
+    });
+    return Array.isArray(list) ? list : [];
+  }
+
   async setWebhook(args: {
     url: string;
     apiKey: string;
@@ -104,37 +115,18 @@ export class EvolutionClientService {
     webhookUrl: string;
     webhookSecret: string;
   }): Promise<void> {
-    try {
-      await this.evo({
-        url: args.url,
-        apiKey: args.apiKey,
-        method: 'POST',
-        path: `/webhook/set/${encodeURIComponent(args.instanceName)}`,
-        body: {
-          webhook: webhookBody(args.webhookUrl, args.webhookSecret),
+    await this.evo({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path: `/webhook/set/${encodeURIComponent(args.instanceName)}`,
+      body: {
+        webhook: {
+          ...webhookBody(args.webhookUrl, args.webhookSecret),
           enabled: true,
         },
-      });
-    } catch (err) {
-      if (
-        err instanceof EvolutionError &&
-        err.status >= 400 &&
-        err.status < 500
-      ) {
-        await this.evo({
-          url: args.url,
-          apiKey: args.apiKey,
-          method: 'POST',
-          path: `/webhook/set/${encodeURIComponent(args.instanceName)}`,
-          body: {
-            ...webhookBody(args.webhookUrl, args.webhookSecret),
-            enabled: true,
-          },
-        });
-        return;
-      }
-      throw err;
-    }
+      },
+    });
   }
 
   async createInstance(args: {
@@ -151,7 +143,7 @@ export class EvolutionClientService {
     try {
       const res = await this.evo<{
         instance?: { instanceName?: string };
-        hash?: { apikey?: string };
+        hash?: string | { apikey?: string };
         qrcode?: { base64?: string };
       }>({
         url: args.url,
@@ -167,7 +159,7 @@ export class EvolutionClientService {
       });
       return {
         instanceName: res?.instance?.instanceName ?? args.instanceName,
-        token: res?.hash?.apikey,
+        token: typeof res?.hash === 'string' ? res.hash : res?.hash?.apikey,
         qrcode: res?.qrcode,
       };
     } catch (err) {
@@ -234,6 +226,156 @@ export class EvolutionClientService {
     });
   }
 
+  async restartInstance(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+  }): Promise<void> {
+    await this.evo({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path: `/instance/restart/${encodeURIComponent(args.instanceName)}`,
+    });
+  }
+
+  async logoutInstance(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+  }): Promise<void> {
+    try {
+      await this.evo({
+        url: args.url,
+        apiKey: args.apiKey,
+        method: 'DELETE',
+        path: `/instance/logout/${encodeURIComponent(args.instanceName)}`,
+      });
+    } catch (err) {
+      // Já desconectada — Evolution responde 400/404.
+      if (
+        err instanceof EvolutionError &&
+        (err.status === 404 || /not connected/i.test(err.body))
+      )
+        return;
+      throw err;
+    }
+  }
+
+  async sendMedia(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+    number: string;
+    mediatype: 'image' | 'video' | 'document' | 'audio';
+    mimetype: string;
+    /** URL ou base64 puro (sem prefixo data:). */
+    media: string;
+    fileName?: string;
+    caption?: string;
+  }): Promise<{ messageId?: string }> {
+    const instance = encodeURIComponent(args.instanceName);
+    const number = toEvolutionNumber(args.number);
+    const res = await this.evo<MessageResponse>({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path:
+        args.mediatype === 'audio'
+          ? `/message/sendWhatsAppAudio/${instance}`
+          : `/message/sendMedia/${instance}`,
+      body:
+        args.mediatype === 'audio'
+          ? { number, audio: args.media }
+          : {
+              number,
+              mediatype: args.mediatype,
+              mimetype: args.mimetype,
+              media: args.media,
+              fileName: args.fileName,
+              caption: args.caption,
+            },
+      timeoutMs: 60_000,
+    });
+    return { messageId: messageIdOf(res) };
+  }
+
+  async sendButtons(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+    number: string;
+    title: string;
+    description: string;
+    footer?: string;
+    buttons: InteractiveButton[];
+  }): Promise<{ messageId?: string }> {
+    const res = await this.evo<MessageResponse>({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path: `/message/sendButtons/${encodeURIComponent(args.instanceName)}`,
+      body: {
+        number: toEvolutionNumber(args.number),
+        title: args.title,
+        description: args.description,
+        footer: args.footer,
+        buttons: args.buttons,
+      },
+    });
+    return { messageId: messageIdOf(res) };
+  }
+
+  async sendList(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+    number: string;
+    title: string;
+    description?: string;
+    footerText?: string;
+    buttonText: string;
+    sections: InteractiveSection[];
+  }): Promise<{ messageId?: string }> {
+    const res = await this.evo<MessageResponse>({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path: `/message/sendList/${encodeURIComponent(args.instanceName)}`,
+      body: {
+        number: toEvolutionNumber(args.number),
+        title: args.title,
+        description: args.description,
+        footerText: args.footerText,
+        buttonText: args.buttonText,
+        sections: args.sections,
+      },
+    });
+    return { messageId: messageIdOf(res) };
+  }
+
+  /** Mostra "digitando…"/"gravando…" para o contato. */
+  async sendPresence(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+    number: string;
+    presence: 'composing' | 'recording' | 'paused' | 'available';
+    delayMs?: number;
+  }): Promise<void> {
+    await this.evo({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path: `/chat/sendPresence/${encodeURIComponent(args.instanceName)}`,
+      body: {
+        number: toEvolutionNumber(args.number),
+        presence: args.presence,
+        delay: args.delayMs ?? 3000,
+      },
+    });
+  }
+
   /** Send text. Accepts a phone-like string OR a full Baileys JID. */
   async sendText(args: {
     url: string;
@@ -255,6 +397,41 @@ export class EvolutionClientService {
     });
     return { messageId: res?.key?.id ?? res?.messageId ?? res?.id };
   }
+}
+
+export interface RemoteInstance {
+  name?: string;
+  instanceName?: string;
+  connectionStatus?: string;
+  ownerJid?: string;
+  profileName?: string;
+  profilePicUrl?: string;
+  integration?: string;
+  _count?: { Contact?: number; Chat?: number; Message?: number };
+}
+
+export interface InteractiveButton {
+  type: 'reply' | 'url' | 'copy' | 'call';
+  displayText: string;
+  id?: string;
+  url?: string;
+  copyCode?: string;
+  phoneNumber?: string;
+}
+
+export interface InteractiveSection {
+  title: string;
+  rows: { title: string; rowId: string; description?: string }[];
+}
+
+type MessageResponse = {
+  key?: { id?: string };
+  messageId?: string;
+  id?: string;
+};
+
+function messageIdOf(res: MessageResponse | undefined): string | undefined {
+  return res?.key?.id ?? res?.messageId ?? res?.id;
 }
 
 export function normalizeStatus(

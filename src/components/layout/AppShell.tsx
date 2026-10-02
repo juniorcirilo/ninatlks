@@ -12,6 +12,7 @@ import {
   PhoneCall,
   Radio,
   UserPlus,
+  UserCheck,
   KanbanSquare,
   CalendarDays,
   ShieldAlert,
@@ -23,7 +24,8 @@ import {
   Rocket,
   ClipboardList,
   MessageCircle,
-  Receipt,
+
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -71,7 +73,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/campanhas", label: "Campanhas IA", icon: Rocket },
       { to: "/agents", label: "Agentes de voz", icon: Bot },
       { to: "/agents-playground", label: "Playground IA", icon: Sparkles },
-      { to: "/orcamentos", label: "Orçamentos", icon: Receipt },
+      { to: "/empresas", label: "Empresas", icon: Building2 },
       { to: "/agents-analytics", label: "Analytics IA", icon: BarChart3 },
     ],
   },
@@ -80,6 +82,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: "/phone-numbers", label: "Números de telefone", icon: Phone },
       { to: "/equipe", label: "Equipe", icon: UserPlus, adminOnly: true },
+      { to: "/vendedores", label: "Vendedores", icon: UserCheck },
       { to: "/admin-registro", label: "Registro", icon: ShieldAlert },
       { to: "/admin-filas", label: "Filas", icon: ListChecks, adminOnly: true },
       { to: "/settings", label: "Configurações", icon: Settings },
@@ -90,14 +93,24 @@ const NAV_SECTIONS: NavSection[] = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const showDeferred = useDeferredGlobalUi();
+  // Telas "app-like" (chat) ocupam exatamente a viewport e rolam por dentro,
+  // em vez de depender de um calc(100vh - X) que quebra com o Topbar/alertas.
+  const fullHeight = useLocation().pathname.startsWith("/inbox");
 
   return (
-    <div className="flex min-h-screen w-full bg-background text-foreground">
+    <div
+      className={cn(
+        "flex w-full bg-background text-foreground",
+        fullHeight ? "h-screen overflow-hidden" : "min-h-screen",
+      )}
+    >
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Topbar />
         {showDeferred && <UsageAlerts />}
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className={cn("min-h-0 flex-1", fullHeight ? "overflow-hidden" : "overflow-y-auto")}>
+          {children}
+        </main>
       </div>
       <KeyboardShortcuts />
       {showDeferred && <NotificationToasts />}

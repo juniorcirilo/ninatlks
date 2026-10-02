@@ -9,6 +9,7 @@ import {
   User as UserIcon,
   Volume2,
   Search,
+  Copy,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
 import { useRealtimeRefresh } from "@/lib/realtime-client";
@@ -101,7 +102,7 @@ function CallsPage() {
   }, [data]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-8">
+    <div className="w-full px-6 py-8">
       <header className="mb-6">
         <div className="flex items-baseline gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Ligações</h1>
@@ -295,6 +296,19 @@ function CallRow({ call, onClick }: { call: CallSummary; onClick: () => void }) 
         )}
       </div>
 
+      {call.transfer && (
+        <span
+          className={cn(
+            "shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium ring-1",
+            call.transfer.state === "transferred"
+              ? "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30"
+              : "bg-amber-500/15 text-amber-400 ring-amber-500/30",
+          )}
+        >
+          {call.transfer.state === "transferred" ? "Transferido" : "Transferindo"}
+          {call.transfer.number ? ` · ${call.transfer.number}` : ""}
+        </span>
+      )}
       {outcome && (
         <span
           className={cn("shrink-0 rounded-md px-2.5 py-1 text-[11px] font-medium", outcome.cls)}
@@ -477,6 +491,63 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
               Gravação
             </div>
             <audio src={detail.recording_url} controls preload="none" className="w-full" />
+          </div>
+        )}
+
+        {detail.el_conversation_id && (
+          <div className="rounded-xl border border-border bg-card p-3">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              ID na ElevenLabs
+            </div>
+            <div className="flex items-start gap-2">
+              <a
+                href={`https://elevenlabs.io/app/agents/history/${detail.el_conversation_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="min-w-0 flex-1 break-all font-mono text-xs text-primary hover:underline"
+              >
+                {detail.el_conversation_id}
+              </a>
+              <button
+                type="button"
+                title="Copiar ID"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(detail.el_conversation_id ?? "");
+                    toast.success("ID copiado");
+                  } catch {
+                    toast.error("não foi possível copiar");
+                  }
+                }}
+                className="shrink-0 rounded-md border border-input bg-background p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {detail.transfer && (
+          <div className="rounded-xl border border-border bg-card p-3">
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Transferência
+            </div>
+            <div
+              className={cn(
+                "text-xs font-medium",
+                detail.transfer.state === "transferred" ? "text-emerald-400" : "text-amber-400",
+              )}
+            >
+              {detail.transfer.state === "transferred" ? "Transferido" : "Transferindo"}
+              {detail.transfer.number ? ` para ${detail.transfer.number}` : ""}
+            </div>
+            {detail.transfer.details != null && (
+              <pre className="mt-2 max-h-40 overflow-auto rounded bg-muted/40 p-2 text-[11px] leading-relaxed">
+                {typeof detail.transfer.details === "string"
+                  ? detail.transfer.details
+                  : JSON.stringify(detail.transfer.details, null, 2)}
+              </pre>
+            )}
           </div>
         )}
 

@@ -1,3 +1,4 @@
+import React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -112,7 +113,7 @@ function CampaignsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
+    <div className="w-full space-y-6 p-6">
       <header className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Campanhas</h1>
@@ -130,8 +131,9 @@ function CampaignsPage() {
 
       {!loading && rows.length > 0 && (
         <>
-          <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-5">
             <FunnelKpi icon={<Activity className="h-4 w-4" />} label="Em execução" value={`${agg.running}/${agg.total_campaigns}`} tone="primary" />
+            <FunnelKpi icon={<PhoneCall className="h-4 w-4" />} label="Em ligação agora" value={`${agg.in_progress + agg.ringing}`} sub={`${agg.ringing} chamando · ${agg.in_progress} em curso`} tone="sky" />
             <FunnelKpi icon={<PhoneCall className="h-4 w-4" />} label="Conexão" value={`${connRate}%`} sub={`${agg.connected} de ${agg.total_contacts}`} tone="emerald" />
             <FunnelKpi icon={<ArrowRightLeft className="h-4 w-4" />} label="Escalações" value={`${escRate}%`} sub={`${agg.escalated} handoffs`} tone="sky" />
             <FunnelKpi icon={<PhoneOff className="h-4 w-4" />} label="Falhas" value={`${failRate}%`} sub={`${agg.failed} de ${agg.placed} tentativas`} tone="rose" />
@@ -195,10 +197,7 @@ function CampaignsPage() {
             </thead>
             <tbody>
               {rows.map((r) => {
-                const conn =
-                  r.total_contacts > 0
-                    ? Math.round((r.connected_count / r.total_contacts) * 100)
-                    : 0;
+                const live = (r.in_progress_count ?? 0) + (r.ringing_count ?? 0);
                 return (
                   <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-2">
@@ -233,18 +232,29 @@ function CampaignsPage() {
                         {CAMPAIGN_STATUS_LABEL[r.status] ?? r.status}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-xs">
-                      <div className="flex items-center gap-3">
-                        <span className="tabular-nums text-foreground">
-                          {r.connected_count}/{r.total_contacts}
-                        </span>
-                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full bg-primary"
-                            style={{ width: `${conn}%` }}
-                          />
-                        </div>
-                        <span className="text-muted-foreground tabular-nums">{conn}%</span>
+                    <td className="px-4 py-2">
+                      <div className="flex flex-wrap gap-1">
+                        {(r.queued_count ?? 0) > 0 && (
+                          <FunnelChip label="Na fila" count={r.queued_count} cls="bg-muted text-muted-foreground ring-border" />
+                        )}
+                        {live > 0 && (
+                          <FunnelChip label="Ligando" count={live} cls="bg-sky-500/10 text-sky-600 ring-sky-500/20" />
+                        )}
+                        {r.connected_count > 0 && (
+                          <FunnelChip label="Atendeu" count={r.connected_count} cls="bg-emerald-500/10 text-emerald-600 ring-emerald-500/20" />
+                        )}
+                        {r.escalated_count > 0 && (
+                          <FunnelChip label="Transferida" count={r.escalated_count} cls="bg-teal-500/10 text-teal-600 ring-teal-500/20" />
+                        )}
+                        {r.voicemail_count > 0 && (
+                          <FunnelChip label="Voicemail" count={r.voicemail_count} cls="bg-amber-500/10 text-amber-600 ring-amber-500/20" />
+                        )}
+                        {r.failed_count > 0 && (
+                          <FunnelChip label="Falhou" count={r.failed_count} cls="bg-rose-500/10 text-rose-600 ring-rose-500/20" />
+                        )}
+                        {r.total_contacts === 0 && (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-2 text-xs text-muted-foreground">
@@ -535,6 +545,15 @@ function DeleteCampaignDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+function FunnelChip({ label, count, cls }: { label: string; count: number; cls: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset", cls)}>
+      <span className="tabular-nums">{count}</span>
+      <span className="opacity-80">{label}</span>
+    </span>
   );
 }
 

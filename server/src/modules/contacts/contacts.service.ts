@@ -18,6 +18,7 @@ export interface CentralContactRow {
   email: string | null;
   phone_number: string | null;
   identifier: string | null;
+  external_id: string | null;
   score: number;
   lifecycle_stage: string;
   operational_status: string;
@@ -27,6 +28,15 @@ export interface CentralContactRow {
   last_whatsapp_at: Date | null;
   owner_user_id: string | null;
   briefing: Record<string, unknown> | null;
+  company_id: string | null;
+  razao_social: string | null;
+  nome_fantasia: string | null;
+  vendedor_id: string | null;
+  source_agent_id: string | null;
+  source_agent_name: string | null;
+  /** Todos os agentes que já importaram este contato (não só o mais
+   * recente) — ver o comentário em cima do JOIN LATERAL em listCentral. */
+  agent_names: string[] | null;
 }
 
 export interface ProductivityRow {
@@ -74,20 +84,28 @@ export interface EditableCampaignRow {
 }
 
 const CENTRAL_COLUMNS = [
-  'id',
-  'name',
-  'email',
-  'phone_number',
-  'identifier',
-  'score',
-  'lifecycle_stage',
-  'operational_status',
-  'last_sentiment',
-  'last_activity_at',
-  'last_call_at',
-  'last_whatsapp_at',
-  'owner_user_id',
-  'briefing',
+  'c.id',
+  'c.name',
+  'c.email',
+  'c.phone_number',
+  'c.identifier',
+  'c.external_id',
+  'c.score',
+  'c.lifecycle_stage',
+  'c.operational_status',
+  'c.last_sentiment',
+  'c.last_activity_at',
+  'c.last_call_at',
+  'c.last_whatsapp_at',
+  'c.owner_user_id',
+  'c.briefing',
+  'c.company_id',
+  'co.razao_social',
+  'co.nome_fantasia',
+  'co.vendedor_id',
+  'c.source_agent_id',
+  'ap.name AS source_agent_name',
+  'agents.names AS agent_names',
 ];
 
 @Injectable({ scope: Scope.REQUEST })
@@ -96,9 +114,28 @@ export class ContactsService {
 
   async listCentral(accountId: string): Promise<CentralContactRow[]> {
     return this.tx.manager.query<CentralContactRow[]>(
-      `SELECT ${CENTRAL_COLUMNS.join(', ')} FROM public.contacts
-       WHERE account_id = $1 AND blocked = false
-       ORDER BY last_activity_at DESC NULLS LAST
+      `SELECT ${CENTRAL_COLUMNS.join(', ')} FROM public.contacts c
+       LEFT JOIN public.companies co ON co.id = c.company_id
+       LEFT JOIN public.agent_personas ap ON ap.id = c.source_agent_id
+       -- source_agent_id só guarda o agente do sync mais recente (é
+       -- sobrescrito a cada linha em ingest_agent_contact). Um contato pode
+       -- ter sido trazido por mais de um agente ao longo do tempo — a lista
+       -- operacional 'agent:<id>' que cada sync adiciona o contato (ver
+       -- ingest_agent_contact) é o que sobrevive a isso, então é dali que
+       -- tiramos TODOS os agentes que já importaram o contato, não só o
+       -- último.
+       LEFT JOIN LATERAL (
+         SELECT array_agg(DISTINCT ap2.name ORDER BY ap2.name) AS names
+           FROM public.contact_list_members cm
+           JOIN public.contact_lists cl
+             ON cl.id = cm.list_id
+            AND cl.external_key ~ '^agent:[0-9a-f-]{36}$'
+           JOIN public.agent_personas ap2
+             ON ap2.id = substring(cl.external_key from 7)::uuid
+          WHERE cm.contact_id = c.id
+       ) agents ON true
+       WHERE c.account_id = $1 AND c.blocked = false
+       ORDER BY c.last_activity_at DESC NULLS LAST
        LIMIT 1000`,
       [accountId],
     );
@@ -419,7 +456,7 @@ export class ContactsService {
       }[]
     >(
       `SELECT name, phone_number, email, external_id,
-              custom_attributes -> 'ingest_variables' AS variables
+              public.contact_erp_variables(id) AS variables
          FROM public.contacts
         WHERE id = $1 AND account_id = $2`,
       [contactId, accountId],
@@ -510,7 +547,7 @@ export class ContactsService {
     return list;
   }
 
-  async updateContactList(accountId: string, listId: string, body: { name?: string; description?: string | null; campaignKind?: string; personaId?: string | null; filters?: Record<string, unknown>; externalKey?: string | null }) {
+  async updateContactList(accountId: string, listId: string, body: { name?: string; description?: string | null; campaignKind?: string; personaId?: string | null; filters?: Record<string, unknown>; externalKey?: string | null; status?: string }) {
     const list = await this.tx.manager.findOneOrFail(ContactLists, {
       where: { id: listId, accountId },
     });
@@ -524,6 +561,10 @@ export class ContactsService {
       // (`where external_key is not null`), então duas listas com '' colidiriam
       // de verdade em vez de simplesmente não ter chave.
       list.externalKey = body.externalKey?.trim() ? body.externalKey.trim() : null;
+    }
+    if (body.status !== undefined && body.status !== list.status) {
+      list.status = body.status;
+      list.finalizedAt = body.status === 'finalizada' ? new Date() : null;
     }
     await this.saveListHandlingKeyConflict(list);
     return { ok: true };
@@ -553,6 +594,86 @@ export class ContactsService {
     });
     await this.tx.manager.delete(ContactLists, listId);
     return { ok: true };
+  }
+
+  /**
+   * Títulos/orçamentos linkados a esta lista operacional (ver
+   * OperationalListSyncRun20260923010000 — `operational_list_id` em
+   * `cobranca_titulos`/`orcamentos_erp`) — o que a tela mostra ao editar uma
+   * lista gerada por sincronização, pra dar pra ver o que exatamente entrou
+   * nela sem precisar abrir Cobranças/Orçamentos e cruzar pelo nome do
+   * cliente. Lista manual (sem nenhum documento linkado) só devolve vazio.
+   */
+  async listContactListDocuments(accountId: string, listId: string) {
+    const [titulos, orcamentos] = await Promise.all([
+      this.tx.manager.query<
+        {
+          id: string;
+          numero_titulo: string | null;
+          valor_devedor_saldo: string | null;
+          status_titulo: string | null;
+          dias_em_atraso: number | null;
+          contact_id: string;
+          contact_name: string | null;
+          contact_phone: string | null;
+          contact_external_id: string | null;
+        }[]
+      >(
+        `SELECT t.id, t.numero_titulo, t.valor_devedor_saldo, t.status_titulo, t.dias_em_atraso,
+                c.id AS contact_id, c.name AS contact_name, c.phone_number AS contact_phone,
+                c.external_id AS contact_external_id
+           FROM public.cobranca_titulos t
+           JOIN public.contacts c ON c.id = t.contact_id
+          WHERE t.account_id = $1 AND t.operational_list_id = $2
+          ORDER BY t.dias_em_atraso DESC NULLS LAST`,
+        [accountId, listId],
+      ),
+      this.tx.manager.query<
+        {
+          id: string;
+          numero_orcamento: string | null;
+          valor_total: string | null;
+          status_orcamento: string | null;
+          contact_id: string;
+          contact_name: string | null;
+          contact_phone: string | null;
+          contact_external_id: string | null;
+        }[]
+      >(
+        `SELECT o.id, o.numero_orcamento, o.valor_total, o.status_orcamento,
+                c.id AS contact_id, c.name AS contact_name, c.phone_number AS contact_phone,
+                c.external_id AS contact_external_id
+           FROM public.orcamentos_erp o
+           JOIN public.contacts c ON c.id = o.contact_id
+          WHERE o.account_id = $1 AND o.operational_list_id = $2
+          ORDER BY o.created_at DESC`,
+        [accountId, listId],
+      ),
+    ]);
+
+    return {
+      cobranca: titulos.map((t) => ({
+        id: t.id,
+        numero: t.numero_titulo,
+        valor: t.valor_devedor_saldo != null ? Number(t.valor_devedor_saldo) : null,
+        status: t.status_titulo,
+        diasEmAtraso: t.dias_em_atraso,
+        contactId: t.contact_id,
+        contactName: t.contact_name,
+        contactPhone: t.contact_phone,
+        contactExternalId: t.contact_external_id,
+      })),
+      orcamento: orcamentos.map((o) => ({
+        id: o.id,
+        numero: o.numero_orcamento,
+        valor: o.valor_total != null ? Number(o.valor_total) : null,
+        status: o.status_orcamento,
+        contactId: o.contact_id,
+        contactName: o.contact_name,
+        contactPhone: o.contact_phone,
+        contactExternalId: o.contact_external_id,
+      })),
+    };
   }
 
   async listContactListMembers(accountId: string, listId: string) {
@@ -654,7 +775,7 @@ export class ContactsService {
         `INSERT INTO public.voice_campaign_contacts
            (account_id, campaign_id, contact_id, to_number, phone_number, status, variables)
          SELECT $1, $2, $3, $4, $4, 'queued',
-                coalesce(ct.custom_attributes -> 'ingest_variables', '{}'::jsonb)
+                public.contact_erp_variables(ct.id)
            FROM public.contacts ct
           WHERE ct.id = $3 AND ct.account_id = $1
          RETURNING id`,

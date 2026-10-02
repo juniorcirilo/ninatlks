@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Copy, Check, Clock, Loader2, KeyRound, PhoneCall, UserPlus, Lock, Mail } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -20,6 +20,7 @@ import { WebhookDeliveriesPanel } from "@/components/settings/WebhookDeliveriesP
 import { WebhookEndpointsPanel } from "@/components/settings/WebhookEndpointsPanel";
 import { WebhookInboundTemplatesPanel } from "@/components/settings/WebhookInboundTemplatesPanel";
 import { OperationalListsPanel } from "@/components/settings/OperationalListsPanel";
+import { EvolutionSessionsTab } from "@/components/settings/EvolutionSessionsTab";
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -36,10 +37,35 @@ export const Route = createFileRoute("/_authenticated/settings")({
       },
     ],
   }),
+  validateSearch: (s: Record<string, unknown>): SettingsSearch => ({
+    tab: pick(s.tab, SETTINGS_TABS),
+    wh: pick(s.wh, WEBHOOK_TABS),
+    rx: pick(s.rx, RECEIVE_TABS),
+  }),
   component: SettingsPage,
 });
 
+// Links fixos: /settings?tab=evolution, /settings?tab=webhooks&wh=recebimento&rx=listas
+const SETTINGS_TABS = ["integrations", "evolution", "general", "dialing", "account", "api-keys", "webhooks"] as const;
+const WEBHOOK_TABS = ["envio", "recebimento"] as const;
+const RECEIVE_TABS = ["templates", "listas"] as const;
+
+interface SettingsSearch {
+  tab?: (typeof SETTINGS_TABS)[number];
+  wh?: (typeof WEBHOOK_TABS)[number];
+  rx?: (typeof RECEIVE_TABS)[number];
+}
+
+function pick<T extends string>(v: unknown, allowed: readonly T[]): T | undefined {
+  return typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
+}
+
 function SettingsPage() {
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: "/settings" });
+  const tab = search.tab ?? "integrations";
+  const setTab = (t: string) =>
+    navigate({ search: (prev) => ({ ...prev, tab: t as SettingsSearch["tab"] }), replace: true });
   return (
     <div className="flex flex-col">
       <PageHeader
@@ -48,9 +74,10 @@ function SettingsPage() {
         description="Dados da empresa, integrações e chaves de acesso."
       />
       <div className="px-6 py-6">
-        <Tabs defaultValue="integrations" className="w-full">
+        <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="mb-4 bg-white/[0.04]">
             <TabsTrigger value="integrations">Integrações</TabsTrigger>
+            <TabsTrigger value="evolution">Evolution (WhatsApp Web)</TabsTrigger>
             <TabsTrigger value="general">Geral</TabsTrigger>
             <TabsTrigger value="dialing">Discagem</TabsTrigger>
             <TabsTrigger value="account">Conta & Equipe</TabsTrigger>
@@ -58,7 +85,10 @@ function SettingsPage() {
             <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           </TabsList>
           <TabsContent value="integrations">
-            <IntegrationsTab />
+            <IntegrationsTab onManageEvolution={() => setTab("evolution")} />
+          </TabsContent>
+          <TabsContent value="evolution">
+            <EvolutionSessionsTab />
           </TabsContent>
           <TabsContent value="general">
             <GeneralTab />
@@ -927,8 +957,14 @@ function WebhooksTab() {
     );
   }
 
+  const { wh, rx } = Route.useSearch();
+  const navigate = useNavigate({ from: "/settings" });
   return (
-    <Tabs defaultValue="envio" className="w-full">
+    <Tabs
+      value={wh ?? "envio"}
+      onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, wh: v as SettingsSearch["wh"] }), replace: true })}
+      className="w-full"
+    >
       <TabsList className="mb-4 bg-white/[0.04]">
         <TabsTrigger value="envio">Envio</TabsTrigger>
         <TabsTrigger value="recebimento">Recebimento</TabsTrigger>
@@ -963,7 +999,11 @@ function WebhooksTab() {
       </TabsContent>
 
       <TabsContent value="recebimento">
-        <Tabs defaultValue="templates" className="w-full">
+        <Tabs
+          value={rx ?? "templates"}
+          onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, rx: v as SettingsSearch["rx"] }), replace: true })}
+          className="w-full"
+        >
           <TabsList className="mb-4 bg-white/[0.04]">
             <TabsTrigger value="templates">Templates por agente</TabsTrigger>
             <TabsTrigger value="listas">Listas operacionais</TabsTrigger>

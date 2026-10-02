@@ -31,8 +31,17 @@ interface CallRow {
 interface ElConversationData {
   status?: string;
   transcript?: unknown[];
-  metadata?: { call_duration_secs?: number };
-  analysis?: { transcript_summary?: string };
+  metadata?: {
+    call_duration_secs?: number;
+    start_time_unix_secs?: number;
+    cost?: number;
+  };
+  analysis?: {
+    transcript_summary?: string;
+    call_successful?: string | boolean;
+    evaluation_criteria_results?: Record<string, unknown>;
+    data_collection_results?: Record<string, unknown>;
+  };
   transcript_summary?: string;
   duration_seconds?: number;
 }
@@ -213,11 +222,27 @@ export class CallFinalizeService {
     }
 
     const nowIso = new Date().toISOString();
+
+    // Captura campos da análise EL que chegam da API mas não têm coluna própria.
+    const elAnalysis = convData.analysis ?? {};
+    const callSuccessful = elAnalysis.call_successful;
+    const elCost = convData.metadata?.cost;
+    const elStartTime = convData.metadata?.start_time_unix_secs;
+
     const metadata = {
       ...(call.metadata ?? {}),
       summary,
       el_status: elStatus,
       finalized_at: nowIso,
+      ...(callSuccessful !== undefined ? { el_call_successful: callSuccessful } : {}),
+      ...(elCost !== undefined ? { el_cost: elCost } : {}),
+      ...(elStartTime !== undefined ? { el_start_time_unix_secs: elStartTime } : {}),
+      ...(elAnalysis.evaluation_criteria_results
+        ? { el_evaluation_criteria: elAnalysis.evaluation_criteria_results }
+        : {}),
+      ...(elAnalysis.data_collection_results
+        ? { el_data_collection: elAnalysis.data_collection_results }
+        : {}),
     };
 
     try {

@@ -207,7 +207,7 @@ function LeadsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-6 py-6">
+    <div className="w-full px-6 py-6">
       {/* Header */}
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>

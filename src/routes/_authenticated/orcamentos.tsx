@@ -10,12 +10,13 @@ import {
   Download,
   FileText,
   Webhook,
-  SlidersHorizontal,
   Pencil,
   Trash2,
   Sparkles,
   AlertTriangle,
   Flag,
+  ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/layout/StatCard";
@@ -26,9 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -57,19 +56,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAccount } from "@/lib/account-context";
-import { getUiSetting, saveUiSetting } from "@/lib/user-prefs.functions";
+import { downloadXls } from "@/lib/export-xls";
 import {
-  listBrunoQuotes,
-  listBrunoErpQuotes,
+  useTablePrefs,
+  ColumnsFilterPopover,
+  usePagination,
+  paginate,
+  TablePagination,
+} from "@/components/layout/TableFilters";
+import {
+  listSofiaQuotes,
+  listSofiaErpQuotes,
   downloadQuotePdf,
   updateQuote,
   deleteQuote,
   updateErpQuote,
   deleteErpQuote,
+  truncateQuotes,
   type QuoteRow,
   type ErpQuoteRow,
 } from "@/lib/agents/quotes.functions";
 import { analyzeQuotes, type QuotesAnalysis } from "@/lib/agents/quotes-insights.functions";
+import { fetchAgentSources, runAgentSource, resolveAgentSourceFailure, fetchAgentSourceFailures, type RunResult } from "@/lib/agent-sources";
+import { listCompanies, createCompany, type CompanyListRow } from "@/lib/central";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +99,29 @@ const fmtDate = (iso: string | null) =>
     ? new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" })
     : "—";
 
+interface SyncFailure {
+  label: string;
+  externalId?: string;
+  vendedor?: string;
+  reason: string;
+  details: Record<string, unknown>;
+}
+
+const humanizeKey = (key: string) =>
+  key
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^./, (c) => c.toUpperCase());
+
+const fmtValue = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : String(v));
+
+/** Mesmo texto que `ingest_agent_contact` devolve quando bloqueia uma linha
+ * de cobrança/orçamento sem empresa vinculada (ver migration
+ * IngestRequireCompanyForDocuments20260908050000). */
+const isEmpresaNaoIdentificada = (reason: string) => reason.includes("empresa não identificada");
+
+const DETAILS_KNOWN_KEYS = new Set(["nome", "telefone", "email", "codigoCliente", "motivo"]);
+
 const STATUS_LABEL: Record<string, string> = {
   gerado: "Gerado",
   aprovado: "Aprovado",
@@ -98,8 +130,27 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const QUOTE_STATUSES = ["gerado", "aprovado", "recusado", "expirado"] as const;
 
-function OrcamentosPage() {
+export function OrcamentosPage() {
   const { accountId } = useAccount();
+  const fnTruncate = useServerFn(truncateQuotes);
+  const [confirmTruncate, setConfirmTruncate] = useState(false);
+  const [truncating, setTruncating] = useState(false);
+
+  async function handleTruncate() {
+    if (!accountId || truncating) return;
+    setTruncating(true);
+    try {
+      const { deleted } = await fnTruncate({ data: { accountId } });
+      toast.success(`${deleted} orçamento(s) removido(s).`);
+      setConfirmTruncate(false);
+      // erp/chat vivem em sub-componentes com estado próprio — reload
+      // completo é o jeito simples de garantir que as duas listas zerem.
+      window.location.reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao truncar");
+      setTruncating(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -107,7 +158,43 @@ function OrcamentosPage() {
         eyebrow="Funcionários IA"
         title="Orçamentos"
         description="Orçamentos controlados pelo Bruno, o orçamentista IA da UBVA — recebidos por integração e gerados em conversa."
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-destructive hover:text-destructive"
+            onClick={() => setConfirmTruncate(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Truncar
+          </Button>
+        }
       />
+
+      <AlertDialog open={confirmTruncate} onOpenChange={setConfirmTruncate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar todos os orçamentos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove todos os orçamentos desta conta — os recebidos por integração (ERP) e os
+              gerados em chat. Os contatos continuam existindo. Não dá pra desfazer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={truncating}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleTruncate();
+              }}
+              disabled={truncating}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {truncating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Truncar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="px-6">
         <Tabs defaultValue="erp" className="w-full">
@@ -134,126 +221,14 @@ function OrcamentosPage() {
   );
 }
 
-/* ─────────────── Preferências (colunas/filtros) salvas no perfil ─────────────── */
-
-type TabPrefs = { columns: string[]; statusFilter: string[]; search: string };
-
-function usePrefs(key: string, defaultColumns: string[]) {
-  const fnGet = useServerFn(getUiSetting);
-  const fnSave = useServerFn(saveUiSetting);
-  const [prefs, setPrefs] = useState<TabPrefs>({ columns: defaultColumns, statusFilter: [], search: "" });
-  const loadedRef = useRef(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    fnGet({ data: { key } })
-      .then((r) => {
-        const v = r?.value as Partial<TabPrefs> | null;
-        if (v && typeof v === "object") {
-          setPrefs({
-            columns: Array.isArray(v.columns) && v.columns.length > 0 ? v.columns : defaultColumns,
-            statusFilter: Array.isArray(v.statusFilter) ? v.statusFilter : [],
-            search: typeof v.search === "string" ? v.search : "",
-          });
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        loadedRef.current = true;
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-
-  const update = useCallback(
-    (patch: Partial<TabPrefs>) => {
-      setPrefs((prev) => {
-        const next = { ...prev, ...patch };
-        if (loadedRef.current) {
-          if (saveTimer.current) clearTimeout(saveTimer.current);
-          saveTimer.current = setTimeout(() => {
-            fnSave({ data: { key, value: next } }).catch(() => {});
-          }, 500);
-        }
-        return next;
-      });
-    },
-    [fnSave, key],
-  );
-
-  return { prefs, update };
-}
-
-function ColumnsPopover({
-  columns,
-  visible,
-  onToggle,
-  statuses,
-  statusFilter,
-  onToggleStatus,
-}: {
-  columns: Array<{ key: string; label: string }>;
-  visible: string[];
-  onToggle: (key: string) => void;
-  statuses: string[];
-  statusFilter: string[];
-  onToggleStatus: (status: string) => void;
-}) {
-  const activeFilters = statusFilter.length;
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filtros
-          {activeFilters > 0 && (
-            <Badge variant="secondary" className="ml-0.5 h-4 px-1 text-[10px]">
-              {activeFilters}
-            </Badge>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 space-y-4">
-        <div>
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Colunas visíveis
-          </div>
-          <div className="space-y-1.5">
-            {columns.map((c) => (
-              <label key={c.key} className="flex items-center gap-2 text-sm">
-                <Checkbox checked={visible.includes(c.key)} onCheckedChange={() => onToggle(c.key)} />
-                {c.label}
-              </label>
-            ))}
-          </div>
-        </div>
-        {statuses.length > 0 && (
-          <div>
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Status
-            </div>
-            <div className="space-y-1.5">
-              {statuses.map((s) => (
-                <label key={s} className="flex items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={statusFilter.includes(s)}
-                    onCheckedChange={() => onToggleStatus(s)}
-                  />
-                  {STATUS_LABEL[s] ?? s}
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 /* ─────────────── Via integração (n8n → ERP) ─────────────── */
 
 const ERP_COLUMNS = [
   { key: "numero", label: "Nº Orçamento" },
   { key: "cliente", label: "Cliente" },
+  { key: "razao_social", label: "Razão Social" },
+  { key: "nome_fantasia", label: "Nome Fantasia" },
   { key: "telefone", label: "Telefone / Celular" },
   { key: "email", label: "Email" },
   { key: "vendedor", label: "Vendedor" },
@@ -265,16 +240,27 @@ const ERP_COLUMNS = [
 const ERP_DEFAULT_COLUMNS = ERP_COLUMNS.map((c) => c.key);
 
 function ErpQuotesTab({ accountId }: { accountId: string | null }) {
-  const fnList = useServerFn(listBrunoErpQuotes);
+  const fnList = useServerFn(listSofiaErpQuotes);
   const fnUpdate = useServerFn(updateErpQuote);
   const fnDelete = useServerFn(deleteErpQuote);
-  const { prefs, update } = usePrefs("orcamentos_erp", ERP_DEFAULT_COLUMNS);
+  const { prefs, update } = useTablePrefs("orcamentos_erp", ERP_DEFAULT_COLUMNS);
 
   const [quotes, setQuotes] = useState<ErpQuoteRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<ErpQuoteRow | null>(null);
   const [deleting, setDeleting] = useState<ErpQuoteRow | null>(null);
   const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [sourceId, setSourceId] = useState<string | null>(null);
+  const [syncAgentId, setSyncAgentId] = useState<string | null>(null);
+  const [syncPreview, setSyncPreview] = useState<RunResult | null>(null);
+  const [syncFailures, setSyncFailures] = useState<SyncFailure[] | null>(null);
+  const [failuresOpen, setFailuresOpen] = useState(false);
+  const [selectedFailure, setSelectedFailure] = useState<SyncFailure | null>(null);
+  const [companiesOptions, setCompaniesOptions] = useState<CompanyListRow[]>([]);
+  const [resolveCompanyId, setResolveCompanyId] = useState<string>("");
+  const [resolveNewName, setResolveNewName] = useState("");
+  const [resolving, setResolving] = useState(false);
 
   const load = useCallback(() => {
     if (!accountId) {
@@ -292,6 +278,106 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
     load();
   }, [load]);
 
+  // Falhas da última corrida sobrevivem ao fechamento do modal (ver
+  // PersistAgentSourceSyncFailures) — carrega ao abrir a tela pra dar pra
+  // investigar "por que só X dos Y chegaram" sem precisar sincronizar de novo.
+  useEffect(() => {
+    if (!accountId) return;
+    fetchAgentSources(accountId)
+      .then((sources) => {
+        const source = sources.find((s) => s.document_kind === "orcamento");
+        if (!source) return;
+        setSourceId(source.id);
+        setSyncAgentId(source.agent_id);
+        return fetchAgentSourceFailures(accountId, source.id);
+      })
+      .then((failures) => setSyncFailures(failures && failures.length > 0 ? failures : null))
+      .catch(() => {});
+  }, [accountId]);
+
+  /** Busca agora a fonte de dados da Sofia (Configurações > Webhooks >
+   * Fontes de Dados) e recarrega a tabela em seguida. */
+  async function handleSync() {
+    if (!accountId || syncing) return;
+    setSyncing(true);
+    try {
+      const sources = await fetchAgentSources(accountId);
+      const source = sources.find((s) => s.document_kind === "orcamento");
+      if (!source) {
+        toast.error("Nenhuma fonte de dados configurada para o agente de orçamentos em Configurações > Webhooks > Fontes de Dados.");
+        return;
+      }
+      setSourceId(source.id);
+      const result = await runAgentSource(accountId, source.id);
+      if (result.ok) {
+        toast.success(
+          `Sincronizado: ${result.created} novo(s), ${result.updated} atualizado(s), ${result.skipped} ignorado(s).`,
+        );
+        setSyncAgentId(result.agentId ?? null);
+        setSyncPreview(result);
+        setSyncFailures(result.failures.length > 0 ? result.failures : null);
+        setFailuresOpen(false);
+      } else {
+        toast.error(result.error ?? "Falha ao sincronizar");
+      }
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao sincronizar");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!accountId || !selectedFailure || !isEmpresaNaoIdentificada(selectedFailure.reason)) return;
+    listCompanies(accountId).then(setCompaniesOptions).catch(() => {});
+    setResolveCompanyId("");
+    setResolveNewName("");
+  }, [accountId, selectedFailure]);
+
+  /** Resolve manualmente uma falha de "empresa não identificada": cria a
+   * empresa (se o operador digitou um nome novo) ou usa a selecionada, e
+   * reenvia a linha pro ingest com companyId já resolvido. */
+  async function handleResolveFailure() {
+    if (!accountId || !selectedFailure || !syncAgentId || resolving) return;
+    const d = selectedFailure.details;
+    setResolving(true);
+    try {
+      let companyId = resolveCompanyId;
+      if (!companyId && resolveNewName.trim()) {
+        const created = await createCompany(accountId, { name: resolveNewName.trim() });
+        companyId = created.id;
+      }
+      if (!companyId) {
+        toast.error("Selecione uma empresa existente ou informe o nome para criar uma nova.");
+        return;
+      }
+      const variables = Object.fromEntries(
+        Object.entries(d).filter(([k]) => !DETAILS_KNOWN_KEYS.has(k)),
+      );
+      const result = await resolveAgentSourceFailure(accountId, {
+        agent: syncAgentId,
+        phone: String(d.telefone ?? ""),
+        name: d.nome != null ? String(d.nome) : null,
+        email: d.email != null ? String(d.email) : null,
+        variables,
+        companyId,
+      });
+      if (result.skipped) {
+        toast.error(result.reason ?? "Não foi possível gravar esta linha.");
+        return;
+      }
+      toast.success("Orçamento gravado com a empresa selecionada.");
+      setSyncFailures((prev) => (prev ? prev.filter((f) => f !== selectedFailure) : prev));
+      setSelectedFailure(null);
+      load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao resolver");
+    } finally {
+      setResolving(false);
+    }
+  }
+
   const statuses = useMemo(
     () => [...new Set(quotes.map((q) => q.statusOrcamento).filter((s): s is string => Boolean(s)))],
     [quotes],
@@ -307,6 +393,7 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
       rows = rows.filter(
         (r) =>
           (r.customerName && r.customerName.toLowerCase().includes(q)) ||
+          (r.externalId && r.externalId.toLowerCase().includes(q)) ||
           (r.numeroOrcamento && r.numeroOrcamento.toLowerCase().includes(q)) ||
           (r.vendedorNome && r.vendedorNome.toLowerCase().includes(q)) ||
           (r.phoneNumber && r.phoneNumber.toLowerCase().includes(q)) ||
@@ -315,6 +402,18 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
     }
     return rows;
   }, [quotes, prefs.search, prefs.statusFilter]);
+
+  const pagination = usePagination(filtered.length);
+  // Busca/filtro muda o conjunto — volta pra página 1 pra não deixar o
+  // operador "preso" numa página que não existe mais no resultado novo.
+  useEffect(() => {
+    pagination.setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs.search, prefs.statusFilter]);
+  const paged = useMemo(
+    () => paginate(filtered, pagination.start, pagination.pageSize),
+    [filtered, pagination.start, pagination.pageSize],
+  );
 
   const totals = useMemo(() => {
     const total = quotes.length;
@@ -351,10 +450,10 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
     if (!accountId || !deleting) return;
     setBusy(true);
     try {
-      await fnDelete({ data: { accountId, contactId: deleting.contactId } });
+      await fnDelete({ data: { accountId, orcamentoId: deleting.id } });
       toast.success("Orçamento removido");
       setDeleting(null);
-      setQuotes((prev) => prev.filter((q) => q.contactId !== deleting.contactId));
+      setQuotes((prev) => prev.filter((q) => q.id !== deleting.id));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao excluir");
     } finally {
@@ -388,7 +487,7 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
             className="pl-9"
           />
         </div>
-        <ColumnsPopover
+        <ColumnsFilterPopover
           columns={ERP_COLUMNS}
           visible={prefs.columns}
           onToggle={(k) =>
@@ -403,7 +502,23 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
                 : [...prefs.statusFilter, s],
             })
           }
+          statusLabel={STATUS_LABEL}
         />
+        <Button variant="outline" size="sm" className="gap-1.5" disabled={syncing} onClick={handleSync}>
+          <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+          Sincronizar
+        </Button>
+        {syncFailures && syncFailures.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-amber-500 hover:text-amber-500"
+            onClick={() => setFailuresOpen(true)}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {syncFailures.length} pendência(s) da última sincronização
+          </Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -423,6 +538,8 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
               <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
                 {col("numero") && <TableHead className="py-3 pl-4">Nº Orçamento</TableHead>}
                 {col("cliente") && <TableHead className="py-3">Cliente</TableHead>}
+                {col("razao_social") && <TableHead className="py-3">Razão Social</TableHead>}
+                {col("nome_fantasia") && <TableHead className="py-3">Nome Fantasia</TableHead>}
                 {col("telefone") && <TableHead className="py-3">Telefone / Celular</TableHead>}
                 {col("email") && <TableHead className="py-3">Email</TableHead>}
                 {col("vendedor") && <TableHead className="py-3">Vendedor</TableHead>}
@@ -430,21 +547,27 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
                 {col("previsao") && <TableHead className="py-3">Previsão</TableHead>}
                 {col("status") && <TableHead className="py-3">Status</TableHead>}
                 {col("valor") && <TableHead className="py-3 text-right">Valor</TableHead>}
-                <TableHead className="w-16 py-3 pr-4" />
+                <TableHead className="w-24 py-3 pr-4" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((q) => (
-                <TableRow key={q.contactId} className="border-border transition-colors hover:bg-muted/40">
+              {paged.map((q) => (
+                <TableRow key={q.id} className="border-border transition-colors hover:bg-muted/40">
                   {col("numero") && (
                     <TableCell className="py-3 pl-4 text-sm font-medium tabular-nums text-foreground">
                       {q.numeroOrcamento ?? "—"}
                     </TableCell>
                   )}
                   {col("cliente") && (
-                    <TableCell className="py-3 text-sm font-medium text-foreground">
-                      {q.customerName ?? "Sem nome"}
+                    <TableCell className="py-3 text-sm font-medium tabular-nums text-foreground">
+                      {q.externalId ?? "Sem código"}
                     </TableCell>
+                  )}
+                  {col("razao_social") && (
+                    <TableCell className="py-3 text-sm text-muted-foreground">{q.razaoSocial ?? "—"}</TableCell>
+                  )}
+                  {col("nome_fantasia") && (
+                    <TableCell className="py-3 text-sm text-muted-foreground">{q.nomeFantasia ?? "—"}</TableCell>
                   )}
                   {col("telefone") && (
                     <TableCell className="py-3 text-sm tabular-nums text-muted-foreground">
@@ -485,6 +608,11 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
                   )}
                   <TableCell className="py-3 pr-4">
                     <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" asChild title="Ver na Central de Contatos">
+                        <a href={`/central?contactId=${q.contactId}`}>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(q)} title="Editar">
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -503,6 +631,23 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
               ))}
             </TableBody>
           </Table>
+          <div className="px-4 pb-4">
+            <TablePagination
+              itemCount={filtered.length}
+              totalCount={quotes.length}
+              itemLabel="orçamentos"
+              page={pagination.page}
+              pageCount={pagination.pageCount}
+              onPageChange={pagination.setPage}
+              pageSize={pagination.pageSize}
+              onPageSizeChange={(n) => {
+                pagination.setPageSize(n);
+                pagination.setPage(1);
+              }}
+              start={pagination.start}
+              end={pagination.end}
+            />
+          </div>
         </Card>
       )}
 
@@ -525,7 +670,7 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir orçamento de "{deleting?.customerName ?? "contato sem nome"}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              O contato continua na base — ele só sai da lista de orçamentos do Bruno. Não dá pra desfazer.
+              Só este orçamento some da lista — o contato e os demais orçamentos dele continuam. Não dá pra desfazer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -543,6 +688,234 @@ function ErpQuotesTab({ accountId }: { accountId: string | null }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={Boolean(syncPreview)} onOpenChange={(o) => !o && setSyncPreview(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Sincronização concluída</DialogTitle>
+            <DialogDescription>
+              {syncPreview?.created} novo(s) · {syncPreview?.updated} atualizado(s) · {syncPreview?.skipped} ignorado(s)
+              {syncPreview && syncPreview.failures.length > 0 && ` · ${syncPreview.failures.length} pendente(s) de empresa`}
+            </DialogDescription>
+          </DialogHeader>
+          {syncPreview?.operationalList ? (
+            <a
+              href="/listas"
+              className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted/60"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Lista operacional criada: <span className="font-semibold">{syncPreview.operationalList.name}</span> —{" "}
+              {syncPreview.operationalList.itemCount} orçamento(s) novo(s)
+              <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+            </a>
+          ) : (
+            syncPreview?.ok && (
+              <p className="text-xs text-muted-foreground">
+                Nenhum orçamento novo nesta corrida — os títulos trazidos já estavam numa lista operacional em aberto.
+              </p>
+            )
+          )}
+          <Tabs defaultValue="dados" className="w-full">
+            <TabsList className="mb-2 bg-white/[0.04]">
+              <TabsTrigger value="dados">Dados</TabsTrigger>
+              <TabsTrigger value="empresas">Empresas</TabsTrigger>
+            </TabsList>
+            <TabsContent value="dados" className="max-h-[50vh] space-y-2 overflow-y-auto py-1">
+              {syncPreview?.sample.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma linha nesta corrida.</p>
+              ) : (
+                syncPreview?.sample.map((row, i) => (
+                  <div key={i} className="rounded-md border border-border bg-muted/30 p-3">
+                    {Object.entries(row).map(([key, value]) => (
+                      <div key={key} className="flex items-baseline justify-between gap-3 py-0.5 text-xs">
+                        <span className="text-muted-foreground">{humanizeKey(key)}</span>
+                        <span className="text-right font-medium text-foreground">{fmtValue(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Mostra até 3 linhas de amostra — a tabela já foi atualizada com tudo que foi sincronizado.
+              </p>
+            </TabsContent>
+            <TabsContent value="empresas" className="max-h-[50vh] space-y-2 overflow-y-auto py-1">
+              {!syncPreview || syncPreview.companies.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum cliente processado nesta corrida.</p>
+              ) : (
+                syncPreview.companies.map((c, i) => (
+                  <div key={c.companyId ?? `none-${i}`} className="rounded-md border border-border bg-muted/30 p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-foreground">{c.companyName}</p>
+                      {c.externalId && (
+                        <span className="font-mono text-[10px] text-muted-foreground">{c.externalId}</span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 space-y-0.5">
+                      {c.contacts.map((ct, j) => (
+                        <p key={j} className="text-xs text-muted-foreground">
+                          {ct.name ?? "(sem nome)"} <span className="font-mono">{ct.phone}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
+          <DialogFooter>
+            {syncFailures && syncFailures.length > 0 && (
+              <Button
+                variant="outline"
+                className="gap-1.5 text-amber-500 hover:text-amber-500"
+                onClick={() => {
+                  setSyncPreview(null);
+                  setFailuresOpen(true);
+                }}
+              >
+                <AlertTriangle className="h-4 w-4" />
+                Ver {syncFailures.length} pendência(s) de empresa
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setSyncPreview(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={failuresOpen} onOpenChange={setFailuresOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Itens não sincronizados</DialogTitle>
+            <DialogDescription>
+              {syncFailures?.length} orçamento(s) da fonte não chegaram a ser gravados no banco.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto py-2">
+            {syncFailures?.map((f, i) => {
+              const meta = [f.externalId && `Código: ${f.externalId}`, f.vendedor && `Vendedor: ${f.vendedor}`]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setSelectedFailure(f)}
+                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/60"
+                >
+                  <p className="text-sm font-medium text-foreground">{f.label}</p>
+                  {meta && <p className="text-xs text-muted-foreground">{meta}</p>}
+                  <p className="text-xs text-muted-foreground">{f.reason}</p>
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => {
+                if (!syncFailures) return;
+                const variableKeys = Array.from(
+                  new Set(syncFailures.flatMap((f) => Object.keys(f.details))),
+                ).filter((k) => !DETAILS_KNOWN_KEYS.has(k));
+                downloadXls(
+                  "itens-nao-sincronizados-orcamentos",
+                  [
+                    { key: "label", label: "Cliente" },
+                    { key: "externalId", label: "Código" },
+                    { key: "vendedor", label: "Vendedor" },
+                    { key: "reason", label: "Motivo" },
+                    { key: "telefone", label: "Telefone" },
+                    { key: "email", label: "Email" },
+                    ...variableKeys.map((k) => ({ key: k, label: humanizeKey(k) })),
+                  ],
+                  syncFailures.map((f) => ({ ...f, ...f.details })),
+                );
+              }}
+            >
+              <Download className="h-4 w-4" />
+              Baixar .xls
+            </Button>
+            <Button variant="outline" onClick={() => setFailuresOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(selectedFailure)} onOpenChange={(o) => !o && setSelectedFailure(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedFailure?.label}</DialogTitle>
+            <DialogDescription>{selectedFailure?.reason}</DialogDescription>
+          </DialogHeader>
+          <div className="grid max-h-[50vh] grid-cols-1 gap-x-6 gap-y-1.5 overflow-y-auto py-2 sm:grid-cols-2">
+            {selectedFailure &&
+              Object.entries(selectedFailure.details).map(([key, value]) => (
+                <div key={key} className="flex items-baseline justify-between gap-3 border-b border-border/50 py-1.5 text-sm">
+                  <span className="text-muted-foreground">{humanizeKey(key)}</span>
+                  <span className="text-right font-medium text-foreground">{fmtValue(value)}</span>
+                </div>
+              ))}
+          </div>
+          {selectedFailure && isEmpresaNaoIdentificada(selectedFailure.reason) && (
+            <div className="space-y-2 rounded-md border border-dashed border-border bg-muted/30 p-3">
+              <p className="text-xs font-medium text-foreground">
+                Selecione a empresa ou crie uma nova para gravar este orçamento:
+              </p>
+              <Select
+                value={resolveCompanyId}
+                onValueChange={(v) => {
+                  setResolveCompanyId(v);
+                  setResolveNewName("");
+                }}
+                disabled={resolving}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Empresa existente…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companiesOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                      {c.razao_social ? ` — ${c.razao_social}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                ou
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <Input
+                value={resolveNewName}
+                onChange={(e) => {
+                  setResolveNewName(e.target.value);
+                  if (e.target.value) setResolveCompanyId("");
+                }}
+                placeholder="Nome de uma empresa nova"
+                disabled={resolving}
+              />
+              <Button
+                onClick={handleResolveFailure}
+                disabled={resolving || (!resolveCompanyId && !resolveNewName.trim())}
+                className="w-full gap-1.5"
+              >
+                {resolving && <Loader2 className="h-4 w-4 animate-spin" />}
+                Gravar com esta empresa
+              </Button>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedFailure(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -618,11 +991,11 @@ const CHAT_COLUMNS = [
 const CHAT_DEFAULT_COLUMNS = CHAT_COLUMNS.map((c) => c.key);
 
 function ChatQuotesTab({ accountId }: { accountId: string | null }) {
-  const fnList = useServerFn(listBrunoQuotes);
+  const fnList = useServerFn(listSofiaQuotes);
   const fnDownload = useServerFn(downloadQuotePdf);
   const fnUpdate = useServerFn(updateQuote);
   const fnDelete = useServerFn(deleteQuote);
-  const { prefs, update } = usePrefs("orcamentos_chat", CHAT_DEFAULT_COLUMNS);
+  const { prefs, update } = useTablePrefs("orcamentos_chat", CHAT_DEFAULT_COLUMNS);
 
   const [quotes, setQuotes] = useState<QuoteRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -664,6 +1037,18 @@ function ChatQuotesTab({ accountId }: { accountId: string | null }) {
     }
     return rows;
   }, [quotes, prefs.search, prefs.statusFilter]);
+
+  const pagination = usePagination(filtered.length);
+  // Busca/filtro muda o conjunto — volta pra página 1 pra não deixar o
+  // operador "preso" numa página que não existe mais no resultado novo.
+  useEffect(() => {
+    pagination.setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs.search, prefs.statusFilter]);
+  const paged = useMemo(
+    () => paginate(filtered, pagination.start, pagination.pageSize),
+    [filtered, pagination.start, pagination.pageSize],
+  );
 
   const totals = useMemo(() => {
     const total = quotes.length;
@@ -758,7 +1143,7 @@ function ChatQuotesTab({ accountId }: { accountId: string | null }) {
             className="pl-9"
           />
         </div>
-        <ColumnsPopover
+        <ColumnsFilterPopover
           columns={CHAT_COLUMNS}
           visible={prefs.columns}
           onToggle={(k) =>
@@ -773,6 +1158,7 @@ function ChatQuotesTab({ accountId }: { accountId: string | null }) {
                 : [...prefs.statusFilter, s],
             })
           }
+          statusLabel={STATUS_LABEL}
         />
       </div>
 
@@ -802,7 +1188,7 @@ function ChatQuotesTab({ accountId }: { accountId: string | null }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((q) => (
+              {paged.map((q) => (
                 <TableRow key={q.id} className="border-border transition-colors hover:bg-muted/40">
                   {col("data") && (
                     <TableCell className="py-3 pl-4 text-xs tabular-nums text-muted-foreground">
@@ -879,6 +1265,23 @@ function ChatQuotesTab({ accountId }: { accountId: string | null }) {
               ))}
             </TableBody>
           </Table>
+          <div className="px-4 pb-4">
+            <TablePagination
+              itemCount={filtered.length}
+              totalCount={quotes.length}
+              itemLabel="orçamentos"
+              page={pagination.page}
+              pageCount={pagination.pageCount}
+              onPageChange={pagination.setPage}
+              pageSize={pagination.pageSize}
+              onPageSizeChange={(n) => {
+                pagination.setPageSize(n);
+                pagination.setPage(1);
+              }}
+              start={pagination.start}
+              end={pagination.end}
+            />
+          </div>
         </Card>
       )}
 

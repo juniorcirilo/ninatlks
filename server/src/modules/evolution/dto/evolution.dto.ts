@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  Matches,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 export class TestEvolutionDto {
   @IsString()
@@ -9,11 +15,20 @@ export class TestEvolutionDto {
 }
 
 export class ProvisionEvolutionDto {
+  /** Omitidos → reaproveita o servidor Evolution já configurado na conta. */
+  @IsOptional()
   @IsString()
-  evolutionUrl!: string;
+  evolutionUrl?: string;
 
+  @IsOptional()
   @IsString()
-  evolutionApiKey!: string;
+  evolutionApiKey?: string;
+
+  @IsOptional()
+  @Matches(/^[A-Za-z0-9_-]{3,60}$/, {
+    message: 'instanceName: 3–60 caracteres (letras, números, _ e -)',
+  })
+  instanceName?: string;
 
   @IsOptional()
   @IsUUID()
@@ -22,4 +37,14 @@ export class ProvisionEvolutionDto {
   @IsOptional()
   @IsString()
   channelName?: string;
+}
+
+export class UpdateEvolutionChannelDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
 }

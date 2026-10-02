@@ -18,6 +18,12 @@ export interface CampaignRow {
   escalated_count: number;
   voicemail_count: number;
   failed_count: number;
+  /** Contatos aguardando discagem (status = queued). Calculado ao vivo. */
+  queued_count: number;
+  /** Chamadas em toque agora (status = placed | ringing). Calculado ao vivo. */
+  ringing_count: number;
+  /** Chamadas em curso agora (status = connected). Calculado ao vivo. */
+  in_progress_count: number;
   created_at: Date;
   scheduled_at: Date | null;
   started_at: Date | null;
@@ -51,6 +57,8 @@ export interface ContactListRow {
   campaign_kind: string | null;
   /** Agente escolhido ao criar a lista — decide os campos do formulário manual. */
   persona_id: string | null;
+  /** Nome do agente de `persona_id`, pra mostrar/filtrar sem outro round-trip. */
+  persona_name: string | null;
   is_dynamic: boolean;
   member_count: number;
   valid_phone_count: number;
@@ -58,6 +66,10 @@ export interface ContactListRow {
   created_at: Date;
   /** Chave da lista no sistema de origem; null em lista criada dentro do produto. */
   external_key: string | null;
+  /** 'aberta' | 'finalizada' — ver OperationalListSyncRun20260923010000. */
+  status: string;
+  /** Número sequencial só em lista gerada por sincronização (nome "#<numero> <agente>"); null em lista manual. */
+  list_number: number | null;
   /**
    * Nomes das variáveis que os contatos desta lista trazem do sistema de
    * origem. É o que a pessoa precisa saber na hora de escrever a abertura da
@@ -107,10 +119,15 @@ export interface PhoneNumberLite {
   enabled: boolean;
 }
 
-const CAMPAIGN_COLUMNS = `id, name, status, campaign_kind, total_contacts, placed_count,
-  connected_count, escalated_count, voicemail_count, failed_count, created_at,
-  scheduled_at, started_at, finished_at, min_minutes_between_attempts,
-  max_attempts_per_day`;
+const LIVE_COUNTERS = `
+  (SELECT COUNT(*) FROM voice_campaign_contacts WHERE campaign_id = vc.id AND status = 'queued')::int AS queued_count,
+  (SELECT COUNT(*) FROM voice_campaign_contacts WHERE campaign_id = vc.id AND status IN ('placed','ringing'))::int AS ringing_count,
+  (SELECT COUNT(*) FROM voice_campaign_contacts WHERE campaign_id = vc.id AND status = 'connected')::int AS in_progress_count`;
+
+const CAMPAIGN_COLUMNS = `vc.id, vc.name, vc.status, vc.campaign_kind, vc.total_contacts, vc.placed_count,
+  vc.connected_count, vc.escalated_count, vc.voicemail_count, vc.failed_count, vc.created_at,
+  vc.scheduled_at, vc.started_at, vc.finished_at, vc.min_minutes_between_attempts,
+  vc.max_attempts_per_day, ${LIVE_COUNTERS}`;
 
 @Injectable({ scope: Scope.REQUEST })
 export class CampaignsService {
@@ -119,18 +136,18 @@ export class CampaignsService {
   async list(accountId: string): Promise<CampaignRow[]> {
     return this.tx.manager.query<CampaignRow[]>(
       `SELECT ${CAMPAIGN_COLUMNS}
-       FROM public.voice_campaigns
-       WHERE account_id = $1
-       ORDER BY created_at DESC LIMIT 200`,
+       FROM public.voice_campaigns vc
+       WHERE vc.account_id = $1
+       ORDER BY vc.created_at DESC LIMIT 200`,
       [accountId],
     );
   }
 
   async get(accountId: string, id: string): Promise<CampaignDetailRow> {
     const rows = await this.tx.manager.query<CampaignDetailRow[]>(
-      `SELECT ${CAMPAIGN_COLUMNS}, opening_script, from_number
-       FROM public.voice_campaigns
-       WHERE id = $1 AND account_id = $2`,
+      `SELECT ${CAMPAIGN_COLUMNS}, vc.opening_script, vc.from_number
+       FROM public.voice_campaigns vc
+       WHERE vc.id = $1 AND vc.account_id = $2`,
       [id, accountId],
     );
     if (!rows.length) throw new NotFoundException('campaign not found');
@@ -245,6 +262,59 @@ export class CampaignsService {
        ORDER BY id DESC LIMIT 500`,
       [campaignId, accountId],
     );
+  }
+
+  /**
+   * Recoloca na fila os contatos que falharam de vez (status = 'failed'),
+   * com um ciclo novo de tentativas, e desconta o contador de falhas da
+   * campanha (incrementado em bump_voice_campaign_totals quando o contato
+   * esgotou as tentativas). Reabre a campanha se ela já tinha terminado.
+   */
+  async retryFailedContacts(
+    accountId: string,
+    campaignId: string,
+    rowId?: string,
+  ): Promise<{ ok: true; requeued: number }> {
+    const camp = await this.tx.manager.query<{ status: string }[]>(
+      `SELECT status FROM public.voice_campaigns WHERE id = $1 AND account_id = $2`,
+      [campaignId, accountId],
+    );
+    if (!camp[0]) throw new NotFoundException('campanha não encontrada');
+    if (camp[0].status === 'canceled') {
+      throw new BadRequestException('campanha encerrada — crie uma nova');
+    }
+
+    // 'failed' (esgotou as tentativas) e 'queued' com erro (aguardando o
+    // próximo retry agendado) são reenfileirados para agora.
+    const rows = await this.tx.manager.query<
+      { id: string; was_failed: boolean }[]
+    >(
+      `UPDATE public.voice_campaign_contacts vcc
+          SET status = 'queued', attempts = 0, last_error = NULL,
+              error_message = NULL, dispatch_after = now(), finished_at = NULL
+         FROM (SELECT id, status = 'failed' AS was_failed
+                 FROM public.voice_campaign_contacts
+                WHERE campaign_id = $1 AND account_id = $2
+                  AND ($3::text IS NULL OR id::text = $3)
+                  AND (status = 'failed'
+                       OR (status = 'queued' AND last_error IS NOT NULL))) old
+        WHERE vcc.id = old.id
+        RETURNING vcc.id, old.was_failed`,
+      [campaignId, accountId, rowId ?? null],
+    );
+    const requeued = rows.length;
+    const wereFailed = rows.filter((r) => r.was_failed).length;
+    if (requeued > 0) {
+      await this.tx.manager.query(
+        `UPDATE public.voice_campaigns
+            SET failed_count = GREATEST(failed_count - $3, 0),
+                status = CASE WHEN status = 'completed' THEN 'running' ELSE status END,
+                finished_at = CASE WHEN status = 'completed' THEN NULL ELSE finished_at END
+          WHERE id = $1 AND account_id = $2`,
+        [campaignId, accountId, wereFailed],
+      );
+    }
+    return { ok: true, requeued };
   }
 
   async updateStatus(
@@ -362,7 +432,8 @@ export class CampaignsService {
       // inteira: numa carga do ERP todo mundo traz o mesmo conjunto de chaves,
       // então varrer 10 mil contatos para descobrir isso seria caro à toa.
       `SELECT cl.id, cl.name, cl.description, cl.campaign_kind, cl.persona_id, cl.is_dynamic, cl.member_count, cl.filters, cl.created_at,
-              cl.external_key,
+              cl.external_key, cl.status, cl.list_number,
+              p.name AS persona_name,
               (SELECT COUNT(*)::int
                FROM public.contact_list_members clm
                JOIN public.contacts c ON c.id = clm.contact_id
@@ -381,6 +452,7 @@ export class CampaignsService {
                 LATERAL jsonb_object_keys(sample.vars) AS k
               ), ARRAY[]::text[]) AS variable_keys
        FROM public.contact_lists cl
+       LEFT JOIN public.agent_personas p ON p.id = cl.persona_id
        WHERE cl.account_id = $1
        ORDER BY cl.created_at DESC`,
       [accountId],
@@ -483,7 +555,7 @@ export class CampaignsService {
       }[]
     >(
       `SELECT clm.contact_id, c.phone_number,
-              c.custom_attributes -> 'ingest_variables' AS variables
+              public.contact_erp_variables(c.id) AS variables
        FROM public.contact_list_members clm
        JOIN public.contacts c ON c.id = clm.contact_id
        WHERE clm.list_id = $1 AND clm.account_id = $2
