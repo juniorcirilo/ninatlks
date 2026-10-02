@@ -20,6 +20,11 @@ export class SendMessageDto {
   @MinLength(1)
   @MaxLength(4000)
   content!: string;
+
+  /** Mensagem (id interno) que está sendo respondida. */
+  @IsOptional()
+  @IsUUID()
+  replyToMessageId?: string;
 }
 
 export class SendMediaDto {
@@ -30,6 +35,11 @@ export class SendMediaDto {
   @IsString()
   @MaxLength(1000)
   caption?: string;
+
+  /** Mensagem (id interno) que está sendo respondida. */
+  @IsOptional()
+  @IsUUID()
+  replyToMessageId?: string;
 }
 
 export class ButtonDto {
@@ -135,6 +145,11 @@ export class SendInteractiveDto {
   @ValidateNested({ each: true })
   @Type(() => SectionDto)
   sections?: SectionDto[];
+
+  /** Mensagem (id interno) que está sendo respondida. */
+  @IsOptional()
+  @IsUUID()
+  replyToMessageId?: string;
 }
 
 export class PresenceDto {
@@ -143,4 +158,15 @@ export class PresenceDto {
 
   @IsIn(['composing', 'recording', 'paused'])
   presence!: 'composing' | 'recording' | 'paused';
+}
+
+export class ForwardMessageDto {
+  @IsUUID()
+  messageId!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @IsUUID('all', { each: true })
+  conversationIds!: string[];
 }

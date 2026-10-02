@@ -171,7 +171,7 @@ export function WebhookEndpointsPanel() {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-white/[0.08] bg-white/[0.02] py-10 text-center text-[12px] text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-foreground/[0.08] bg-foreground/[0.02] py-10 text-center text-[12px] text-muted-foreground">
           Nenhum destino cadastrado.
           <br />
           Cadastre a URL do seu n8n, CRM ou ERP para receber os eventos.
@@ -183,7 +183,7 @@ export function WebhookEndpointsPanel() {
             return (
               <li
                 key={endpoint.id}
-                className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+                className="rounded-lg border border-foreground/[0.06] bg-foreground/[0.02] p-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
@@ -200,8 +200,8 @@ export function WebhookEndpointsPanel() {
                           className={cn(
                             "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
                             endpoint.agent_id
-                              ? "bg-violet-500/15 text-violet-300"
-                              : "bg-white/[0.06] text-muted-foreground",
+                              ? "bg-cyan-500/15 text-cyan-300"
+                              : "bg-foreground/[0.06] text-muted-foreground",
                           )}
                         >
                           <Bot className="h-2.5 w-2.5" />
@@ -213,14 +213,14 @@ export function WebhookEndpointsPanel() {
                       </p>
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {endpoint.events.length === 0 ? (
-                          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">
+                          <span className="rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">
                             Todos os eventos
                           </span>
                         ) : (
                           endpoint.events.map((e) => (
                             <span
                               key={e}
-                              className="rounded-full bg-white/[0.06] px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
+                              className="rounded-full bg-foreground/[0.06] px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
                             >
                               {e}
                             </span>
@@ -239,7 +239,7 @@ export function WebhookEndpointsPanel() {
                     <button
                       type="button"
                       onClick={() => setDialog({ mode: "edit", endpoint })}
-                      className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-white/[0.08]"
+                      className="rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-foreground/[0.08]"
                     >
                       Editar
                     </button>
@@ -262,14 +262,14 @@ export function WebhookEndpointsPanel() {
                   <input
                     readOnly
                     value={show ? endpoint.secret : "•".repeat(32)}
-                    className="min-w-0 flex-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1 font-mono text-[11px] focus:outline-none"
+                    className="min-w-0 flex-1 rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-2 py-1 font-mono text-[11px] focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() =>
                       setRevealed((r) => ({ ...r, [endpoint.id]: !show }))
                     }
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-foreground/[0.06] bg-foreground/[0.02] text-muted-foreground hover:text-foreground"
                     aria-label={show ? "Ocultar segredo" : "Mostrar segredo"}
                   >
                     {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -277,7 +277,7 @@ export function WebhookEndpointsPanel() {
                   <button
                     type="button"
                     onClick={() => copy(endpoint.secret, endpoint.id)}
-                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-foreground/[0.06] bg-foreground/[0.02] text-muted-foreground hover:text-foreground"
                     aria-label="Copiar segredo"
                   >
                     {copied === endpoint.id ? (
@@ -290,7 +290,7 @@ export function WebhookEndpointsPanel() {
                     type="button"
                     onClick={() => void rotate(endpoint)}
                     disabled={busyId === endpoint.id}
-                    className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+                    className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-2 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50"
                   >
                     <RefreshCw className="h-3 w-3" /> Novo segredo
                   </button>
@@ -415,7 +415,7 @@ export function WebhookEndpointDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="n8n — desfechos"
-              className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="w-full rounded-md border border-foreground/[0.08] bg-foreground/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
           </div>
           <div className="grid grid-cols-[88px_1fr] gap-2">
@@ -424,7 +424,7 @@ export function WebhookEndpointDialog({
                 Método
               </label>
               <Select value={method} onValueChange={(v) => setMethod(v as "GET" | "POST")}>
-                <SelectTrigger className="h-9 w-full bg-white/[0.02] text-[12px]">
+                <SelectTrigger className="h-9 w-full bg-foreground/[0.02] text-[12px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -441,7 +441,7 @@ export function WebhookEndpointDialog({
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://n8n.suaempresa.com/webhook/nina"
-                className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 font-mono text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="w-full rounded-md border border-foreground/[0.08] bg-foreground/[0.02] px-3 py-2 font-mono text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
                 autoComplete="off"
                 spellCheck={false}
               />
@@ -463,7 +463,7 @@ export function WebhookEndpointDialog({
               value={agentId ?? "__all__"}
               onValueChange={(v) => setAgentId(v === "__all__" ? null : v)}
             >
-              <SelectTrigger className="h-9 w-full bg-white/[0.02] text-[12px]">
+              <SelectTrigger className="h-9 w-full bg-foreground/[0.02] text-[12px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -488,7 +488,7 @@ export function WebhookEndpointDialog({
                 "mb-1.5 w-full rounded-md border px-3 py-2 text-left text-[11px]",
                 allEvents
                   ? "border-primary/40 bg-primary/10 text-foreground"
-                  : "border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:bg-white/[0.04]",
+                  : "border-foreground/[0.06] bg-foreground/[0.02] text-muted-foreground hover:bg-foreground/[0.04]",
               )}
             >
               Todos os eventos
@@ -508,13 +508,13 @@ export function WebhookEndpointDialog({
                       "flex w-full items-start gap-2 rounded-md border px-3 py-2 text-left",
                       checked
                         ? "border-primary/40 bg-primary/10"
-                        : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]",
+                        : "border-foreground/[0.06] bg-foreground/[0.02] hover:bg-foreground/[0.04]",
                     )}
                   >
                     <span
                       className={cn(
                         "mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border",
-                        checked ? "border-primary bg-primary" : "border-white/[0.2]",
+                        checked ? "border-primary bg-primary" : "border-foreground/[0.2]",
                       )}
                     >
                       {checked && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
@@ -538,7 +538,7 @@ export function WebhookEndpointDialog({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="rounded-md border border-white/[0.08] px-3 py-1.5 text-[11px] font-medium hover:bg-white/[0.04] disabled:opacity-50"
+            className="rounded-md border border-foreground/[0.08] px-3 py-1.5 text-[11px] font-medium hover:bg-foreground/[0.04] disabled:opacity-50"
           >
             Cancelar
           </button>

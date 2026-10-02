@@ -54,7 +54,7 @@ function Item({
   description: string;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-md border border-border bg-muted/40 p-3">
+    <div className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 p-3">
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
         <Icon className="h-4 w-4" />
       </div>

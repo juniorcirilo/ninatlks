@@ -122,7 +122,7 @@ export function AgentLlmProviderCard({ accountId }: { accountId: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -161,7 +161,7 @@ export function AgentLlmProviderCard({ accountId }: { accountId: string }) {
                 onClick={() => selectProvider(p.id)}
                 className={cn(
                   "rounded-lg border px-3 py-2 text-left transition hover:bg-muted",
-                  provider === p.id ? "border-primary bg-primary/5" : "border-border",
+                  provider === p.id ? "border-primary bg-primary/5" : "border-gray-200 dark:border-slate-800",
                 )}
               >
                 <div className="text-sm font-medium">{p.label}</div>

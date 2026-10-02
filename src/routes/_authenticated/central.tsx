@@ -422,15 +422,15 @@ function CentralPage() {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition",
                 active
-                  ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
-                  : "border-border bg-card text-muted-foreground hover:border-violet-500/30 hover:text-foreground",
+                  ? "border-cyan-500/40 bg-cyan-500/10 text-cyan-300"
+                  : "border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 text-muted-foreground hover:border-cyan-500/30 hover:text-foreground",
               )}
             >
               {f.label}
               <span
                 className={cn(
                   "rounded-full px-1.5 text-[10px] tabular-nums",
-                  active ? "bg-violet-500/20 text-violet-200" : "bg-muted text-muted-foreground",
+                  active ? "bg-cyan-500/20 text-cyan-200" : "bg-muted text-muted-foreground",
                 )}
               >
                 {counts.get(f.id) ?? 0}
@@ -447,8 +447,8 @@ function CentralPage() {
           description="Ajuste a busca ou os filtros para ver mais resultados."
         />
       ) : (
-        <Card className="overflow-hidden border-border bg-card shadow-elevation-1">
-          <div className="grid grid-cols-12 items-center gap-2 border-b border-border bg-muted/30 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <Card className="overflow-hidden border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-elevation-1">
+          <div className="grid grid-cols-12 items-center gap-2 border-b border-gray-200 dark:border-slate-800 bg-muted/30 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             <div className="col-span-1 flex items-center">
               <Checkbox
                 checked={
@@ -600,7 +600,7 @@ function CentralPage() {
       )}
 
       {picked.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 z-40 flex max-w-[95vw] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-elevation-3">
+        <div className="fixed bottom-6 left-1/2 z-40 flex max-w-[95vw] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-4 py-2 shadow-elevation-3">
           <span className="text-xs text-muted-foreground">{picked.size} selecionado(s)</span>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setBulkOpen(true)}>
             <ListPlus className="h-3.5 w-3.5" /> Lista
@@ -927,11 +927,11 @@ function ImportCsvDialog({
               type="file"
               accept=".csv,text/csv"
               onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-violet-500/10 file:px-3 file:py-1.5 file:text-violet-300 hover:file:bg-violet-500/20"
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-cyan-500/10 file:px-3 file:py-1.5 file:text-cyan-300 hover:file:bg-cyan-500/20"
             />
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-3 py-2 text-xs">
+              <div className="flex items-center justify-between rounded-md border border-gray-200 dark:border-slate-800 bg-muted/20 px-3 py-2 text-xs">
                 <span className="truncate text-foreground">{fileName}</span>
                 <button
                   type="button"
@@ -989,10 +989,10 @@ function ImportCsvDialog({
                 </p>
               )}
 
-              <div className="overflow-x-auto rounded-md border border-border">
+              <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-slate-800">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <tr className="border-b border-gray-200 dark:border-slate-800 bg-muted/30 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                       <th className="px-2 py-1.5">Nome</th>
                       <th className="px-2 py-1.5">Telefone</th>
                       <th className="px-2 py-1.5">Email</th>
@@ -1140,7 +1140,7 @@ function BulkOwnerDialog({
             </SelectContent>
           </Select>
         ) : (
-          <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-3 text-xs">
+          <div className="space-y-1.5 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/20 p-3 text-xs">
             <p className="mb-1 text-muted-foreground">
               Distribui igualmente entre os operadores selecionados.
             </p>
@@ -1225,11 +1225,11 @@ function DedupeDialog({
               return (
                 <div
                   key={`${g.kind}:${g.key}`}
-                  className="rounded-lg border border-border bg-muted/10 p-3"
+                  className="rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/10 p-3"
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <div className="text-xs">
-                      <span className="rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase text-violet-300">
+                      <span className="rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase text-cyan-300">
                         {g.kind}
                       </span>{" "}
                       <span className="font-mono text-foreground">{g.key}</span>{" "}
@@ -1254,7 +1254,7 @@ function DedupeDialog({
                     {g.contacts.map((c) => (
                       <li
                         key={c.id}
-                        className="flex items-center justify-between rounded border border-border/60 bg-card px-2 py-1"
+                        className="flex items-center justify-between rounded border border-border/60 bg-white dark:bg-slate-900/40 px-2 py-1"
                       >
                         <span
                           className={
@@ -1341,7 +1341,7 @@ function BulkTagDialog({
                 key={s}
                 type="button"
                 onClick={() => setTag(s)}
-                className="rounded-full border border-border bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground hover:border-violet-500/40 hover:text-foreground"
+                className="rounded-full border border-gray-200 dark:border-slate-800 bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground hover:border-cyan-500/40 hover:text-foreground"
               >
                 {s}
               </button>
@@ -1579,7 +1579,7 @@ function ProductivityDialog({
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-border text-left text-[10px] uppercase tracking-wider text-muted-foreground">
+                <tr className="border-b border-gray-200 dark:border-slate-800 text-left text-[10px] uppercase tracking-wider text-muted-foreground">
                   <th className="px-2 py-2">Operador</th>
                   <th className="px-2 py-2 text-right">Contatos</th>
                   <th className="px-2 py-2 text-right">Quentes</th>
@@ -1657,13 +1657,13 @@ function ContactRow({
   return (
     <li
       onClick={onOpen}
-      className="grid cursor-pointer grid-cols-12 items-center gap-2 border-b border-border px-4 py-3 transition hover:bg-muted/30"
+      className="grid cursor-pointer grid-cols-12 items-center gap-2 border-b border-gray-200 dark:border-slate-800 px-4 py-3 transition hover:bg-muted/30"
     >
       <div className="col-span-1 flex items-center" onClick={(e) => e.stopPropagation()}>
         <Checkbox checked={checked} onCheckedChange={onCheck} />
       </div>
       <div className="col-span-3 flex items-center gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 text-[11px] font-semibold text-white">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-white">
           {initials}
         </div>
         <div className="min-w-0">
@@ -1689,7 +1689,7 @@ function ContactRow({
               {agentNamesOf(c).map((name) => (
                 <span
                   key={name}
-                  className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-300 ring-1 ring-violet-500/20"
+                  className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-300 ring-1 ring-cyan-500/20"
                 >
                   <Bot className="h-2.5 w-2.5" />
                   {name}
@@ -1888,7 +1888,7 @@ function ContactDrawer({
         </SheetHeader>
 
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/20 p-3 text-xs">
+          <div className="grid grid-cols-2 gap-3 rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/20 p-3 text-xs">
             {contact.phone_number && (
               <div className="flex items-center gap-1.5">
                 <Phone className="h-3 w-3" />
@@ -1911,7 +1911,7 @@ function ContactDrawer({
             </div>
           </div>
 
-          <div className="rounded-lg border border-border bg-muted/20 p-3">
+          <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/20 p-3">
             <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Empresa
             </h3>
@@ -2109,7 +2109,7 @@ function ContactDrawer({
                 {timeline?.calls.map((call) => (
                   <div
                     key={call.id}
-                    className="rounded-lg border border-border bg-card p-3 text-xs"
+                    className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3 text-xs"
                   >
                     <div className="mb-1 flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 font-medium">
@@ -2119,7 +2119,7 @@ function ContactDrawer({
                     </div>
                     {call.summary && <p className="text-muted-foreground">{call.summary}</p>}
                     {call.classification && (
-                      <span className="mt-1 inline-block rounded bg-violet-500/10 px-1.5 py-0.5 text-[10px] text-violet-300">
+                      <span className="mt-1 inline-block rounded bg-cyan-500/10 px-1.5 py-0.5 text-[10px] text-cyan-300">
                         {call.classification}
                       </span>
                     )}
@@ -2128,7 +2128,7 @@ function ContactDrawer({
                 {timeline?.conversations.map((conv) => (
                   <div
                     key={conv.id}
-                    className="rounded-lg border border-border bg-card p-3 text-xs"
+                    className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3 text-xs"
                   >
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 font-medium">
@@ -2141,7 +2141,7 @@ function ContactDrawer({
                   </div>
                 ))}
                 {timeline?.lists.map((lm, i) => (
-                  <div key={i} className="rounded-lg border border-border bg-card p-3 text-xs">
+                  <div key={i} className="rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 font-medium">
                         <ClipboardList className="h-3 w-3" /> Lista: {lm.contact_lists?.name ?? "—"}

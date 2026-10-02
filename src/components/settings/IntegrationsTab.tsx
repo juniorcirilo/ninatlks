@@ -201,7 +201,7 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
 
   if (loadError && providers.length === 0 && !nexus) {
     return (
-      <div className="rounded-xl border border-border bg-muted/20 p-5">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-muted/20 p-5">
         <div className="flex items-start gap-3">
           <CircleAlert className="mt-0.5 h-5 w-5 text-amber-500" />
           <div className="min-w-0 flex-1">
@@ -373,7 +373,7 @@ function ProviderCard({
 
   return (
     <div
-      className={cn("glass flex flex-col gap-3 rounded-lg p-4", isEvolution && "cursor-pointer transition-colors hover:bg-white/[0.04]")}
+      className={cn("glass flex flex-col gap-3 rounded-lg p-4", isEvolution && "cursor-pointer transition-colors hover:bg-foreground/[0.04]")}
       onClick={isEvolution ? onEvolutionConnect : undefined}
     >
       <div className="flex items-start justify-between gap-2">
@@ -415,7 +415,7 @@ function ProviderCard({
       )}
 
       {report.usage && Object.keys(report.usage).length > 0 && (
-        <div className="flex flex-wrap gap-1.5 border-t border-border pt-2">
+        <div className="flex flex-wrap gap-1.5 border-t border-gray-200 dark:border-slate-800 pt-2">
           {Object.entries(report.usage).map(([k, v]) => (
             <span
               key={k}
@@ -436,7 +436,7 @@ function ProviderCard({
             {report.locked ? (
               <span
                 title="N8N_URL/N8N_API_KEY definidas no ambiente do servidor — não é possível alterar por aqui."
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground"
+                className="inline-flex items-center gap-1 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground"
               >
                 <Lock className="h-3 w-3" />
                 Fixado pelo servidor

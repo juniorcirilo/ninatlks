@@ -160,7 +160,7 @@ function DataDeletionPage() {
           <button
             type="submit"
             disabled={state === "submitting" || !email}
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-95 disabled:opacity-60"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-white shadow-lg transition-opacity hover:opacity-95 disabled:opacity-60"
           >
             {state === "submitting" ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -182,7 +182,7 @@ function DataDeletionPage() {
 }
 
 const inputCls =
-  "h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
+  "h-11 w-full rounded-md border border-foreground/[0.08] bg-foreground/[0.02] px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
 
 function Field({
   label,

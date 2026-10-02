@@ -250,7 +250,7 @@ function VendedoresPage() {
               />
             ) : (
               <div className="glass overflow-hidden rounded-xl">
-                <div className="flex items-start gap-2 border-b border-border px-4 py-3 text-sm text-muted-foreground">
+                <div className="flex items-start gap-2 border-b border-gray-200 dark:border-slate-800 px-4 py-3 text-sm text-muted-foreground">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                   Estes vendedores apareceram em leads discados mas não têm telefone cadastrado. As ligações foram
                   transferidas para o número central. Cadastrar com telefone resolve a pendência automaticamente.

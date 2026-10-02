@@ -314,10 +314,10 @@ function LeadsPage() {
           }
         />
       ) : (
-        <Card className="overflow-hidden border-border bg-card shadow-elevation-1">
+        <Card className="overflow-hidden border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-elevation-1">
           <Table>
             <TableHeader>
-              <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
+              <TableRow className="border-gray-200 dark:border-slate-800 bg-muted/30 hover:bg-muted/30">
                 <TableHead className="w-[36%] py-3 pl-4">
                   <SortButton
                     active={sortKey === "name"}
@@ -423,7 +423,7 @@ function FilterChip({
         "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition",
         active
           ? "border-accent/40 bg-accent/10 text-accent shadow-elevation-1"
-          : "border-border bg-card text-muted-foreground hover:border-accent/30 hover:bg-muted/40 hover:text-foreground",
+          : "border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 text-muted-foreground hover:border-accent/30 hover:bg-muted/40 hover:text-foreground",
       )}
     >
       {tone && <span className={cn("h-1.5 w-1.5 rounded-full", tone.dot)} />}
@@ -450,7 +450,7 @@ function LeadRow({ lead, onDelete }: { lead: FlatLead; onDelete: (id: string) =>
   }
 
   return (
-    <TableRow className="border-border transition-colors hover:bg-muted/40">
+    <TableRow className="border-gray-200 dark:border-slate-800 transition-colors hover:bg-muted/40">
       {/* Lead */}
       <TableCell className="py-3 pl-4">
         <div className="flex items-start gap-3">

@@ -221,7 +221,7 @@ export function NewMeetingDialog({
             <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2.5">
+          <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-3 py-2.5">
             <div className="flex items-center gap-2 text-sm">
               <Video className="h-4 w-4 text-muted-foreground" />
               <span>Criar com Google Meet</span>

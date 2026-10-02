@@ -128,7 +128,7 @@ function CallsPage() {
             className="h-10 pl-10"
           />
         </div>
-        <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
+        <div className="inline-flex items-center gap-1 rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-1 shadow-sm">
           <FilterChip
             active={direction === "all"}
             onClick={() => setDirection("all")}
@@ -155,7 +155,7 @@ function CallsPage() {
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 py-20 text-center">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 dark:border-slate-800 bg-card/40 py-20 text-center">
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Phone className="h-5 w-5 text-primary" />
           </div>
@@ -240,7 +240,7 @@ function CallRow({ call, onClick }: { call: CallSummary; onClick: () => void }) 
   return (
     <button
       onClick={onClick}
-      className="group flex w-full items-center gap-4 rounded-xl border border-border bg-card px-4 py-3.5 text-left shadow-sm transition hover:border-primary/30 hover:shadow-md"
+      className="group flex w-full items-center gap-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-4 py-3.5 text-left shadow-sm transition hover:border-primary/30 hover:shadow-md"
     >
       <div className="relative shrink-0">
         <div
@@ -416,7 +416,7 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
         </div>
 
         {/* Contact info */}
-        <div className="space-y-1.5 rounded-xl border border-border bg-card p-3 text-xs">
+        <div className="space-y-1.5 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3 text-xs">
           <Row icon={<UserIcon className="h-3.5 w-3.5 text-muted-foreground" />}>
             {detail.contact_name ?? "Sem nome"}
           </Row>
@@ -434,7 +434,7 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
         />
 
         {(detail.outcome_summary || detail.sentiment_aggregate) && (
-          <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+          <div className="space-y-2 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3">
             {detail.outcome_summary && (
               <p className="text-xs leading-relaxed text-foreground/80">{detail.outcome_summary}</p>
             )}
@@ -485,7 +485,7 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
 
         {/* Recording */}
         {detail.recording_url && (
-          <div className="rounded-xl border border-border bg-card p-3">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3">
             <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <Volume2 className="h-3 w-3" />
               Gravação
@@ -495,7 +495,7 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
         )}
 
         {detail.el_conversation_id && (
-          <div className="rounded-xl border border-border bg-card p-3">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               ID na ElevenLabs
             </div>
@@ -528,7 +528,7 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
         )}
 
         {detail.transfer && (
-          <div className="rounded-xl border border-border bg-card p-3">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3">
             <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Transferência
             </div>
@@ -553,7 +553,7 @@ function CallDetailSheet({ accountId, callId }: { accountId: string; callId: str
 
         {/* Transcript */}
         {detail.transcript.length > 0 && (
-          <div className="rounded-xl border border-border bg-card p-3">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3">
             <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Transcrição ({detail.transcript.length} turnos)
             </div>

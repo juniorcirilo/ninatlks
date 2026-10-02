@@ -227,7 +227,7 @@ function StageCombobox({
         )}
       </div>
       {open && filtered.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+        <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 dark:border-slate-800 bg-popover shadow-md">
           {filtered.map((s) => (
             <li
               key={s.id}
@@ -641,7 +641,7 @@ function ListsPage() {
         automaticamente do agente escolhido (cadastrados na aba Dados dele, em Agentes de voz).
       </p>
       {personas.length === 0 ? (
-        <div className="rounded-md border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+        <div className="rounded-md border border-dashed border-gray-200 dark:border-slate-800 p-4 text-center text-xs text-muted-foreground">
           Nenhum agente cadastrado ainda. Crie um em{" "}
           <span className="font-medium text-foreground">Agentes de voz</span> antes de criar uma
           lista.
@@ -660,7 +660,7 @@ function ListsPage() {
                   "flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left transition-colors",
                   active
                     ? "border-primary bg-primary/5 ring-1 ring-primary"
-                    : "border-border hover:bg-muted/40",
+                    : "border-gray-200 dark:border-slate-800 hover:bg-muted/40",
                 )}
               >
                 <Bot className={cn("h-4 w-4", active ? "text-primary" : "text-muted-foreground")} />
@@ -712,7 +712,7 @@ function ListsPage() {
         Sem filtro, a lista considera todos os contatos com telefone válido e não bloqueados.
       </p>
 
-      <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-2.5">
+      <label className="flex items-start gap-2 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/30 p-2.5">
         <input
           type="checkbox"
           checked={excludeListed}
@@ -754,7 +754,7 @@ function ListsPage() {
   );
 
   const importBlock = (
-    <div className="rounded-md border border-dashed border-border bg-muted/30 p-3">
+    <div className="rounded-md border border-dashed border-gray-200 dark:border-slate-800 bg-muted/30 p-3">
       <label className="block text-xs font-medium text-foreground">
         {editingId
           ? "Adicionar contatos via CSV (opcional)"
@@ -778,7 +778,7 @@ function ListsPage() {
           : "Sem CSV, a lista usa contatos já cadastrados (com telefone e não bloqueados). Sem filtros, importa todos."}
       </p>
 
-      <div className="mt-3 border-t border-border pt-3">
+      <div className="mt-3 border-t border-gray-200 dark:border-slate-800 pt-3">
         <ManualAddBlock
           accountId={accountId}
           campaignKind={kind}
@@ -821,7 +821,7 @@ function ListsPage() {
         )}
       </header>
 
-      <div className="flex gap-1 border-b border-border">
+      <div className="flex gap-1 border-b border-gray-200 dark:border-slate-800">
         <TabBtn
           active={tab === "lists"}
           onClick={() => setTab("lists")}
@@ -860,7 +860,7 @@ function ListsPage() {
       {tab === "lists" && (
         <>
           {creating && editingId && (
-            <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+            <div className="space-y-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
               <h2 className="text-sm font-semibold">Editar lista</h2>
               {/* Lista sincronizada é sobrescrita pela próxima carga. Sem este
                   aviso, alguém adiciona contatos na mão, some tudo no dia
@@ -887,12 +887,12 @@ function ListsPage() {
                   const allItems = [...editingDocuments.cobranca, ...editingDocuments.orcamento];
                   const clients = groupListDocumentsByClient(allItems);
                   return (
-                    <div className="space-y-2 border-t border-border pt-3">
+                    <div className="space-y-2 border-t border-gray-200 dark:border-slate-800 pt-3">
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         Itens desta lista ({allItems.length} em {clients.length} cliente
                         {clients.length === 1 ? "" : "s"})
                       </h3>
-                      <div className="max-h-72 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                      <div className="max-h-72 overflow-y-auto rounded-md border border-gray-200 dark:border-slate-800 divide-y divide-border">
                         {clients.map((g) => {
                           const expanded = expandedClientId === g.contactId;
                           const total = g.items.reduce((acc, it) => acc + (it.valor ?? 0), 0);
@@ -973,7 +973,7 @@ function ListsPage() {
                 })()
               )}
 
-              <div className="flex justify-end gap-2 border-t border-border pt-3">
+              <div className="flex justify-end gap-2 border-t border-gray-200 dark:border-slate-800 pt-3">
                 <button
                   onClick={() => {
                     resetForm();
@@ -997,7 +997,7 @@ function ListsPage() {
           )}
 
           {creating && !editingId && (
-            <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+            <div className="space-y-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
               <h2 className="text-sm font-semibold">Criar lista</h2>
 
               <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -1010,7 +1010,7 @@ function ListsPage() {
                           ? "border-primary bg-primary/10 text-primary"
                           : i === step
                             ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border text-muted-foreground",
+                            : "border-gray-200 dark:border-slate-800 text-muted-foreground",
                       )}
                     >
                       {i < step ? <Check className="h-3 w-3" /> : i + 1}
@@ -1029,7 +1029,7 @@ function ListsPage() {
 
               {wizardSteps[step].content}
 
-              <div className="flex items-center justify-between border-t border-border pt-3">
+              <div className="flex items-center justify-between border-t border-gray-200 dark:border-slate-800 pt-3">
                 <div>
                   {step > 0 && (
                     <button
@@ -1085,7 +1085,7 @@ function ListsPage() {
                   className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm"
                 />
               </div>
-              <div className="flex gap-1 rounded-md border border-border p-0.5">
+              <div className="flex gap-1 rounded-md border border-gray-200 dark:border-slate-800 p-0.5">
                 {(["all", "aberta", "finalizada"] as const).map((s) => (
                   <button
                     key={s}
@@ -1104,7 +1104,7 @@ function ListsPage() {
             </div>
           )}
 
-          <div className="rounded-xl border border-border bg-card">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
             {loading ? (
               <div className="flex h-40 items-center justify-center">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1127,7 +1127,7 @@ function ListsPage() {
               </div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <thead className="border-b border-gray-200 dark:border-slate-800 text-left text-xs uppercase tracking-wider text-muted-foreground">
                   <tr>
                     <th className="px-4 py-2 font-medium">Nome</th>
                     <th className="px-4 py-2 font-medium">Tipo</th>
@@ -1141,7 +1141,7 @@ function ListsPage() {
                   {filteredRows.map((r) => (
                     <tr
                       key={r.id}
-                      className="border-b border-border last:border-0 hover:bg-muted/30"
+                      className="border-b border-gray-200 dark:border-slate-800 last:border-0 hover:bg-muted/30"
                     >
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-1.5">
@@ -1157,7 +1157,7 @@ function ListsPage() {
                           {r.variable_keys?.length > 0 && (
                             <span
                               title={`Contatos trazem: ${r.variable_keys.join(", ")}`}
-                              className="rounded-md bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 ring-1 ring-inset ring-violet-500/30 dark:text-violet-300"
+                              className="rounded-md bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-600 ring-1 ring-inset ring-cyan-500/30 dark:text-cyan-300"
                             >
                               {r.variable_keys.length} variáve
                               {r.variable_keys.length === 1 ? "l" : "is"}
@@ -1420,7 +1420,7 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4 rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
         <div className="text-sm text-muted-foreground">
           Regras detectam clientes <strong>inativos</strong> por X dias e os enfileiram
           automaticamente em uma campanha de retenção. Executam diariamente (cron).
@@ -1434,7 +1434,7 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
       </div>
 
       {editing && (
-        <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+        <div className="space-y-3 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
           <h2 className="text-sm font-semibold">
             {editing.id ? "Editar regra" : "Nova regra de retenção"}
           </h2>
@@ -1526,7 +1526,7 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-card">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
         {loading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1544,7 +1544,7 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <thead className="border-b border-gray-200 dark:border-slate-800 text-left text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Regra</th>
                 <th className="px-4 py-2 font-medium">Inatividade</th>
@@ -1558,7 +1558,7 @@ function RetentionRulesPanel({ accountId }: { accountId: string | null }) {
               {rules.map((r) => {
                 const camp = campaigns.find((c) => c.id === r.target_campaign_id);
                 return (
-                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                  <tr key={r.id} className="border-b border-gray-200 dark:border-slate-800 last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-2 font-medium">{r.name}</td>
                     <td className="px-4 py-2 tabular-nums">{r.inactive_days} dias</td>
                     <td className="px-4 py-2 text-xs text-muted-foreground">
@@ -1688,7 +1688,7 @@ function CompliancePanel({ accountId }: { accountId: string | null }) {
 
   if (loading) {
     return (
-      <div className="flex h-40 items-center justify-center rounded-xl border border-border bg-card">
+      <div className="flex h-40 items-center justify-center rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       </div>
     );
@@ -1696,12 +1696,12 @@ function CompliancePanel({ accountId }: { accountId: string | null }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4 text-sm text-muted-foreground">
         Define janelas de discagem por dia da semana, limite de tentativas por contato e disclaimer
         de gravação (LGPD/CDC). Aplicado em todas as campanhas que não sobrescreverem localmente.
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
         <h3 className="mb-3 text-sm font-semibold">
           Janelas permitidas (horário local do contato)
         </h3>
@@ -1890,12 +1890,12 @@ function DncPanel({ accountId }: { accountId: string | null }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4 text-sm text-muted-foreground">
         Números em DNC nunca recebem ligações automáticas — bloqueio é aplicado no dispatcher antes
         de qualquer chamada.
       </div>
 
-      <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+      <div className="space-y-3 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
         <h3 className="text-sm font-semibold">Adicionar número</h3>
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Telefone (E.164)">
@@ -1933,7 +1933,7 @@ function DncPanel({ accountId }: { accountId: string | null }) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
         {loading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1945,7 +1945,7 @@ function DncPanel({ accountId }: { accountId: string | null }) {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <thead className="border-b border-gray-200 dark:border-slate-800 text-left text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Telefone</th>
                 <th className="px-4 py-2 font-medium">Motivo</th>
@@ -1956,7 +1956,7 @@ function DncPanel({ accountId }: { accountId: string | null }) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                <tr key={r.id} className="border-b border-gray-200 dark:border-slate-800 last:border-0 hover:bg-muted/30">
                   <td className="px-4 py-2 font-mono">{r.phone_number}</td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">{r.reason ?? "—"}</td>
                   <td className="px-4 py-2 text-xs text-muted-foreground">{r.notes ?? "—"}</td>
@@ -2283,7 +2283,7 @@ function ManualAddBlock({
             className="w-full rounded-md border border-input bg-background py-1.5 pl-9 pr-3 text-sm"
           />
           {open && loaded && (
-            <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-border bg-popover shadow-md">
+            <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-gray-200 dark:border-slate-800 bg-popover shadow-md">
               {results.length === 0 ? (
                 <li className="px-3 py-2 text-xs text-muted-foreground">
                   {query.trim()
@@ -2347,7 +2347,7 @@ function ManualAddBlock({
             const expanded = expandedId === c.id;
             return (
               <li key={c.id}>
-                <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 py-1 pl-2.5 pr-1.5 text-[11px]">
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-slate-800 bg-muted/50 py-1 pl-2.5 pr-1.5 text-[11px]">
                   <span className="font-medium">{c.name}</span>
                   {c.phone && <span className="text-muted-foreground">{c.phone}</span>}
                   {v?.loading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
@@ -2387,7 +2387,7 @@ function ManualAddBlock({
                   </button>
                 </div>
                 {expanded && (
-                  <div className="mt-1.5 max-w-md space-y-3 rounded-md border border-border bg-muted/30 p-2.5">
+                  <div className="mt-1.5 max-w-md space-y-3 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/30 p-2.5">
                     <div>
                       <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                         Campos de {fieldsLabel}
@@ -2592,10 +2592,10 @@ function ContactPickerDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div
-        className="flex w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl"
+        className="flex w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-xl"
         style={{ maxHeight: "85vh" }}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold">Adicionar contatos existentes à lista</h2>
             <p className="text-xs text-muted-foreground">
@@ -2610,7 +2610,7 @@ function ContactPickerDialog({
           </button>
         </div>
 
-        <div className="space-y-2 border-b border-border px-4 py-3">
+        <div className="space-y-2 border-b border-gray-200 dark:border-slate-800 px-4 py-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -2709,7 +2709,7 @@ function ContactPickerDialog({
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+        <div className="flex items-center justify-between border-t border-gray-200 dark:border-slate-800 px-4 py-3">
           <span className="text-xs text-muted-foreground">{picked.size} selecionado(s)</span>
           <div className="flex gap-2">
             <button

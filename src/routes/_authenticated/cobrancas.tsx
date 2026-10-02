@@ -172,7 +172,7 @@ export function CobrancasPage() {
 
       <div className="px-6">
         <Tabs defaultValue="erp" className="w-full">
-          <TabsList className="mb-4 bg-white/[0.04]">
+          <TabsList className="mb-4 bg-foreground/[0.04]">
             <TabsTrigger value="erp">Via integração (n8n)</TabsTrigger>
             <TabsTrigger value="insights" className="gap-1.5">
               <Sparkles className="h-3.5 w-3.5" />
@@ -520,10 +520,10 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
                 }
               />
             ) : (
-              <Card className="overflow-hidden border-border bg-card shadow-elevation-1">
+              <Card className="overflow-hidden border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-elevation-1">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
+                    <TableRow className="border-gray-200 dark:border-slate-800 bg-muted/30 hover:bg-muted/30">
                       {col("cliente") && <TableHead className="py-3 pl-4">Cliente</TableHead>}
                       {col("numero") && <TableHead className="py-3">Nº Título</TableHead>}
                       {col("razao_social") && <TableHead className="py-3">Razão Social</TableHead>}
@@ -544,7 +544,7 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
                   </TableHeader>
                   <TableBody>
                     {paged.map((t) => (
-                      <TableRow key={t.id} className="border-border transition-colors hover:bg-muted/40">
+                      <TableRow key={t.id} className="border-gray-200 dark:border-slate-800 transition-colors hover:bg-muted/40">
                         {col("cliente") && (
                           <TableCell className="py-3 pl-4 text-sm font-medium tabular-nums text-foreground">
                             {t.externalId ?? "Sem código"}
@@ -750,7 +750,7 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
           {syncPreview?.operationalList ? (
             <a
               href="/listas"
-              className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted/60"
+              className="flex items-center gap-2 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/30 px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted/60"
             >
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               Lista operacional criada: <span className="font-semibold">{syncPreview.operationalList.name}</span> —{" "}
@@ -765,7 +765,7 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
             )
           )}
           <Tabs defaultValue="dados" className="w-full">
-            <TabsList className="mb-2 bg-white/[0.04]">
+            <TabsList className="mb-2 bg-foreground/[0.04]">
               <TabsTrigger value="dados">Dados</TabsTrigger>
               <TabsTrigger value="empresas">Empresas</TabsTrigger>
             </TabsList>
@@ -774,7 +774,7 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
                 <p className="text-sm text-muted-foreground">Nenhuma linha nesta corrida.</p>
               ) : (
                 syncPreview?.sample.map((row, i) => (
-                  <div key={i} className="rounded-md border border-border bg-muted/30 p-3">
+                  <div key={i} className="rounded-md border border-gray-200 dark:border-slate-800 bg-muted/30 p-3">
                     {Object.entries(row).map(([key, value]) => (
                       <div key={key} className="flex items-baseline justify-between gap-3 py-0.5 text-xs">
                         <span className="text-muted-foreground">{humanizeKey(key)}</span>
@@ -793,7 +793,7 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
                 <p className="text-sm text-muted-foreground">Nenhum cliente processado nesta corrida.</p>
               ) : (
                 syncPreview.companies.map((c, i) => (
-                  <div key={c.companyId ?? `none-${i}`} className="rounded-md border border-border bg-muted/30 p-3">
+                  <div key={c.companyId ?? `none-${i}`} className="rounded-md border border-gray-200 dark:border-slate-800 bg-muted/30 p-3">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium text-foreground">{c.companyName}</p>
                       {c.externalId && (
@@ -851,7 +851,7 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
                   key={i}
                   type="button"
                   onClick={() => setSelectedFailure(f)}
-                  className="w-full rounded-md border border-border bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/60"
+                  className="w-full rounded-md border border-gray-200 dark:border-slate-800 bg-muted/30 px-3 py-2 text-left transition-colors hover:bg-muted/60"
                 >
                   <p className="text-sm font-medium text-foreground">{f.label}</p>
                   {meta && <p className="text-xs text-muted-foreground">{meta}</p>}
@@ -913,7 +913,7 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
               ))}
           </div>
           {selectedFailure && isEmpresaNaoIdentificada(selectedFailure.reason) && (
-            <div className="space-y-2 rounded-md border border-dashed border-border bg-muted/30 p-3">
+            <div className="space-y-2 rounded-md border border-dashed border-gray-200 dark:border-slate-800 bg-muted/30 p-3">
               <p className="text-xs font-medium text-foreground">
                 Selecione a empresa ou crie uma nova para gravar este título:
               </p>
@@ -1035,7 +1035,7 @@ function EditCobrancaDialog({
 const PRIORITY_STYLE: Record<string, string> = {
   alta: "border-destructive/40 bg-destructive/10 text-destructive",
   media: "border-amber-500/40 bg-amber-500/10 text-amber-500",
-  baixa: "border-border bg-muted text-muted-foreground",
+  baixa: "border-gray-200 dark:border-slate-800 bg-muted text-muted-foreground",
 };
 const PRIORITY_LABEL: Record<string, string> = { alta: "Alta", media: "Média", baixa: "Baixa" };
 
@@ -1097,7 +1097,7 @@ function InsightsTab({ accountId }: { accountId: string | null }) {
             <StatCard label="Precisam de intervenção" value={String(analysis.interventions.length)} icon={Flag} />
           </div>
 
-          <Card className="border-border bg-card p-5 shadow-elevation-1">
+          <Card className="border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-5 shadow-elevation-1">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-foreground">
               <Sparkles className="h-4 w-4 text-primary" />
               Leitura da IA
@@ -1114,10 +1114,10 @@ function InsightsTab({ accountId }: { accountId: string | null }) {
               description="Com os dados atuais, a IA não encontrou títulos que precisem de intervenção imediata."
             />
           ) : (
-            <Card className="overflow-hidden border-border bg-card shadow-elevation-1">
+            <Card className="overflow-hidden border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-elevation-1">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-border bg-muted/30 hover:bg-muted/30">
+                  <TableRow className="border-gray-200 dark:border-slate-800 bg-muted/30 hover:bg-muted/30">
                     <TableHead className="py-3 pl-4">Cobrança</TableHead>
                     <TableHead className="py-3">Motivo</TableHead>
                     <TableHead className="w-24 py-3 pr-4">Prioridade</TableHead>
@@ -1125,7 +1125,7 @@ function InsightsTab({ accountId }: { accountId: string | null }) {
                 </TableHeader>
                 <TableBody>
                   {analysis.interventions.map((it) => (
-                    <TableRow key={it.id} className="border-border transition-colors hover:bg-muted/40">
+                    <TableRow key={it.id} className="border-gray-200 dark:border-slate-800 transition-colors hover:bg-muted/40">
                       <TableCell className="py-3 pl-4 text-sm font-medium text-foreground">{it.label}</TableCell>
                       <TableCell className="py-3 text-sm text-muted-foreground">{it.reason}</TableCell>
                       <TableCell className="py-3 pr-4">

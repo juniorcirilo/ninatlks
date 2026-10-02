@@ -32,8 +32,8 @@ export function MeetingsKanban({
         const tone = MEETING_STATUS_LABEL[col.status];
         const Icon = col.icon;
         return (
-          <div key={col.status} className="flex w-[280px] shrink-0 flex-col rounded-xl border border-border bg-card">
-            <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+          <div key={col.status} className="flex w-[280px] shrink-0 flex-col rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
+            <div className="flex items-center justify-between gap-2 border-b border-gray-200 dark:border-slate-800 px-3 py-2.5">
               <div className="flex items-center gap-1.5">
                 <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-sm font-medium">{col.label}</span>
@@ -44,7 +44,7 @@ export function MeetingsKanban({
             </div>
             <div className="flex-1 space-y-2 overflow-y-auto p-2">
               {items.length === 0 ? (
-                <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-border text-[11px] text-muted-foreground">
+                <div className="flex h-20 items-center justify-center rounded-md border border-dashed border-gray-200 dark:border-slate-800 text-[11px] text-muted-foreground">
                   Vazio
                 </div>
               ) : (
@@ -52,7 +52,7 @@ export function MeetingsKanban({
                   <button
                     key={m.id}
                     onClick={() => onCardClick(m)}
-                    className="w-full rounded-lg border border-border bg-background p-2.5 text-left transition hover:border-primary/40 hover:bg-muted/50"
+                    className="w-full rounded-lg border border-gray-200 dark:border-slate-800 bg-background p-2.5 text-left transition hover:border-primary/40 hover:bg-muted/50"
                   >
                     <div className="truncate text-sm font-medium">
                       {m.invitee_name ?? m.invitee_phone ?? "Lead"}

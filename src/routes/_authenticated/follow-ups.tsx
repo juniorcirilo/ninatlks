@@ -141,8 +141,8 @@ function FollowUpsPage() {
       </header>
 
       {data.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.06] py-16 text-center">
-          <Sparkles className="mb-2 h-5 w-5 text-violet-400" />
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-foreground/[0.06] py-16 text-center">
+          <Sparkles className="mb-2 h-5 w-5 text-cyan-400" />
           <p className="text-sm text-slate-200">Nenhuma cadência configurada</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Crie uma cadência pra Nina ligar ou mandar WhatsApp em momentos estratégicos do funil.
@@ -204,14 +204,14 @@ function CadenceRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-4 rounded-xl border bg-white/[0.02] p-4",
-        cadence.enabled ? "border-white/[0.06]" : "border-white/[0.03] opacity-60",
+        "flex items-center gap-4 rounded-xl border bg-foreground/[0.02] p-4",
+        cadence.enabled ? "border-foreground/[0.06]" : "border-foreground/[0.03] opacity-60",
       )}
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate text-sm font-medium text-slate-200">{cadence.name}</span>
-          <span className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-300 ring-1 ring-violet-500/20">
+          <span className="rounded-md bg-cyan-500/15 px-1.5 py-0.5 text-[10px] text-cyan-300 ring-1 ring-cyan-500/20">
             {TRIGGER_LABEL[cadence.trigger_event]}
           </span>
           {!cadence.enabled && (
@@ -250,7 +250,7 @@ function CadenceRow({
         <button
           onClick={onToggle}
           title={cadence.enabled ? "Pausar" : "Reativar"}
-          className="rounded-md p-1.5 text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
+          className="rounded-md p-1.5 text-slate-400 hover:bg-foreground/[0.05] hover:text-slate-200"
         >
           {cadence.enabled ? (
             <PowerOff className="h-3.5 w-3.5" />
@@ -261,7 +261,7 @@ function CadenceRow({
         <button
           onClick={onEdit}
           title="Editar"
-          className="rounded-md p-1.5 text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
+          className="rounded-md p-1.5 text-slate-400 hover:bg-foreground/[0.05] hover:text-slate-200"
         >
           <Pencil className="h-3.5 w-3.5" />
         </button>
@@ -283,8 +283,8 @@ function StepChip({ step }: { step: CadenceStep }) {
   const offsetLabel =
     offset === 0 ? "imediato" : offset < 24 ? `+${offset}h` : `+${Math.round(offset / 24)}d`;
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-1.5 py-0.5 text-[10px] text-slate-300">
-      <Icon className="h-3 w-3 text-violet-400" />
+    <span className="inline-flex items-center gap-1 rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-1.5 py-0.5 text-[10px] text-slate-300">
+      <Icon className="h-3 w-3 text-cyan-400" />
       {CHANNEL_LABEL[step.channel]} · {offsetLabel}
     </span>
   );
@@ -401,7 +401,7 @@ function CadenceForm({
           </Select>
         </Field>
 
-        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+        <div className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] p-3">
           <div className="mb-2 flex items-center justify-between">
             <label className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Ativa
@@ -434,7 +434,7 @@ function CadenceForm({
               />
             ))}
             {steps.length === 0 && (
-              <div className="rounded-md border border-dashed border-white/[0.06] px-3 py-4 text-center text-[11px] text-muted-foreground">
+              <div className="rounded-md border border-dashed border-foreground/[0.06] px-3 py-4 text-center text-[11px] text-muted-foreground">
                 Sem steps. Adicione pelo menos 1.
               </div>
             )}
@@ -471,7 +471,7 @@ function StepEditor({
   index: number;
 }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+    <div className="rounded-lg border border-foreground/[0.06] bg-foreground/[0.02] p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
           Step {index + 1}

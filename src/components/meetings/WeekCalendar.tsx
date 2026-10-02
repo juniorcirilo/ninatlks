@@ -59,9 +59,9 @@ export function WeekCalendar({
   }).format(weekStart);
 
   return (
-    <div className="rounded-xl border border-border bg-card">
+    <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+      <div className="flex items-center justify-between gap-2 border-b border-gray-200 dark:border-slate-800 px-4 py-2.5">
         <div className="flex items-center gap-1.5">
           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => shiftWeek(-1)}>
             <ChevronLeft className="h-4 w-4" />
@@ -78,15 +78,15 @@ export function WeekCalendar({
       </div>
 
       {/* Day headers */}
-      <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-border">
-        <div className="border-r border-border" />
+      <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] border-b border-gray-200 dark:border-slate-800">
+        <div className="border-r border-gray-200 dark:border-slate-800" />
         {days.map((d) => {
           const isToday = d.toDateString() === today.toDateString();
           return (
             <div
               key={d.toISOString()}
               className={cn(
-                "border-r border-border px-2 py-2 text-center text-xs",
+                "border-r border-gray-200 dark:border-slate-800 px-2 py-2 text-center text-xs",
                 isToday && "bg-primary/5",
               )}
             >
@@ -104,9 +104,9 @@ export function WeekCalendar({
       {/* Hour grid */}
       <div className="relative grid grid-cols-[60px_repeat(7,minmax(0,1fr))]">
         {/* Hour labels column */}
-        <div className="border-r border-border">
+        <div className="border-r border-gray-200 dark:border-slate-800">
           {HOURS.map((h) => (
-            <div key={h} className="h-12 border-b border-border px-2 pt-0.5 text-right text-[10px] text-muted-foreground">
+            <div key={h} className="h-12 border-b border-gray-200 dark:border-slate-800 px-2 pt-0.5 text-right text-[10px] text-muted-foreground">
               {h.toString().padStart(2, "0")}:00
             </div>
           ))}
@@ -120,13 +120,13 @@ export function WeekCalendar({
             <div
               key={d.toISOString()}
               className={cn(
-                "relative border-r border-border",
+                "relative border-r border-gray-200 dark:border-slate-800",
                 isToday && "bg-primary/[0.02]",
               )}
             >
               {/* Hour cells */}
               {HOURS.map((h) => (
-                <div key={h} className="h-12 border-b border-border" />
+                <div key={h} className="h-12 border-b border-gray-200 dark:border-slate-800" />
               ))}
 
               {/* Meeting blocks */}

@@ -1,8 +1,23 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Copy, Check, Clock, Loader2, KeyRound, PhoneCall, UserPlus, Lock, Mail } from "lucide-react";
+import {
+  Copy,
+  Check,
+  ChevronRight,
+  Clock,
+  Loader2,
+  KeyRound,
+  MessageCircle,
+  PhoneCall,
+  Plug,
+  Settings as SettingsIcon,
+  UserPlus,
+  Users,
+  Webhook,
+  Lock,
+  Mail,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccount } from "@/lib/account-context";
 import {
@@ -24,7 +39,13 @@ import { EvolutionSessionsTab } from "@/components/settings/EvolutionSessionsTab
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -46,7 +67,15 @@ export const Route = createFileRoute("/_authenticated/settings")({
 });
 
 // Links fixos: /settings?tab=evolution, /settings?tab=webhooks&wh=recebimento&rx=listas
-const SETTINGS_TABS = ["integrations", "evolution", "general", "dialing", "account", "api-keys", "webhooks"] as const;
+const SETTINGS_TABS = [
+  "integrations",
+  "evolution",
+  "general",
+  "dialing",
+  "account",
+  "api-keys",
+  "webhooks",
+] as const;
 const WEBHOOK_TABS = ["envio", "recebimento"] as const;
 const RECEIVE_TABS = ["templates", "listas"] as const;
 
@@ -55,6 +84,38 @@ interface SettingsSearch {
   wh?: (typeof WEBHOOK_TABS)[number];
   rx?: (typeof RECEIVE_TABS)[number];
 }
+
+const SETTINGS_NAV: {
+  label: string;
+  items: {
+    value: NonNullable<SettingsSearch["tab"]>;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[];
+}[] = [
+  {
+    label: "Conexões",
+    items: [
+      { value: "integrations", label: "Integrações", icon: Plug },
+      { value: "evolution", label: "Evolution (WhatsApp Web)", icon: MessageCircle },
+    ],
+  },
+  {
+    label: "Conta",
+    items: [
+      { value: "general", label: "Geral", icon: SettingsIcon },
+      { value: "dialing", label: "Discagem", icon: PhoneCall },
+      { value: "account", label: "Conta & Equipe", icon: Users },
+    ],
+  },
+  {
+    label: "Desenvolvedor",
+    items: [
+      { value: "api-keys", label: "Chaves de acesso", icon: KeyRound },
+      { value: "webhooks", label: "Webhooks", icon: Webhook },
+    ],
+  },
+];
 
 function pick<T extends string>(v: unknown, allowed: readonly T[]): T | undefined {
   return typeof v === "string" && (allowed as readonly string[]).includes(v) ? (v as T) : undefined;
@@ -66,46 +127,92 @@ function SettingsPage() {
   const tab = search.tab ?? "integrations";
   const setTab = (t: string) =>
     navigate({ search: (prev) => ({ ...prev, tab: t as SettingsSearch["tab"] }), replace: true });
+  const current = SETTINGS_NAV.flatMap((g) => g.items).find((i) => i.value === tab);
   return (
-    <div className="flex flex-col">
-      <PageHeader
-        eyebrow="Ajustes"
-        title="Configurações"
-        description="Dados da empresa, integrações e chaves de acesso."
-      />
-      <div className="px-6 py-6">
-        <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="mb-4 bg-white/[0.04]">
-            <TabsTrigger value="integrations">Integrações</TabsTrigger>
-            <TabsTrigger value="evolution">Evolution (WhatsApp Web)</TabsTrigger>
-            <TabsTrigger value="general">Geral</TabsTrigger>
-            <TabsTrigger value="dialing">Discagem</TabsTrigger>
-            <TabsTrigger value="account">Conta & Equipe</TabsTrigger>
-            <TabsTrigger value="api-keys">Chaves de acesso</TabsTrigger>
-            <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
-          </TabsList>
-          <TabsContent value="integrations">
-            <IntegrationsTab onManageEvolution={() => setTab("evolution")} />
-          </TabsContent>
-          <TabsContent value="evolution">
-            <EvolutionSessionsTab />
-          </TabsContent>
-          <TabsContent value="general">
-            <GeneralTab />
-          </TabsContent>
-          <TabsContent value="dialing">
-            <DialingTab />
-          </TabsContent>
-          <TabsContent value="account">
-            <AccountTab />
-          </TabsContent>
-          <TabsContent value="api-keys">
-            <ApiKeysTab />
-          </TabsContent>
-          <TabsContent value="webhooks">
-            <WebhooksTab />
-          </TabsContent>
-        </Tabs>
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-white text-gray-900 dark:bg-slate-950 dark:text-slate-50 md:flex-row">
+      <aside className="custom-scrollbar flex w-full shrink-0 flex-col overflow-y-auto border-b border-gray-200/70 bg-gray-100/60 dark:border-slate-800/70 dark:bg-slate-900/60 md:h-full md:w-64 md:border-b-0 md:border-r">
+        <div className="border-b border-gray-200/60 px-5 pb-4 pt-6 dark:border-slate-800/60">
+          <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">
+            Configurações
+          </h2>
+          <p className="mt-0.5 text-xs leading-snug text-gray-500 dark:text-slate-400">
+            Dados da empresa, integrações e chaves de acesso.
+          </p>
+        </div>
+        <nav className="flex-1 space-y-4 px-3 py-4">
+          {SETTINGS_NAV.map((group) => (
+            <div key={group.label}>
+              <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-widest text-gray-500 dark:text-slate-500">
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = item.value === tab;
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => setTab(item.value)}
+                      className={cn(
+                        "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-all",
+                        active
+                          ? "bg-cyan-500/10 text-cyan-400 shadow-sm shadow-cyan-500/5"
+                          : "text-gray-600 hover:bg-gray-200/60 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-white",
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          "h-4 w-4 shrink-0",
+                          active
+                            ? "text-cyan-400"
+                            : "text-gray-400 group-hover:text-gray-600 dark:text-slate-500 dark:group-hover:text-slate-300",
+                        )}
+                      />
+                      <span className="flex-1 text-[13px] font-medium">{item.label}</span>
+                      {active && <ChevronRight className="h-3.5 w-3.5 text-cyan-400/60" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center gap-2 border-b border-gray-200/50 bg-white/80 px-8 py-3 text-xs text-gray-500 dark:border-slate-800/50 dark:bg-slate-950/80 dark:text-slate-500">
+          <span>Configurações</span>
+          <ChevronRight className="h-3 w-3" />
+          <span className="font-medium text-gray-600 dark:text-slate-300">{current?.label}</span>
+        </div>
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
+            <Tabs value={tab} onValueChange={setTab} className="w-full">
+              <TabsContent value="integrations">
+                <IntegrationsTab onManageEvolution={() => setTab("evolution")} />
+              </TabsContent>
+              <TabsContent value="evolution">
+                <EvolutionSessionsTab />
+              </TabsContent>
+              <TabsContent value="general">
+                <GeneralTab />
+              </TabsContent>
+              <TabsContent value="dialing">
+                <DialingTab />
+              </TabsContent>
+              <TabsContent value="account">
+                <AccountTab />
+              </TabsContent>
+              <TabsContent value="api-keys">
+                <ApiKeysTab />
+              </TabsContent>
+              <TabsContent value="webhooks">
+                <WebhooksTab />
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -156,11 +263,16 @@ function AccountTab() {
     if (!user?.email) return;
     setSendingReset(true);
     try {
-      const result = await apiClient.post<{ ok: boolean; token?: string }>("/auth/forgot-password", {
-        email: user.email,
-      });
+      const result = await apiClient.post<{ ok: boolean; token?: string }>(
+        "/auth/forgot-password",
+        {
+          email: user.email,
+        },
+      );
       if (result.token) {
-        await navigator.clipboard.writeText(`${window.location.origin}/reset-password?token=${result.token}`);
+        await navigator.clipboard.writeText(
+          `${window.location.origin}/reset-password?token=${result.token}`,
+        );
         toast.success("Link de redefinição copiado para a área de transferência");
       } else {
         toast.success(`Enviamos um link de redefinição para ${user.email}.`);
@@ -177,7 +289,9 @@ function AccountTab() {
       <Card title="Alterar minha senha" desc="Informe sua senha atual e a nova senha.">
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Senha atual</label>
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              Senha atual
+            </label>
             <input
               type="password"
               value={currentPassword}
@@ -187,7 +301,9 @@ function AccountTab() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Nova senha</label>
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              Nova senha
+            </label>
             <input
               type="password"
               value={newPassword}
@@ -197,7 +313,9 @@ function AccountTab() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">Confirmar nova senha</label>
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              Confirmar nova senha
+            </label>
             <input
               type="password"
               value={confirmPassword}
@@ -210,7 +328,7 @@ function AccountTab() {
             type="button"
             onClick={handleChangePassword}
             disabled={changing || !currentPassword || !newPassword}
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {changing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
             Atualizar senha
@@ -219,9 +337,13 @@ function AccountTab() {
             type="button"
             onClick={handleSendResetLink}
             disabled={sendingReset}
-            className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border bg-background text-xs font-medium text-foreground hover:bg-white/[0.04] disabled:opacity-50"
+            className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-border bg-background text-xs font-medium text-foreground hover:bg-foreground/[0.04] disabled:opacity-50"
           >
-            {sendingReset ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+            {sendingReset ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Mail className="h-3.5 w-3.5" />
+            )}
             Ou enviar link de redefinição para meu e-mail
           </button>
         </div>
@@ -237,18 +359,17 @@ function AccountTab() {
       >
         <div className="space-y-3">
           <div className="flex items-start gap-3 rounded-md border border-border bg-background/50 p-3 text-xs text-muted-foreground">
-            <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-violet-400" />
+            <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
             <p>
-              Para adicionar um novo usuário à plataforma, gere um link de convite
-              em <strong className="text-foreground">Equipe</strong>. A pessoa cria
-              a própria conta usando o link e já entra com a permissão escolhida
-              (admin ou agent).
+              Para adicionar um novo usuário à plataforma, gere um link de convite em{" "}
+              <strong className="text-foreground">Equipe</strong>. A pessoa cria a própria conta
+              usando o link e já entra com a permissão escolhida (admin ou agent).
             </p>
           </div>
           {role === "admin" ? (
             <Link
               to="/equipe"
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               <UserPlus className="h-4 w-4" />
               Gerenciar equipe e convites
@@ -264,9 +385,17 @@ function AccountTab() {
   );
 }
 
-function Card({ children, title, desc }: { children: React.ReactNode; title: string; desc?: string }) {
+function Card({
+  children,
+  title,
+  desc,
+}: {
+  children: React.ReactNode;
+  title: string;
+  desc?: string;
+}) {
   return (
-    <section className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+    <section className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] p-5">
       <div className="mb-4">
         <h2 className="text-[14px] font-semibold">{title}</h2>
         {desc && <p className="mt-1 text-[12px] text-muted-foreground">{desc}</p>}
@@ -301,7 +430,10 @@ function GeneralTab() {
     setSaving(true);
     try {
       await updateAccountSettings(accountId, { name, support_email: supportEmail });
-      await advanceOnboardingStep(accountId, "empresa", { name, support_email: supportEmail }).catch(() => {});
+      await advanceOnboardingStep(accountId, "empresa", {
+        name,
+        support_email: supportEmail,
+      }).catch(() => {});
       toast.success("Configurações salvas");
     } catch (e) {
       toast.error("Não conseguimos salvar. Verifique os dados e tente novamente.");
@@ -328,7 +460,7 @@ function GeneralTab() {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+            className="w-full rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
         <div>
@@ -340,24 +472,23 @@ function GeneralTab() {
             value={supportEmail}
             onChange={(e) => setSupportEmail(e.target.value)}
             placeholder="suporte@empresa.com"
-            className="w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+            className="w-full rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
           />
         </div>
         <button
           onClick={save}
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-sky-500 to-cyan-500 px-4 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           Salvar
         </button>
       </div>
-      <div className="mt-6 border-t border-white/[0.06] pt-5">
+      <div className="mt-6 border-t border-foreground/[0.06] pt-5">
         <h3 className="text-[13px] font-semibold">Configuração inicial</h3>
         <p className="mt-1 text-[12px] text-muted-foreground">
-          Reabra o assistente de onboarding para revisar empresa, chaves de
-          provedores (ElevenLabs, Twilio, Deepgram, Evolution), agente e
-          primeiro número.
+          Reabra o assistente de onboarding para revisar empresa, chaves de provedores (ElevenLabs,
+          Twilio, Deepgram, Evolution), agente e primeiro número.
         </p>
         <button
           onClick={async () => {
@@ -370,7 +501,7 @@ function GeneralTab() {
               toast.error(e?.message ?? "Falha ao reabrir o wizard.");
             }
           }}
-          className="mt-3 inline-flex items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-[12px] font-semibold transition-colors hover:bg-white/[0.08]"
+          className="mt-3 inline-flex items-center gap-2 rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-4 py-2 text-[12px] font-semibold transition-colors hover:bg-foreground/[0.08]"
         >
           Reabrir wizard de onboarding
         </button>
@@ -478,7 +609,7 @@ function DialingTab() {
             <input
               value={settings.timezone}
               onChange={(e) => setSettings((p) => ({ ...p, timezone: e.target.value }))}
-              className="w-full max-w-xs rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="w-full max-w-xs rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
               placeholder="America/Sao_Paulo"
             />
           </div>
@@ -493,7 +624,7 @@ function DialingTab() {
               return (
                 <div
                   key={day}
-                  className="flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                  className="flex items-center gap-3 rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-2"
                 >
                   <label className="flex w-32 items-center gap-2 text-[12px]">
                     <input
@@ -506,20 +637,12 @@ function DialingTab() {
                   </label>
                   {enabled && range ? (
                     <div className="flex items-center gap-2 text-[12px]">
-                      <HourInput
-                        value={range[0]}
-                        onChange={(v) => setHour(day, 0, v)}
-                      />
+                      <HourInput value={range[0]} onChange={(v) => setHour(day, 0, v)} />
                       <span className="text-muted-foreground">até</span>
-                      <HourInput
-                        value={range[1]}
-                        onChange={(v) => setHour(day, 1, v)}
-                      />
+                      <HourInput value={range[1]} onChange={(v) => setHour(day, 1, v)} />
                     </div>
                   ) : (
-                    <span className="text-[11px] text-muted-foreground">
-                      Sem ligações
-                    </span>
+                    <span className="text-[11px] text-muted-foreground">Sem ligações</span>
                   )}
                 </div>
               );
@@ -542,7 +665,7 @@ function DialingTab() {
                     max_attempts_per_day: Math.max(1, Number(e.target.value) || 1),
                   }))
                 }
-                className="w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="w-full rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
               />
             </div>
             <div>
@@ -560,7 +683,7 @@ function DialingTab() {
                     min_minutes_between_attempts: Math.max(0, Number(e.target.value) || 0),
                   }))
                 }
-                className="w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="w-full rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary/40"
               />
             </div>
           </div>
@@ -582,7 +705,7 @@ function DialingTab() {
                 }))
               }
               placeholder={"+5511999999999\n+5511888888888"}
-              className="w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="w-full rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-2 text-[13px] font-mono focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
               Um número por linha, em E.164. Pula janela de horário, limite diário e intervalo
@@ -594,7 +717,7 @@ function DialingTab() {
             <button
               onClick={save}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md bg-gradient-to-r from-sky-500 to-cyan-500 px-4 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Salvar
@@ -619,7 +742,7 @@ function DialingTab() {
 function HourInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
     <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
-      <SelectTrigger className="h-8 w-auto gap-1.5 bg-white/[0.02] text-[12px]">
+      <SelectTrigger className="h-8 w-auto gap-1.5 bg-foreground/[0.02] text-[12px]">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -633,7 +756,12 @@ function HourInput({ value, onChange }: { value: number; onChange: (v: number) =
   );
 }
 
-type ProviderField = { key: string; label: string; placeholder?: string; type?: "text" | "password" };
+type ProviderField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+  type?: "text" | "password";
+};
 type ProviderDef = {
   provider: string;
   name: string;
@@ -648,9 +776,7 @@ const INTEGRATION_PROVIDERS: ProviderDef[] = [
     name: "ElevenLabs",
     desc: "Voz neural para o agente Nina (TTS + agentes conversacionais).",
     required: true,
-    fields: [
-      { key: "api_key", label: "API Key", type: "password", placeholder: "sk_..." },
-    ],
+    fields: [{ key: "api_key", label: "API Key", type: "password", placeholder: "sk_..." }],
   },
   {
     provider: "twilio",
@@ -676,7 +802,9 @@ const INTEGRATION_PROVIDERS: ProviderDef[] = [
 
 function ApiKeysTab() {
   const { accountId } = useAccount();
-  const [secrets, setSecrets] = useState<Array<{ provider: string; key_name: string; updated_at: string }>>([]);
+  const [secrets, setSecrets] = useState<
+    Array<{ provider: string; key_name: string; updated_at: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<ProviderDef | null>(null);
 
@@ -684,9 +812,9 @@ function ApiKeysTab() {
     if (!accountId) return;
     setLoading(true);
     try {
-      const data = await apiClient.get<Array<{ provider: string; key_name: string; updated_at: string }>>(
-        `/accounts/${accountId}/secrets`,
-      );
+      const data = await apiClient.get<
+        Array<{ provider: string; key_name: string; updated_at: string }>
+      >(`/accounts/${accountId}/secrets`);
       setSecrets(data ?? []);
     } catch (e: any) {
       toast.error(e?.body?.message ?? "Não foi possível carregar as chaves");
@@ -706,7 +834,10 @@ function ApiKeysTab() {
   const lastUpdated = (p: ProviderDef) => {
     const matched = secrets.filter((s) => s.provider === p.provider);
     if (matched.length === 0) return null;
-    return matched.map((s) => s.updated_at).sort().slice(-1)[0];
+    return matched
+      .map((s) => s.updated_at)
+      .sort()
+      .slice(-1)[0];
   };
 
   return (
@@ -727,7 +858,7 @@ function ApiKeysTab() {
               return (
                 <div
                   key={p.provider}
-                  className="flex items-start justify-between gap-4 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+                  className="flex items-start justify-between gap-4 rounded-lg border border-foreground/[0.06] bg-foreground/[0.02] p-3"
                 >
                   <div className="flex items-start gap-3">
                     <KeyRound className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -762,7 +893,7 @@ function ApiKeysTab() {
                     <button
                       type="button"
                       onClick={() => setEditing(p)}
-                      className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-white/[0.08]"
+                      className="rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-foreground/[0.08]"
                     >
                       {configured ? "Atualizar" : "Configurar"}
                     </button>
@@ -856,7 +987,7 @@ function ProviderEditDialog({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-white/[0.08] bg-background p-5 shadow-2xl"
+        className="w-full max-w-md rounded-xl border border-foreground/[0.08] bg-background p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4">
@@ -877,10 +1008,12 @@ function ProviderEditDialog({
               </label>
               <input
                 type={f.type ?? "password"}
-                placeholder={f.placeholder ?? (configured ? "•••••••• (deixe em branco para manter)" : "")}
+                placeholder={
+                  f.placeholder ?? (configured ? "•••••••• (deixe em branco para manter)" : "")
+                }
                 value={values[f.key] ?? ""}
                 onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}
-                className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+                className="w-full rounded-md border border-foreground/[0.08] bg-foreground/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
                 autoComplete="off"
               />
             </div>
@@ -905,7 +1038,7 @@ function ProviderEditDialog({
               type="button"
               onClick={onClose}
               disabled={saving || removing}
-              className="rounded-md border border-white/[0.08] px-3 py-1.5 text-[11px] font-medium hover:bg-white/[0.04] disabled:opacity-50"
+              className="rounded-md border border-foreground/[0.08] px-3 py-1.5 text-[11px] font-medium hover:bg-foreground/[0.04] disabled:opacity-50"
             >
               Cancelar
             </button>
@@ -962,10 +1095,12 @@ function WebhooksTab() {
   return (
     <Tabs
       value={wh ?? "envio"}
-      onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, wh: v as SettingsSearch["wh"] }), replace: true })}
+      onValueChange={(v) =>
+        navigate({ search: (prev) => ({ ...prev, wh: v as SettingsSearch["wh"] }), replace: true })
+      }
       className="w-full"
     >
-      <TabsList className="mb-4 bg-white/[0.04]">
+      <TabsList className="mb-4 bg-foreground/[0.04]">
         <TabsTrigger value="envio">Envio</TabsTrigger>
         <TabsTrigger value="recebimento">Recebimento</TabsTrigger>
       </TabsList>
@@ -1001,10 +1136,15 @@ function WebhooksTab() {
       <TabsContent value="recebimento">
         <Tabs
           value={rx ?? "templates"}
-          onValueChange={(v) => navigate({ search: (prev) => ({ ...prev, rx: v as SettingsSearch["rx"] }), replace: true })}
+          onValueChange={(v) =>
+            navigate({
+              search: (prev) => ({ ...prev, rx: v as SettingsSearch["rx"] }),
+              replace: true,
+            })
+          }
           className="w-full"
         >
-          <TabsList className="mb-4 bg-white/[0.04]">
+          <TabsList className="mb-4 bg-foreground/[0.04]">
             <TabsTrigger value="templates">Templates por agente</TabsTrigger>
             <TabsTrigger value="listas">Listas operacionais</TabsTrigger>
           </TabsList>
@@ -1021,14 +1161,13 @@ function WebhooksTab() {
                 title="Endpoints de recebimento personalizados"
                 desc="Rotas próprias, com transformação de payload por integração."
               >
-                <div className="flex items-start gap-3 rounded-lg border border-dashed border-white/[0.08] bg-white/[0.02] p-4">
+                <div className="flex items-start gap-3 rounded-lg border border-dashed border-foreground/[0.08] bg-foreground/[0.02] p-4">
                   <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
                   <div>
                     <p className="text-[12px] font-semibold text-amber-300">Em breve</p>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      Cadastrar endpoints próprios de recebimento ainda não está disponível. Use
-                      os templates por agente acima — eles já cobrem criação e atualização de
-                      contato.
+                      Cadastrar endpoints próprios de recebimento ainda não está disponível. Use os
+                      templates por agente acima — eles já cobrem criação e atualização de contato.
                     </p>
                   </div>
                 </div>
@@ -1071,16 +1210,20 @@ function UrlField({
           readOnly
           value={value}
           className={cn(
-            "flex-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[12px] focus:outline-none",
+            "flex-1 rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-2 text-[12px] focus:outline-none",
             mono && "font-mono",
           )}
         />
         <button
           onClick={onCopy}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-foreground/[0.06] bg-foreground/[0.02] text-muted-foreground hover:text-foreground"
           aria-label="Copiar"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-emerald-400" />
+          ) : (
+            <Copy className="h-3.5 w-3.5" />
+          )}
         </button>
       </div>
     </div>

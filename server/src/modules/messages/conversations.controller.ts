@@ -11,7 +11,10 @@ import {
 import { AccountMemberGuard } from '../../common/guards/account-member.guard';
 import { ConversationsService } from './conversations.service';
 import { ListMessagesDto } from './dto/list-messages.dto';
-import { StartConversationDto } from './dto/start-conversation.dto';
+import {
+  StartByJidDto,
+  StartConversationDto,
+} from './dto/start-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
 
 @UseGuards(AccountMemberGuard)
@@ -33,6 +36,14 @@ export class ConversationsController {
     @Body() dto: StartConversationDto,
   ) {
     return this.service.start(accountId, dto.contactId);
+  }
+
+  @Post('start-jid')
+  startByJid(
+    @Param('accountId') accountId: string,
+    @Body() dto: StartByJidDto,
+  ) {
+    return this.service.startByJid(accountId, dto);
   }
 
   @Get(':conversationId/messages')

@@ -367,7 +367,7 @@ function CampaignDetailPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-4">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold">Funil de execução</h2>
           <span className="text-xs text-muted-foreground">
@@ -395,13 +395,13 @@ function CampaignDetailPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-card">
-        <div className="border-b border-border px-4 py-3 text-sm font-semibold">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
+        <div className="border-b border-gray-200 dark:border-slate-800 px-4 py-3 text-sm font-semibold">
           Contatos ({contacts.length})
         </div>
         <div className="max-h-[60vh] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 border-b border-border bg-card text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <thead className="sticky top-0 border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Número</th>
                 <th className="px-4 py-2 font-medium">O que aconteceu</th>
@@ -414,7 +414,7 @@ function CampaignDetailPage() {
             </thead>
             <tbody>
               {contacts.map((c) => (
-                <tr key={c.id} className="border-b border-border last:border-0">
+                <tr key={c.id} className="border-b border-gray-200 dark:border-slate-800 last:border-0">
                   <td className="px-4 py-2 font-mono text-xs">{c.to_number}</td>
                   <td className="px-4 py-2">
                     {(() => {
@@ -569,7 +569,7 @@ function EnrollmentQueue({
   if (pending.length === 0 && decided.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
       <div className="mb-3 flex items-center gap-2">
         <Inbox className="h-4 w-4 text-muted-foreground" />
         <h2 className="text-sm font-semibold">Lotes da integração</h2>
@@ -628,7 +628,7 @@ function EnrollmentQueue({
               </div>
 
               {openId === b.id && (
-                <div className="mt-3 overflow-x-auto rounded-md border border-border bg-background">
+                <div className="mt-3 overflow-x-auto rounded-md border border-gray-200 dark:border-slate-800 bg-background">
                   <table className="w-full text-xs">
                     <thead className="bg-muted/50 text-left text-muted-foreground">
                       <tr>
@@ -647,7 +647,7 @@ function EnrollmentQueue({
                         </tr>
                       ) : (
                         preview.map((r, i) => (
-                          <tr key={i} className="border-t border-border">
+                          <tr key={i} className="border-t border-gray-200 dark:border-slate-800">
                             <td className="px-2 py-1.5">{r.name ?? "—"}</td>
                             <td className="px-2 py-1.5 font-mono text-[11px]">
                               {r.external_id ?? "—"}
@@ -666,7 +666,7 @@ function EnrollmentQueue({
                     </tbody>
                   </table>
                   {preview.length > 0 && b.still_pending > preview.length && (
-                    <div className="border-t border-border px-2 py-1.5 text-[11px] text-muted-foreground">
+                    <div className="border-t border-gray-200 dark:border-slate-800 px-2 py-1.5 text-[11px] text-muted-foreground">
                       Amostra dos {preview.length} primeiros de {b.still_pending}.
                     </div>
                   )}
@@ -678,7 +678,7 @@ function EnrollmentQueue({
       )}
 
       {decided.length > 0 && (
-        <div className="mt-3 border-t border-border pt-2">
+        <div className="mt-3 border-t border-gray-200 dark:border-slate-800 pt-2">
           <div className="mb-1 text-[11px] font-medium text-muted-foreground">
             Decididos recentemente
           </div>
@@ -713,11 +713,11 @@ function Metric({
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card p-3",
+        "rounded-xl border bg-white dark:bg-slate-900/40 p-3",
         live && !accent ? "border-sky-500/20 bg-sky-500/[0.03]" : "",
         accent && live ? "border-sky-500/40 bg-sky-500/[0.05]" : "",
         accent && !live ? "border-primary/30 bg-primary/[0.03]" : "",
-        !accent && !live ? "border-border" : "",
+        !accent && !live ? "border-gray-200 dark:border-slate-800" : "",
       )}
     >
       <div className={cn("flex items-center gap-1.5 text-[11px] uppercase tracking-wider", live ? "text-sky-600" : "text-muted-foreground")}>

@@ -139,7 +139,7 @@ function CampaignsPage() {
             <FunnelKpi icon={<PhoneOff className="h-4 w-4" />} label="Falhas" value={`${failRate}%`} sub={`${agg.failed} de ${agg.placed} tentativas`} tone="rose" />
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
               <Rocket className="h-4 w-4 text-primary" /> Ranking por tipo de operação
             </h2>
@@ -173,7 +173,7 @@ function CampaignsPage() {
         </>
       )}
 
-      <div className="rounded-xl border border-border bg-card">
+      <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40">
         {loading ? (
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -185,7 +185,7 @@ function CampaignsPage() {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <thead className="border-b border-gray-200 dark:border-slate-800 text-left text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Nome</th>
                 <th className="px-4 py-2 font-medium">Tipo</th>
@@ -199,7 +199,7 @@ function CampaignsPage() {
               {rows.map((r) => {
                 const live = (r.in_progress_count ?? 0) + (r.ringing_count ?? 0);
                 return (
-                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                  <tr key={r.id} className="border-b border-gray-200 dark:border-slate-800 last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-2">
                       <Link
                         to="/campanhas/$campaignId"
@@ -577,7 +577,7 @@ function FunnelKpi({
     rose: "text-rose-600",
   }[tone];
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
       <div className={cn("flex items-center gap-2 text-xs text-muted-foreground", toneCls)}>
         {icon}
         <span>{label}</span>

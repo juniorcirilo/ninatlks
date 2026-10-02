@@ -5,7 +5,6 @@ services:
   # ubva (containers "postgresql", "redis", "minio" na rede srv_default), com
   # usuário/database/bucket dedicados — ver .env.
   utalks:
-    image: ubvabrasil/utalks
     build:
       context: .
     container_name: utalks

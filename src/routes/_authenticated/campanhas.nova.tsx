@@ -170,7 +170,7 @@ function NewCampaignPage() {
       <Stepper step={step} />
 
       {step === 1 && (
-        <section className="space-y-4 rounded-xl border border-border bg-card p-5">
+        <section className="space-y-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-5">
           <h2 className="text-sm font-semibold">1. Tipo e nome</h2>
           <Field label="Nome">
             <input
@@ -192,7 +192,7 @@ function NewCampaignPage() {
                     "rounded-lg border p-3 text-left transition-colors",
                     kind === k
                       ? "border-primary bg-primary/5"
-                      : "border-border bg-background hover:border-primary/40",
+                      : "border-gray-200 dark:border-slate-800 bg-background hover:border-primary/40",
                   )}
                 >
                   <div className="text-sm font-medium">{CAMPAIGN_KIND_LABEL[k]}</div>
@@ -206,7 +206,7 @@ function NewCampaignPage() {
       )}
 
       {step === 2 && (
-        <section className="space-y-4 rounded-xl border border-border bg-card p-5">
+        <section className="space-y-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-5">
           <h2 className="text-sm font-semibold">2. Lista, agente e número</h2>
           <Field label="Lista de contatos">
             <Select
@@ -278,7 +278,7 @@ function NewCampaignPage() {
                       "rounded-lg border p-3 text-left transition-colors",
                       autoEnroll === o.v
                         ? "border-primary bg-primary/5"
-                        : "border-border bg-background hover:border-primary/40",
+                        : "border-gray-200 dark:border-slate-800 bg-background hover:border-primary/40",
                     )}
                   >
                     <div className="text-sm font-medium">{o.t}</div>
@@ -342,7 +342,7 @@ function NewCampaignPage() {
       )}
 
       {step === 3 && (
-        <section className="space-y-4 rounded-xl border border-border bg-card p-5">
+        <section className="space-y-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-5">
           <h2 className="text-sm font-semibold">3. Script e parâmetros</h2>
           <Field label="Abertura (opcional)">
             <textarea

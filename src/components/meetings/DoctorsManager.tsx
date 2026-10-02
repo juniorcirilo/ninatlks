@@ -66,7 +66,7 @@ export function DoctorsManager({ accountId }: { accountId: string }) {
       </div>
 
       {doctors.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-card py-12 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 py-12 text-center text-sm text-muted-foreground">
           Nenhum contato cadastrado. Adicione o primeiro para a Nina conseguir agendar.
         </div>
       ) : (
@@ -123,7 +123,7 @@ function DoctorCard({
     }
   }
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

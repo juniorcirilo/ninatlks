@@ -233,7 +233,7 @@ function PipelinePage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-card px-6 py-4">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-6 py-4">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Pipeline</h1>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -332,7 +332,7 @@ function Dot() {
 function PipelineSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <header className="flex items-center justify-between gap-4 border-b border-border bg-card px-6 py-4">
+      <header className="flex items-center justify-between gap-4 border-b border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-6 py-4">
         <Skeleton className="h-6 w-40" />
         <Skeleton className="h-8 w-28" />
       </header>
@@ -341,7 +341,7 @@ function PipelineSkeleton() {
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}
-              className="flex w-[300px] shrink-0 flex-col gap-2.5 rounded-2xl border border-border bg-card p-2.5 shadow-elevation-1"
+              className="flex w-[300px] shrink-0 flex-col gap-2.5 rounded-2xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-2.5 shadow-elevation-1"
             >
               <Skeleton className="h-5 w-24" />
               {Array.from({ length: 3 }).map((_, j) => (
@@ -398,12 +398,12 @@ function Column({
     <section
       ref={setNodeRef}
       className={cn(
-        "flex h-full w-[300px] shrink-0 snap-center flex-col rounded-2xl border bg-card shadow-elevation-1 transition sm:w-[300px]",
+        "flex h-full w-[300px] shrink-0 snap-center flex-col rounded-2xl border bg-white dark:bg-slate-900/40 shadow-elevation-1 transition sm:w-[300px]",
         "max-sm:w-[85vw]",
-        isOver ? "border-accent ring-2 ring-accent/40 shadow-elevation-3" : "border-border",
+        isOver ? "border-accent ring-2 ring-accent/40 shadow-elevation-3" : "border-gray-200 dark:border-slate-800",
       )}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+      <header className="flex items-center justify-between gap-2 border-b border-gray-200 dark:border-slate-800 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className={cn("h-2 w-2 shrink-0 rounded-full", tone.dot)} />
           <h2 className="truncate text-sm font-semibold text-foreground">{stage.name}</h2>
@@ -415,7 +415,7 @@ function Column({
 
       <div className="flex-1 space-y-2 overflow-y-auto p-2.5">
         {stage.leads.length === 0 ? (
-          <div className="flex h-28 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/30 px-3 text-center">
+          <div className="flex h-28 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-gray-200 dark:border-slate-800 bg-muted/30 px-3 text-center">
             <p className="text-xs font-medium text-muted-foreground">Coluna vazia</p>
             <p className="text-[10px] text-muted-foreground/80">
               Arraste leads ou aguarde a Nina classificar
@@ -486,10 +486,10 @@ function LeadCardInner({
   return (
     <article
       className={cn(
-        "group cursor-grab active:cursor-grabbing rounded-xl border bg-card p-3 transition",
+        "group cursor-grab active:cursor-grabbing rounded-xl border bg-white dark:bg-slate-900/40 p-3 transition",
         dragging
           ? "border-accent shadow-elevation-4"
-          : "border-border shadow-elevation-1 hover:border-accent/40 hover:shadow-elevation-3",
+          : "border-gray-200 dark:border-slate-800 shadow-elevation-1 hover:border-accent/40 hover:shadow-elevation-3",
         pending && "opacity-60",
       )}
     >
@@ -601,13 +601,13 @@ function LeadDetail({
         </div>
 
         {lead.stage_change_reason && (
-          <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <p className="rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">Motivo do estágio:</span>{" "}
             {lead.stage_change_reason}
           </p>
         )}
 
-        <div className="space-y-2 rounded-xl border border-border bg-card p-3 text-xs shadow-elevation-1">
+        <div className="space-y-2 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3 text-xs shadow-elevation-1">
           {lead.phone_number && (
             <div className="flex items-center gap-2 text-foreground">
               <Phone className="h-3.5 w-3.5 text-muted-foreground" />
@@ -727,7 +727,7 @@ function LastInteractionSection({ accountId, lead }: { accountId: string; lead: 
   if (!lead.last_call_id) return null;
 
   return (
-    <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+    <div className="space-y-2 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           <PhoneCall className="h-3 w-3" />
@@ -768,7 +768,7 @@ function LastInteractionSection({ accountId, lead }: { accountId: string; lead: 
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : detail ? (
-          <div className="space-y-3 border-t border-border pt-3">
+          <div className="space-y-3 border-t border-gray-200 dark:border-slate-800 pt-3">
             <AiSummaryBlock
               accountId={accountId}
               callId={detail.id}
@@ -825,7 +825,7 @@ function RecentCallsSection({ accountId, contactId }: { accountId: string; conta
         {data.map((c) => (
           <div
             key={c.id}
-            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[11px]"
+            className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-2.5 py-1.5 text-[11px]"
           >
             <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
               <Phone className="h-3 w-3 shrink-0" />

@@ -235,7 +235,7 @@ export function VoicePicker({
           />
           <label
             htmlFor="voice-clone-file"
-            className="flex cursor-pointer items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-[11px] hover:bg-muted"
+            className="flex cursor-pointer items-center gap-1 rounded-md border border-gray-200 dark:border-slate-800 bg-background px-2 py-1 text-[11px] hover:bg-muted"
           >
             <Upload className="h-3 w-3" />
             {cloneFile ? cloneFile.name : "Escolher áudio"}
@@ -261,7 +261,7 @@ export function VoicePicker({
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex rounded-md border border-border bg-background p-0.5">
+        <div className="flex rounded-md border border-gray-200 dark:border-slate-800 bg-background p-0.5">
           {(["pt-BR", "multilingual", "all"] as const).map((f) => (
             <button
               key={f}
@@ -309,7 +309,7 @@ export function VoicePicker({
               key={v.voice_id}
               className={cn(
                 "flex items-center gap-2 rounded-md border p-2",
-                isCurrent ? "border-primary/40 bg-primary/5" : "border-border hover:bg-muted",
+                isCurrent ? "border-primary/40 bg-primary/5" : "border-gray-200 dark:border-slate-800 hover:bg-muted",
               )}
             >
               <button

@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getUiSetting, saveUiSetting } from "@/lib/user-prefs.functions";
 
 export type TablePrefs = { columns: string[]; statusFilter: string[]; search: string };
@@ -17,7 +23,11 @@ export type TablePrefs = { columns: string[]; statusFilter: string[]; search: st
 export function useTablePrefs(key: string, defaultColumns: string[]) {
   const fnGet = useServerFn(getUiSetting);
   const fnSave = useServerFn(saveUiSetting);
-  const [prefs, setPrefs] = useState<TablePrefs>({ columns: defaultColumns, statusFilter: [], search: "" });
+  const [prefs, setPrefs] = useState<TablePrefs>({
+    columns: defaultColumns,
+    statusFilter: [],
+    search: "",
+  });
   const loadedRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -99,7 +109,10 @@ export function ColumnsFilterPopover({
           <div className="space-y-1.5">
             {columns.map((c) => (
               <label key={c.key} className="flex items-center gap-2 text-sm">
-                <Checkbox checked={visible.includes(c.key)} onCheckedChange={() => onToggle(c.key)} />
+                <Checkbox
+                  checked={visible.includes(c.key)}
+                  onCheckedChange={() => onToggle(c.key)}
+                />
                 {c.label}
               </label>
             ))}
@@ -191,10 +204,7 @@ export function TablePagination({
         {totalCount !== undefined && totalCount !== itemCount ? ` (de ${totalCount} no total)` : ""}
       </p>
       <div className="flex items-center gap-3">
-        <Select
-          value={String(pageSize)}
-          onValueChange={(v) => onPageSizeChange(Number(v))}
-        >
+        <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange(Number(v))}>
           <SelectTrigger className="h-8 w-[110px] text-xs">
             <SelectValue />
           </SelectTrigger>

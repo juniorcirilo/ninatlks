@@ -279,7 +279,7 @@ export function EditPersonaDialog({
           </div>
         </DialogHeader>
 
-        <div className="flex items-center gap-1 border-b border-border">
+        <div className="flex items-center gap-1 border-b border-gray-200 dark:border-slate-800">
           {(
             [
               { key: "brain", label: "Cérebro" },
@@ -383,7 +383,7 @@ export function EditPersonaDialog({
                         "flex-1 rounded-md border px-3 py-1.5 text-[11px] transition-colors",
                         status === s.k
                           ? "border-primary/40 bg-primary/10 text-primary"
-                          : "border-border hover:bg-muted",
+                          : "border-gray-200 dark:border-slate-800 hover:bg-muted",
                       )}
                     >
                       {s.label}
@@ -430,7 +430,7 @@ export function EditPersonaDialog({
                 )}
               </div>
 
-              <div className="flex items-center justify-between border-t border-border pt-3">
+              <div className="flex items-center justify-between border-t border-gray-200 dark:border-slate-800 pt-3">
                 <div className="text-[11px] text-muted-foreground">
                   Treinar destila o estilo de escrita a partir de mensagens reais do atendimento.
                 </div>
@@ -709,8 +709,8 @@ function KnowledgeTab({
         é relevante por pergunta.
       </p>
 
-      <div className="rounded-md border border-border p-3">
-        <div className="mb-2 flex rounded-md border border-border bg-background p-0.5">
+      <div className="rounded-md border border-gray-200 dark:border-slate-800 p-3">
+        <div className="mb-2 flex rounded-md border border-gray-200 dark:border-slate-800 bg-background p-0.5">
           {(["url", "text"] as const).map((t) => (
             <button
               key={t}
@@ -830,7 +830,7 @@ function AdvancedTab(p: {
       </section>
 
       {/* Turn-taking */}
-      <section className="space-y-2 rounded-md border border-border p-3">
+      <section className="space-y-2 rounded-md border border-gray-200 dark:border-slate-800 p-3">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Turnos de fala
         </div>
@@ -867,7 +867,7 @@ function AdvancedTab(p: {
                   "flex-1 rounded-md border px-2 py-1 text-[11px] transition-colors",
                   p.turnEagerness === v
                     ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border hover:bg-muted",
+                    : "border-gray-200 dark:border-slate-800 hover:bg-muted",
                 )}
               >
                 {v === "eager" ? "Ágil" : v === "normal" ? "Normal" : "Paciente"}
@@ -878,7 +878,7 @@ function AdvancedTab(p: {
       </section>
 
       {/* TTS */}
-      <section className="space-y-2 rounded-md border border-border p-3">
+      <section className="space-y-2 rounded-md border border-gray-200 dark:border-slate-800 p-3">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Voz (TTS ElevenLabs)
         </div>
@@ -934,7 +934,7 @@ function AdvancedTab(p: {
       </section>
 
       {/* ASR keywords */}
-      <section className="space-y-1.5 rounded-md border border-border p-3">
+      <section className="space-y-1.5 rounded-md border border-gray-200 dark:border-slate-800 p-3">
         <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Palavras-chave do negócio (STT)
         </Label>
@@ -951,7 +951,7 @@ function AdvancedTab(p: {
       </section>
 
       {/* LLM */}
-      <section className="space-y-2 rounded-md border border-border p-3">
+      <section className="space-y-2 rounded-md border border-gray-200 dark:border-slate-800 p-3">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Cérebro (LLM)
         </div>

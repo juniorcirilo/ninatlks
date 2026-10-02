@@ -298,13 +298,10 @@ export class TwilioVoiceService {
         recording_storage_path: string | null;
         transcription_status: string | null;
       }[]
-    >(`SELECT * FROM public.voice_call_update_status_by_sid($1, $2, $3, $4, $5)`, [
-      callSid,
-      mapped,
-      duration,
-      recordingUrl ?? null,
-      terminal,
-    ]);
+    >(
+      `SELECT * FROM public.voice_call_update_status_by_sid($1, $2, $3, $4, $5)`,
+      [callSid, mapped, duration, recordingUrl ?? null, terminal],
+    );
     const updated = updatedRows[0];
 
     // Propaga o desfecho para o contato de campanha. Sem isto o status parava

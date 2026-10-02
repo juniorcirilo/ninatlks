@@ -31,7 +31,7 @@ export function PontoStep({ onClose }: { onClose: () => void }) {
         />
       </div>
 
-      <div className="rounded-md border border-violet-500/20 bg-primary/5 p-3 text-[12px] text-muted-foreground">
+      <div className="rounded-md border border-cyan-500/20 bg-primary/5 p-3 text-[12px] text-muted-foreground">
         <div className="mb-1 flex items-center gap-1.5 font-semibold text-primary/80">
           <Sparkles className="h-3.5 w-3.5" />
           Dica
@@ -61,7 +61,7 @@ function Cta({
   return (
     <a
       href={href}
-      className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
+      className="flex flex-col gap-2 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
     >
       <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
         <Icon className="h-4 w-4" />

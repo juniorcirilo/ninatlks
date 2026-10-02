@@ -37,7 +37,7 @@ export function RouteErrorBoundary({ error, reset }: Props) {
         </Button>
       </div>
       {import.meta.env.DEV && error instanceof Error && error.stack && (
-        <pre className="mt-6 max-w-xl overflow-x-auto rounded-md bg-white/[0.03] p-3 text-left text-[10px] text-muted-foreground">
+        <pre className="mt-6 max-w-xl overflow-x-auto rounded-md bg-foreground/[0.03] p-3 text-left text-[10px] text-muted-foreground">
           {error.stack}
         </pre>
       )}

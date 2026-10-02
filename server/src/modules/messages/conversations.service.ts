@@ -5,6 +5,12 @@ import {
   Scope,
 } from '@nestjs/common';
 import { TenantTxHost } from '../../common/tenant-tx.host';
+import {
+  contactIdentifierFor,
+  isGroupJid,
+  normalizeJid,
+  phoneOf,
+} from '../evolution/jid.util';
 import { StorageService } from '../storage/storage.service';
 
 export interface ConversationListItem {
@@ -18,6 +24,7 @@ export interface ConversationListItem {
   agent_last_seen_at: string | null;
   contact_name: string | null;
   contact_phone: string | null;
+  contact_avatar: string | null;
   last_message_content: string | null;
   last_message_at: string | null;
   last_message_sender_type: string | null;
@@ -34,6 +41,9 @@ export interface MessageListItem {
   created_at: string;
   /** URL assinada (temporária) do anexo, quando houver. */
   media_url?: string;
+  /** sent | delivered | read (só mensagens enviadas). */
+  delivery_status?: string | null;
+  delivery_error?: string | null;
 }
 
 /**
@@ -58,6 +68,7 @@ export class ConversationsService {
       `SELECT c.id, c.contact_id, c.inbox_id, c.status, c.ai_autopilot_enabled,
               c.additional_attributes, c.last_activity_at, c.agent_last_seen_at,
               ct.name AS contact_name, ct.phone_number AS contact_phone,
+              ct.additional_attributes->>'avatar_url' AS contact_avatar,
               lm.content AS last_message_content, lm.created_at AS last_message_at,
               lm.sender_type AS last_message_sender_type,
               (c.agent_last_seen_at IS NULL OR c.agent_last_seen_at < c.last_activity_at) AS unread
@@ -94,7 +105,9 @@ export class ConversationsService {
 
     const rows = await this.tx.manager.query<MessageListItem[]>(
       `SELECT id, content, sender_type, message_type, content_type,
-              content_attributes, created_at
+              content_attributes, created_at,
+              additional_attributes->>'delivery_status' AS delivery_status,
+              additional_attributes->>'delivery_error' AS delivery_error
          FROM messages
         WHERE conversation_id = $1 AND account_id = $2
           AND ($3::timestamptz IS NULL OR created_at < $3::timestamptz)
@@ -150,6 +163,57 @@ export class ConversationsService {
       );
     }
     return { ok: true };
+  }
+
+  /**
+   * Abre (ou cria) a conversa de um contato do Evolution identificado pelo JID
+   * — o contato pode ainda não existir no app. LID sem telefone resolvido
+   * vira `…@lid` (o envio usa o JID completo).
+   */
+  async startByJid(
+    accountId: string,
+    input: { jid: string; name?: string; picture?: string },
+  ): Promise<{ id: string; created: boolean; contact_id: string }> {
+    const jid = normalizeJid(input.jid);
+    if (isGroupJid(jid)) {
+      throw new ConflictException('group conversations are not supported');
+    }
+    const identifier = contactIdentifierFor(jid);
+    const phone = phoneOf(jid);
+
+    let contact = (
+      await this.tx.manager.query<{ id: string }[]>(
+        `SELECT id FROM contacts
+          WHERE account_id = $1 AND identifier = $2 AND deleted_at IS NULL LIMIT 1`,
+        [accountId, identifier],
+      )
+    )[0];
+    if (!contact) {
+      contact = (
+        await this.tx.manager.query<{ id: string }[]>(
+          `INSERT INTO contacts
+             (account_id, identifier, name, phone_number, additional_attributes, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5::jsonb, now(), now())
+           RETURNING id`,
+          [
+            accountId,
+            identifier,
+            input.name?.trim() || phone || 'WhatsApp',
+            phone,
+            JSON.stringify(input.picture ? { avatar_url: input.picture } : {}),
+          ],
+        )
+      )[0];
+    } else if (input.picture) {
+      await this.tx.manager.query(
+        `UPDATE contacts
+            SET additional_attributes = additional_attributes || jsonb_build_object('avatar_url', $2::text)
+          WHERE id = $1 AND (additional_attributes->>'avatar_url') IS NULL`,
+        [contact.id, input.picture],
+      );
+    }
+    const conv = await this.start(accountId, contact.id);
+    return { ...conv, contact_id: contact.id };
   }
 
   /**

@@ -161,10 +161,10 @@ export function AgentEditor({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="!max-w-5xl p-0 overflow-hidden">
-        <DialogHeader className="border-b border-border px-6 py-4">
+        <DialogHeader className="border-b border-gray-200 dark:border-slate-800 px-6 py-4">
           <DialogTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
                 <Bot className="h-4 w-4 text-white" />
               </div>
               <div>
@@ -180,7 +180,7 @@ export function AgentEditor({
 
         <div className="flex h-[75vh] min-h-[500px]">
           {/* Sidebar */}
-          <nav className="flex w-56 shrink-0 flex-col border-r border-border bg-muted/40 p-3">
+          <nav className="flex w-56 shrink-0 flex-col border-r border-gray-200 dark:border-slate-800 bg-muted/40 p-3">
             {TABS.map((t) => {
               const Icon = t.icon;
               const active = tab === t.id;
@@ -324,7 +324,7 @@ function ConversaTab({
           className="font-mono text-[12px] leading-relaxed"
           placeholder="Você é um SDR por voz que..."
         />
-        <div className="mt-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-[11px] text-muted-foreground">
+        <div className="mt-2 flex items-start gap-2 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 p-3 text-[11px] text-muted-foreground">
           <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-amber-400" />
           <span>
             O template de SDR já cobre o fluxo completo: descoberta, qualificação BANT, agendamento
@@ -477,13 +477,13 @@ function ModeloTab({
                   "flex items-start gap-3 rounded-lg border p-3 text-left transition-colors",
                   active
                     ? "border-primary bg-primary/10"
-                    : "border-border bg-muted/40 hover:border-border",
+                    : "border-gray-200 dark:border-slate-800 bg-muted/40 hover:border-border",
                 )}
               >
                 <div
                   className={cn(
                     "mt-0.5 h-4 w-4 shrink-0 rounded-full border-2",
-                    active ? "border-primary bg-primary" : "border-white/20",
+                    active ? "border-primary bg-primary" : "border-foreground/20",
                   )}
                 >
                   {active && <Check className="h-3 w-3 text-primary-foreground" />}
@@ -632,7 +632,7 @@ function ComportamentoTab({
                   "rounded-lg border p-3 text-left transition-colors",
                   active
                     ? "border-primary bg-primary/10"
-                    : "border-border bg-muted/40 hover:border-border",
+                    : "border-gray-200 dark:border-slate-800 bg-muted/40 hover:border-border",
                 )}
               >
                 <div className="text-[13px] font-medium">{o.label}</div>
@@ -779,14 +779,14 @@ function DadosTab({
         }
       >
         {fields.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/40 px-4 py-6 text-center text-[11px] text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-gray-200 dark:border-slate-800 bg-muted/40 px-4 py-6 text-center text-[11px] text-muted-foreground">
             Nenhum campo cadastrado ainda — a lista vai usar um conjunto genérico por tipo de
             operação até você adicionar os campos deste agente aqui.
           </div>
         ) : (
           <ul className="space-y-2">
             {fields.map((f, i) => (
-              <li key={i} className="rounded-lg border border-border bg-muted/40 p-3">
+              <li key={i} className="rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/40 p-3">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <FieldRow label="Chave">
                     <Input
@@ -936,7 +936,7 @@ function ConhecimentoTab({
           </div>
         )}
 
-        <div className="rounded-lg border border-border bg-muted/40 p-4">
+        <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/40 p-4">
           <div className="mb-3 flex gap-1.5">
             <button
               type="button"
@@ -1013,7 +1013,7 @@ function ConhecimentoTab({
         desc={`${docs.length} documento${docs.length === 1 ? "" : "s"} indexado${docs.length === 1 ? "" : "s"} no ElevenLabs.`}
       >
         {docs.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/40 px-4 py-6 text-center text-[11px] text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-gray-200 dark:border-slate-800 bg-muted/40 px-4 py-6 text-center text-[11px] text-muted-foreground">
             Nenhum documento adicionado ainda.
           </div>
         ) : (
@@ -1021,7 +1021,7 @@ function ConhecimentoTab({
             {docs.map((id) => (
               <li
                 key={id}
-                className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px]"
+                className="flex items-center gap-2 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 px-3 py-2 text-[11px]"
               >
                 <BookOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
                 <code className="flex-1 truncate font-mono text-muted-foreground">{id}</code>
@@ -1145,7 +1145,7 @@ function SyncTab({ draft, onSynced, accountId }: { draft: Persona; onSynced: () 
 
 function SyncItem({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <li className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px]">
+    <li className="flex items-center gap-2 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 px-3 py-2 text-[11px]">
       {ok ? (
         <Check className="h-3 w-3 text-emerald-400" />
       ) : (

@@ -98,7 +98,7 @@ function PlaygroundPage() {
               onClick={() => setActive(a.key)}
               className={cn(
                 "w-full text-left rounded-lg border p-3 transition hover:bg-muted",
-                active === a.key ? "border-primary bg-primary/5" : "border-border",
+                active === a.key ? "border-primary bg-primary/5" : "border-gray-200 dark:border-slate-800",
               )}
             >
               <div className="flex items-center gap-2">

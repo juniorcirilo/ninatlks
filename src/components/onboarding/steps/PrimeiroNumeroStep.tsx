@@ -108,7 +108,7 @@ export function PrimeiroNumeroStep({ accountId }: { accountId: string }) {
 
       {/* Loading */}
       {importedCount === 0 && (importedQuery.isLoading || ownedQuery.isLoading) && (
-        <div className="flex items-center justify-center rounded-md border border-border bg-muted/30 py-8">
+        <div className="flex items-center justify-center rounded-md border border-gray-200 dark:border-slate-800 bg-muted/30 py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           <span className="ml-2 text-sm text-muted-foreground">
             Buscando números na sua conta Twilio…
@@ -192,7 +192,7 @@ export function PrimeiroNumeroStep({ accountId }: { accountId: string }) {
                 return (
                   <div
                     key={n.sid}
-                    className="flex items-center justify-between gap-3 rounded-md border border-border bg-card/50 p-3"
+                    className="flex items-center justify-between gap-3 rounded-md border border-gray-200 dark:border-slate-800 bg-card/50 p-3"
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -258,7 +258,7 @@ export function PrimeiroNumeroStep({ accountId }: { accountId: string }) {
         !ownedQuery.isLoading &&
         !ownedError &&
         owned.length === 0 && (
-          <div className="rounded-md border border-border bg-muted/40 p-4">
+          <div className="rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <Phone className="h-5 w-5" />

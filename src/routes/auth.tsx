@@ -197,13 +197,13 @@ function AuthPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-5">
-      <div className="pointer-events-none absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full bg-violet-600/[0.12] blur-[150px]" />
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[420px] w-[420px] rounded-full bg-fuchsia-600/[0.10] blur-[150px]" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
+      <div className="pointer-events-none fixed left-0 top-0 z-0 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20 blur-[128px]" />
+      <div className="pointer-events-none fixed bottom-0 right-0 z-0 h-[500px] w-[500px] translate-x-1/2 translate-y-1/2 rounded-full bg-accent/10 blur-[128px]" />
 
       <div className="w-full max-w-[860px]">
         {inviteToken && (
-          <div className="mx-auto mb-4 max-w-md rounded-xl border border-violet-500/40 bg-violet-500/10 px-4 py-3 text-center text-sm font-medium text-violet-900 dark:text-violet-100">
+          <div className="mx-auto mb-4 max-w-md rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-center text-sm font-medium text-cyan-900 dark:text-cyan-100">
             {previewLoading ? (
               "Validando convite..."
             ) : invitePreview ? (
@@ -211,7 +211,7 @@ function AuthPage() {
                 Você foi convidado para o workspace <strong>{invitePreview.account_name}</strong>{" "}
                 como <strong>{invitePreview.role}</strong>
                 {invitePreview.email_hint && (
-                  <span className="mt-1 block text-xs text-violet-700 dark:text-violet-200/80">
+                  <span className="mt-1 block text-xs text-cyan-700 dark:text-cyan-200/80">
                     Convite enviado para {invitePreview.email_hint}
                   </span>
                 )}

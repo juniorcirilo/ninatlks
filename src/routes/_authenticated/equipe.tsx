@@ -138,9 +138,9 @@ function MembersCard({
   };
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <section className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-5">
       <div className="mb-4 flex items-center gap-2">
-        <Users className="h-4 w-4 text-violet-400" />
+        <Users className="h-4 w-4 text-cyan-400" />
         <h2 className="text-[14px] font-semibold">Membros ({members.length})</h2>
       </div>
 
@@ -159,7 +159,7 @@ function MembersCard({
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     <span className="truncate">{m.name}</span>
                     {isSelf && (
-                      <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800 dark:text-violet-200">
+                      <span className="rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-800 dark:text-cyan-200">
                         você
                       </span>
                     )}
@@ -283,9 +283,9 @@ function InvitesCard({ accountId }: { accountId: string }) {
   };
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <section className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-5">
       <div className="mb-4 flex items-center gap-2">
-        <Mail className="h-4 w-4 text-fuchsia-400" />
+        <Mail className="h-4 w-4 text-sky-400" />
         <h2 className="text-[14px] font-semibold">Convidar colaborador</h2>
       </div>
 
@@ -296,7 +296,7 @@ function InvitesCard({ accountId }: { accountId: string }) {
           placeholder="email@exemplo.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="h-10 w-full rounded-md border border-gray-200 dark:border-slate-800 bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         />
         <div className="flex gap-2">
           <Select value={role} onValueChange={(v) => setRole(v as MemberRole)}>
@@ -312,7 +312,7 @@ function InvitesCard({ accountId }: { accountId: string }) {
             type="button"
             onClick={handleCreate}
             disabled={creating}
-            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             Gerar convite
@@ -322,8 +322,8 @@ function InvitesCard({ accountId }: { accountId: string }) {
 
       {/* Banner com link recém-criado */}
       {newInvite && (
-        <div className="mt-4 rounded-lg border border-violet-500/40 bg-violet-500/10 p-3">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-violet-800 dark:text-violet-200">
+        <div className="mt-4 rounded-lg border border-cyan-500/40 bg-cyan-500/10 p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-cyan-800 dark:text-cyan-200">
             <ShieldCheck className="h-3.5 w-3.5" />
             Convite gerado para {newInvite.email} · {newInvite.role}
           </div>
@@ -331,12 +331,12 @@ function InvitesCard({ accountId }: { accountId: string }) {
             <input
               readOnly
               value={buildInviteUrl(newInvite.token)}
-              className="h-9 flex-1 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+              className="h-9 flex-1 rounded-md border border-gray-200 dark:border-slate-800 bg-background px-2 text-xs text-foreground"
             />
             <button
               type="button"
               onClick={() => handleCopy(newInvite.token)}
-              className="flex h-9 items-center gap-1 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-white/[0.04]"
+              className="flex h-9 items-center gap-1 rounded-md border border-gray-200 dark:border-slate-800 bg-background px-3 text-xs font-medium text-foreground hover:bg-foreground/[0.04]"
             >
               {copied ? (
                 <Check className="h-3.5 w-3.5 text-emerald-400" />
@@ -363,11 +363,11 @@ function InvitesCard({ accountId }: { accountId: string }) {
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : pending.length === 0 ? (
-          <div className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">
+          <div className="rounded-md border border-dashed border-gray-200 dark:border-slate-800 p-3 text-center text-xs text-muted-foreground">
             Nenhum convite pendente.
           </div>
         ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
+          <ul className="divide-y divide-border rounded-md border border-gray-200 dark:border-slate-800">
             {pending.map((inv) => (
               <li key={inv.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <div className="min-w-0 flex-1">
@@ -380,7 +380,7 @@ function InvitesCard({ accountId }: { accountId: string }) {
                   <button
                     type="button"
                     onClick={() => handleCopy(inv.token)}
-                    className="rounded p-1.5 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+                    className="rounded p-1.5 text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
                     aria-label="Copiar link"
                   >
                     <Copy className="h-3.5 w-3.5" />
@@ -400,7 +400,7 @@ function InvitesCard({ accountId }: { accountId: string }) {
         )}
       </div>
 
-      <div className="mt-4 flex items-start gap-2 rounded-md border border-border bg-background/50 p-3 text-[11px] text-muted-foreground">
+      <div className="mt-4 flex items-start gap-2 rounded-md border border-gray-200 dark:border-slate-800 bg-background/50 p-3 text-[11px] text-muted-foreground">
         <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <p>
           O convidado precisa criar uma conta usando o link gerado. O e-mail informado é só uma

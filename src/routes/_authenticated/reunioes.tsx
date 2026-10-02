@@ -284,7 +284,7 @@ function MeetingsPage() {
 
       {/* View switcher */}
       <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
+        <div className="inline-flex rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-0.5">
           <ViewBtn
             active={view === "calendar"}
             onClick={() => setView("calendar")}
@@ -397,7 +397,7 @@ function ListView({ meetings, onSelect }: { meetings: Meeting[]; onSelect: (m: M
 
   if (sorted.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card py-16 text-center">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 py-16 text-center">
         <CalendarIcon className="mb-2 h-5 w-5 text-muted-foreground" />
         <p className="text-sm text-muted-foreground">Nenhuma reunião no período.</p>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -454,7 +454,7 @@ function MeetingRow({ meeting, onClick }: { meeting: Meeting; onClick: () => voi
   return (
     <button
       onClick={onClick}
-      className="group flex w-full items-center gap-4 rounded-xl border border-border bg-card px-4 py-3 text-left transition hover:border-primary/40 hover:shadow-sm"
+      className="group flex w-full items-center gap-4 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-4 py-3 text-left transition hover:border-primary/40 hover:shadow-sm"
     >
       <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-primary/10 text-center">
         <div className="text-[9px] uppercase tracking-wider text-primary/70">
@@ -590,7 +590,7 @@ function MeetingDetail({ meeting, onChanged }: { meeting: Meeting; onChanged: ()
           </div>
         )}
 
-        <div className="space-y-2 rounded-xl border border-border bg-card p-3 text-xs">
+        <div className="space-y-2 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3 text-xs">
           {meeting.invitee_phone && (
             <Row icon={<Phone className="h-3.5 w-3.5 text-muted-foreground" />}>
               {meeting.invitee_phone}

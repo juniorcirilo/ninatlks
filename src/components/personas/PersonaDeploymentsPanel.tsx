@@ -63,7 +63,7 @@ export function PersonaDeploymentsPanel({
 
   if (inboxes.length === 0) {
     return (
-      <div className="rounded-lg border border-border bg-muted/40 p-4 text-center text-[11px] text-muted-foreground">
+      <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/40 p-4 text-center text-[11px] text-muted-foreground">
         Nenhuma caixa de entrada configurada. Crie uma em Canais primeiro.
       </div>
     );
@@ -144,7 +144,7 @@ function DeploymentRow({
     <div
       className={cn(
         "rounded-lg border p-3 transition-colors",
-        enabled ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40",
+        enabled ? "border-primary/40 bg-primary/5" : "border-gray-200 dark:border-slate-800 bg-muted/40",
       )}
     >
       <div className="flex items-center justify-between gap-3">

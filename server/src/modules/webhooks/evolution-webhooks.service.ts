@@ -3,9 +3,16 @@ import { DataSource } from 'typeorm';
 import { InboundMessageService } from './inbound-message.service';
 import { StorageService } from '../storage/storage.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { EvolutionClientService } from '../evolution/evolution-client.service';
+import {
+  contactIdentifierFor,
+  isLidJid,
+  isPnJid,
+  normalizeJid,
+  phoneOf,
+} from '../evolution/jid.util';
 
 const IGNORED_EVENTS = new Set<string>([
-  'MESSAGES_UPDATE',
   'MESSAGES_DELETE',
   'CHATS_UPDATE',
   'CHATS_UPSERT',
@@ -48,7 +55,25 @@ const MEDIA_KEYS = [
   ['stickerMessage', 'sticker'],
 ] as const;
 
+// MESSAGES_UPDATE.status do Evolution → delivery_status do app.
+const STATUS_MAP: Record<string, string> = {
+  SERVER_ACK: 'sent',
+  DELIVERY_ACK: 'delivered',
+  READ: 'read',
+  PLAYED: 'played',
+  ERROR: 'error',
+};
+
+interface ChannelCfg {
+  evolution_url?: string;
+  evolution_api_key?: string;
+  evolution_instance_name?: string;
+}
+
 interface EvolutionMessageKey {
+  /** Telefone real quando remoteJid é um LID. */
+  remoteJidAlt?: string;
+  participantAlt?: string;
   fromMe?: boolean;
   remoteJid?: string;
   id?: string;
@@ -56,7 +81,18 @@ interface EvolutionMessageKey {
 
 interface EvolutionMessageContent {
   conversation?: string;
-  extendedTextMessage?: { text?: string };
+  extendedTextMessage?: {
+    text?: string;
+    contextInfo?: {
+      stanzaId?: string;
+      participant?: string;
+      quotedMessage?: {
+        conversation?: string;
+        extendedTextMessage?: { text?: string };
+        imageMessage?: { caption?: string };
+      };
+    };
+  };
   imageMessage?: MediaInfo;
   videoMessage?: MediaInfo;
   documentMessage?: MediaInfo;
@@ -108,7 +144,7 @@ interface EvolutionEventData {
 export interface EvolutionPayload {
   event?: string;
   instance?: string;
-  data?: EvolutionEventData;
+  data?: EvolutionEventData | EvolutionEventData[];
 }
 
 function str(value: unknown): string {
@@ -130,7 +166,13 @@ export class EvolutionWebhooksService {
     private readonly inbound: InboundMessageService,
     private readonly storage: StorageService,
     private readonly gateway: RealtimeGateway,
+    private readonly evolutionClient: EvolutionClientService,
   ) {}
+
+  /** lid → telefone aprendido (processo); evita reconsultar o Evolution. */
+  private readonly lidCache = new Map<string, string>();
+  /** contato → última checagem da foto de perfil. */
+  private readonly avatarChecked = new Map<string, number>();
 
   async handle(payload: EvolutionPayload): Promise<{ ignored?: string }> {
     // Evolution v2 sends the event name dot-separated in the webhook body
@@ -139,10 +181,18 @@ export class EvolutionWebhooksService {
     // match IGNORED_EVENTS/the MESSAGES_UPSERT check below — without this,
     // every real inbound message was silently dropped as "unknown event".
     const event = str(payload?.event).toUpperCase().replace(/\./g, '_');
-    const data: EvolutionEventData = payload?.data ?? payload ?? {};
+    const rawData = payload?.data ?? payload ?? {};
+    const data: EvolutionEventData = Array.isArray(rawData)
+      ? (rawData[0] ?? {})
+      : rawData;
 
     if (event === 'PRESENCE_UPDATE') {
       await this.handlePresence(payload, data);
+      return {};
+    }
+
+    if (event === 'MESSAGES_UPDATE') {
+      await this.handleStatus(payload, data);
       return {};
     }
 
@@ -154,7 +204,6 @@ export class EvolutionWebhooksService {
 
     const key = data.key ?? {};
     const fromMe = key.fromMe === true || data.fromMe === true;
-    if (fromMe) return { ignored: 'fromMe' };
 
     const messageType = str(data.messageType);
     if (messageType && !ACCEPTED_MESSAGE_TYPES.has(messageType)) {
@@ -198,6 +247,9 @@ export class EvolutionWebhooksService {
         text: text.trim() || (hasMedia ? `[${media[1]}]` : ''),
         hasMedia,
         pushName: data.pushName ?? null,
+        fromMe,
+        quote: this.quoteOf(msg, remoteJid),
+        remoteJidAlt: key.remoteJidAlt ?? key.participantAlt ?? '',
         media: media
           ? { kind: media[1], info: msg[media[0]] ?? {}, base64: msg.base64 }
           : undefined,
@@ -216,6 +268,13 @@ export class EvolutionWebhooksService {
     text: string;
     hasMedia: boolean;
     pushName: string | null;
+    fromMe?: boolean;
+    quote?: {
+      message_id: string;
+      content: string | null;
+      from_me: boolean;
+    } | null;
+    remoteJidAlt?: string;
     media?: { kind: string; info: MediaInfo; base64?: string };
     reply?: { text: string; selectedId?: string } | null;
   }): Promise<void> {
@@ -223,9 +282,9 @@ export class EvolutionWebhooksService {
       args;
 
     const byInstance = await this.dataSource.query<
-      { id: string; account_id: string }[]
+      { id: string; account_id: string; config: ChannelCfg }[]
     >(
-      `SELECT * FROM public.webhook_find_channel_by_config('whatsapp', 'instance_name', $1)`,
+      `SELECT * FROM public.webhook_find_channel_by_config('whatsapp', 'evolution_instance_name', $1)`,
       [instanceName],
     );
     const channel = byInstance[0];
@@ -242,8 +301,20 @@ export class EvolutionWebhooksService {
       return;
     }
 
-    const baseJid = remoteJid.replace(/:\d+@/, '@').split('@')[0];
-    const identifier = `evolution:whatsapp:${baseJid}`;
+    // LID → telefone (remoteJidAlt do payload, cache ou consulta ao Evolution).
+    const jid = await this.resolveJid(
+      channel.config,
+      remoteJid,
+      args.remoteJidAlt,
+    );
+    const identifier = contactIdentifierFor(jid);
+    const contactPhone = phoneOf(jid);
+    void this.refreshAvatar(
+      channel.account_id,
+      channel.config,
+      identifier,
+      jid,
+    );
 
     let contentAttributes: Record<string, unknown> | undefined;
     if (args.media) {
@@ -276,13 +347,37 @@ export class EvolutionWebhooksService {
         selected_id: args.reply.selectedId,
       };
     }
+    if (args.quote) {
+      contentAttributes = {
+        kind: 'text',
+        ...contentAttributes,
+        reply_to: args.quote,
+      };
+    }
 
-    await this.inbound.ingest({
+    // Enviada pelo celular do atendente: entra como saída na conversa existente.
+    if (args.fromMe) {
+      await this.dataSource.query(
+        `SELECT public.webhook_ingest_outbound_message($1,$2,$3,$4,$5,$6::jsonb)`,
+        [
+          instanceName,
+          identifier,
+          messageId,
+          text,
+          hasMedia ? 1 : 0,
+          JSON.stringify(contentAttributes ?? { kind: 'text' }),
+        ],
+      );
+      return;
+    }
+
+    const result = await this.inbound.ingest({
       accountId: channel.account_id,
       channelId: channel.id,
       channelType: 'whatsapp',
       inboxName: 'WhatsApp',
       identifier,
+      contactPhone,
       contactName: pushName ?? 'WhatsApp (sem número)',
       sourceId: messageId,
       content: text,
@@ -290,6 +385,32 @@ export class EvolutionWebhooksService {
       contentAttributes,
       externalSourceIds: { evolution_message_id: messageId },
     });
+    void result;
+  }
+
+  /** Mensagem citada quando o contato usa "responder". */
+  private quoteOf(
+    msg: EvolutionMessageContent,
+    remoteJid: string,
+  ): { message_id: string; content: string | null; from_me: boolean } | null {
+    const ctx = msg.extendedTextMessage?.contextInfo;
+    if (!ctx?.stanzaId) return null;
+    const q = ctx.quotedMessage;
+    const content =
+      str(q?.conversation) ||
+      str(q?.extendedTextMessage?.text) ||
+      str(q?.imageMessage?.caption) ||
+      null;
+    // Autor da citação diferente do contato → foi uma mensagem nossa.
+    const author = (ctx.participant ?? '').replace(/\D/g, '');
+    const contact = remoteJid.replace(/\D/g, '');
+    const fromMe =
+      !!author && !!contact && author.slice(-8) !== contact.slice(-8);
+    return {
+      message_id: ctx.stanzaId,
+      content: content ? content.slice(0, 200) : null,
+      from_me: fromMe,
+    };
   }
 
   /** Texto legível de uma resposta a botão/lista. */
@@ -343,7 +464,7 @@ export class EvolutionWebhooksService {
     const rows = await this.dataSource.query<
       { id: string; account_id: string }[]
     >(
-      `SELECT * FROM public.webhook_find_channel_by_config('whatsapp', 'instance_name', $1)`,
+      `SELECT * FROM public.webhook_find_channel_by_config('whatsapp', 'evolution_instance_name', $1)`,
       [instanceName],
     );
     if (!rows[0]) return;
@@ -351,5 +472,120 @@ export class EvolutionWebhooksService {
       jid: jid.replace(/:\d+@/, '@').split('@')[0],
       presence,
     });
+  }
+
+  /** Tiques: enviada → entregue → lida (MESSAGES_UPDATE). */
+  private async handleStatus(
+    payload: EvolutionPayload,
+    data: EvolutionEventData,
+  ): Promise<void> {
+    const instanceName =
+      payload.instance || data.instance || data.instanceName || '';
+    const items = (Array.isArray(payload.data) ? payload.data : [data]) as (
+      EvolutionEventData | undefined
+    )[];
+    for (const item of items) {
+      const id = str(item?.keyId) || str(item?.key?.id) || str(item?.messageId);
+      const raw = str((item as { status?: unknown } | undefined)?.status);
+      const status = STATUS_MAP[raw.toUpperCase()] ?? null;
+      if (!instanceName || !id || !status) continue;
+      await this.dataSource
+        .query(`SELECT public.webhook_update_message_status($1,$2,$3)`, [
+          instanceName,
+          id,
+          status,
+        ])
+        .catch((err: Error) =>
+          this.logger.warn(`status update failed: ${err.message}`),
+        );
+    }
+  }
+
+  /**
+   * Resolve LID → JID de telefone. Fontes, em ordem: remoteJidAlt do próprio
+   * payload, cache do processo e, por último, o chat no Evolution (que guarda
+   * o remoteJidAlt da última mensagem). Sem resolução devolve o LID.
+   */
+  private async resolveJid(
+    cfg: ChannelCfg,
+    remoteJid: string,
+    alt?: string,
+  ): Promise<string> {
+    const jid = normalizeJid(remoteJid);
+    if (!isLidJid(jid)) return jid;
+
+    if (alt && isPnJid(alt)) {
+      this.lidCache.set(jid, normalizeJid(alt));
+      return normalizeJid(alt);
+    }
+    const cached = this.lidCache.get(jid);
+    if (cached) return cached;
+
+    if (
+      cfg?.evolution_url &&
+      cfg.evolution_api_key &&
+      cfg.evolution_instance_name
+    ) {
+      try {
+        const chats = await this.evolutionClient.findChats(
+          {
+            url: cfg.evolution_url,
+            apiKey: cfg.evolution_api_key,
+            instanceName: cfg.evolution_instance_name,
+          },
+          jid,
+        );
+        const found = chats
+          .map((c) => c.lastMessage?.key?.remoteJidAlt)
+          .find((v): v is string => !!v && isPnJid(v));
+        if (found) {
+          this.lidCache.set(jid, normalizeJid(found));
+          return normalizeJid(found);
+        }
+      } catch (err) {
+        this.logger.warn(`lid resolve failed: ${(err as Error).message}`);
+      }
+    }
+    return jid;
+  }
+
+  /** Foto de perfil do contato: no máx. 1 consulta/dia por contato. */
+  private async refreshAvatar(
+    accountId: string,
+    cfg: ChannelCfg,
+    identifier: string,
+    jid: string,
+  ): Promise<void> {
+    const key = `${accountId}:${identifier}`;
+    const last = this.avatarChecked.get(key) ?? 0;
+    if (Date.now() - last < 24 * 60 * 60 * 1000) return;
+    if (
+      !cfg?.evolution_url ||
+      !cfg.evolution_api_key ||
+      !cfg.evolution_instance_name
+    )
+      return;
+    this.avatarChecked.set(key, Date.now());
+    try {
+      const url = await this.evolutionClient.fetchProfilePictureUrl({
+        url: cfg.evolution_url,
+        apiKey: cfg.evolution_api_key,
+        instanceName: cfg.evolution_instance_name,
+        number: jid,
+      });
+      if (!url) return;
+      // O contato só existe depois do ingest; tenta de novo após um instante.
+      for (const wait of [1500, 5000]) {
+        await new Promise((r) => setTimeout(r, wait));
+        const rows = await this.dataSource.query<{ ok: boolean }[]>(
+          `SELECT public.webhook_set_contact_avatar($1,$2,$3) AS ok`,
+          [accountId, identifier, url],
+        );
+        if (rows[0]?.ok) return;
+      }
+    } catch (err) {
+      this.avatarChecked.delete(key);
+      this.logger.warn(`avatar refresh failed: ${(err as Error).message}`);
+    }
   }
 }

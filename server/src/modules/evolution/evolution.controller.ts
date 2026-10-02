@@ -6,12 +6,14 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AccountMemberGuard } from '../../common/guards/account-member.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { EvolutionService } from './evolution.service';
+import { EvolutionDirectoryService } from './evolution-directory.service';
 import {
   TestEvolutionDto,
   ProvisionEvolutionDto,
@@ -21,11 +23,30 @@ import {
 @UseGuards(AccountMemberGuard, RolesGuard)
 @Controller('accounts/:accountId/evolution')
 export class EvolutionController {
-  constructor(private readonly evolutionService: EvolutionService) {}
+  constructor(
+    private readonly evolutionService: EvolutionService,
+    private readonly directory: EvolutionDirectoryService,
+  ) {}
 
   @Get()
   list(@Param('accountId') accountId: string) {
     return this.evolutionService.listChannels(accountId);
+  }
+
+  @Get('directory/contacts')
+  directoryContacts(
+    @Param('accountId') accountId: string,
+    @Query('refresh') refresh?: string,
+  ) {
+    return this.directory.contacts(accountId, refresh === '1');
+  }
+
+  @Get('directory/groups')
+  directoryGroups(
+    @Param('accountId') accountId: string,
+    @Query('refresh') refresh?: string,
+  ) {
+    return this.directory.groups(accountId, refresh === '1');
   }
 
   @Get('sessions')

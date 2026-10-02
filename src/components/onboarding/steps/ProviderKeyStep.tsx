@@ -219,7 +219,7 @@ export function ProviderKeyStep({
       </div>
 
       {/* Inputs */}
-      <div className="space-y-3 rounded-lg border border-border bg-muted/40 p-4">
+      <div className="space-y-3 rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/40 p-4">
         {loadingSaved ? (
           <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando…
@@ -281,7 +281,7 @@ export function ProviderKeyStep({
       </div>
 
       {/* Instruções colapsáveis */}
-      <details className="rounded-lg border border-border bg-background p-3 text-sm">
+      <details className="rounded-lg border border-gray-200 dark:border-slate-800 bg-background p-3 text-sm">
         <summary className="cursor-pointer text-[12px] font-semibold text-foreground hover:text-primary">
           Onde pegar essas keys?
         </summary>

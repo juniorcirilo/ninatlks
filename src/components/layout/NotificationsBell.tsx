@@ -89,7 +89,7 @@ export function NotificationsBell() {
         <button
           type="button"
           aria-label="Notificações"
-          className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card/40 text-muted-foreground transition-colors hover:text-foreground"
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 dark:border-slate-800 bg-card/40 text-muted-foreground transition-colors hover:text-foreground"
         >
           <Bell className="h-4 w-4" />
           {unread > 0 && (
@@ -100,7 +100,7 @@ export function NotificationsBell() {
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[380px] p-0">
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 px-3 py-2">
           <div className="text-[13px] font-semibold">Notificações</div>
           {unread > 0 && (
             <button
@@ -128,12 +128,12 @@ export function NotificationsBell() {
                 <li
                   key={n.id}
                   className={cn(
-                    "group flex gap-2 px-3 py-2.5 transition-colors hover:bg-white/[0.03]",
-                    !n.readAt && "bg-violet-500/[0.04]",
+                    "group flex gap-2 px-3 py-2.5 transition-colors hover:bg-foreground/[0.03]",
+                    !n.readAt && "bg-cyan-500/[0.04]",
                   )}
                 >
                   <div
-                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400"
+                    className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-400"
                     style={{ visibility: n.readAt ? "hidden" : "visible" }}
                   />
                   <div className="min-w-0 flex-1">
@@ -156,7 +156,7 @@ export function NotificationsBell() {
                             setOpen(false);
                             handleMarkOne(n);
                           }}
-                          className="inline-flex items-center gap-1 text-[10px] font-medium text-violet-300 hover:text-violet-200"
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-cyan-300 hover:text-cyan-200"
                         >
                           Ver <ExternalLink className="h-2.5 w-2.5" />
                         </Link>

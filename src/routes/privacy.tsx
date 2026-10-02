@@ -175,7 +175,7 @@ export function LegalLayout({
 }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border">
+      <header className="border-b border-gray-200 dark:border-slate-800">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
           <Link to="/" className="text-sm font-semibold tracking-tight">
             Nina Talks
@@ -204,7 +204,7 @@ export function LegalLayout({
         </div>
       </main>
 
-      <footer className="border-t border-border">
+      <footer className="border-t border-gray-200 dark:border-slate-800">
         <div className="mx-auto max-w-3xl px-6 py-6 text-center text-xs text-muted-foreground">
           © {new Date().getFullYear()} Nina Talks — Agente de SDR por voz
         </div>

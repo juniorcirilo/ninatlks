@@ -50,7 +50,11 @@ interface AutoReplyContext {
   } | null;
   last_bot_reply_at: string | null;
   bot_replies_last_hour: number;
-  recent_messages: { sender_type: string | null; content: string | null; created_at: string }[];
+  recent_messages: {
+    sender_type: string | null;
+    content: string | null;
+    created_at: string;
+  }[];
 }
 
 /**
@@ -88,7 +92,9 @@ export class PersonaAutoReplyService {
     conversationId: string;
     triggeringMessageId: string;
   }): Promise<void> {
-    const [row] = await this.dataSource.query<{ persona_auto_reply_context: AutoReplyContext | null }[]>(
+    const [row] = await this.dataSource.query<
+      { persona_auto_reply_context: AutoReplyContext | null }[]
+    >(
       `SELECT public.persona_auto_reply_context($1, $2) AS persona_auto_reply_context`,
       [args.conversationId, args.triggeringMessageId],
     );
@@ -104,7 +110,11 @@ export class PersonaAutoReplyService {
     if (!ctx.persona_id) return;
 
     const cfg = ctx.channel_config;
-    if (!cfg?.evolution_url || !cfg.evolution_api_key || !cfg.evolution_instance_name) {
+    if (
+      !cfg?.evolution_url ||
+      !cfg.evolution_api_key ||
+      !cfg.evolution_instance_name
+    ) {
       return;
     }
 
@@ -113,8 +123,12 @@ export class PersonaAutoReplyService {
       const gapMs = Date.now() - new Date(ctx.last_bot_reply_at).getTime();
       if (gapMs < MIN_REPLY_GAP_SECONDS * 1000) return;
     }
-    if (ctx.bot_replies_last_hour >= MAX_AUTO_REPLIES_PER_CONVERSATION_PER_HOUR) {
-      this.logger.warn(`hourly cap hit for conversation=${args.conversationId}`);
+    if (
+      ctx.bot_replies_last_hour >= MAX_AUTO_REPLIES_PER_CONVERSATION_PER_HOUR
+    ) {
+      this.logger.warn(
+        `hourly cap hit for conversation=${args.conversationId}`,
+      );
       return;
     }
 
@@ -172,7 +186,9 @@ export class PersonaAutoReplyService {
         text: reply,
       });
     } catch (err) {
-      this.logger.warn(`evolution send failed for conversation=${args.conversationId}: ${(err as Error).message}`);
+      this.logger.warn(
+        `evolution send failed for conversation=${args.conversationId}: ${(err as Error).message}`,
+      );
     }
   }
 

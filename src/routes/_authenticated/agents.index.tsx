@@ -208,14 +208,14 @@ function AgentCard({
   return (
     <div
       className={cn(
-        "group relative flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted",
+        "group relative flex flex-col gap-3 rounded-xl border border-gray-200 dark:border-slate-800 bg-muted/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted",
         pagePath && "cursor-pointer",
       )}
       onClick={() => pagePath && navigate({ to: pagePath })}
     >
       <div className="relative flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary">
             <Bot className="h-4 w-4 text-white" />
           </div>
           <div className="min-w-0">

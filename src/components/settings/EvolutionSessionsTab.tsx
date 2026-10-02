@@ -56,7 +56,7 @@ const STATUS_CLASS: Record<LiveStatus, string> = {
   connected: "bg-emerald-500/15 text-emerald-400",
   connecting: "bg-amber-500/15 text-amber-400",
   qr_ready: "bg-sky-500/15 text-sky-400",
-  disconnected: "bg-white/[0.06] text-muted-foreground",
+  disconnected: "bg-foreground/[0.06] text-muted-foreground",
   not_found: "bg-red-500/15 text-red-400",
   error: "bg-red-500/15 text-red-400",
 };
@@ -137,7 +137,7 @@ export function EvolutionSessionsTab() {
   if (!accountId) return null;
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+    <div className="rounded-xl border border-foreground/[0.06] bg-foreground/[0.02] p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-[14px] font-semibold">Evolution (WhatsApp Web)</h3>
@@ -190,7 +190,7 @@ export function EvolutionSessionsTab() {
                       className="h-12 w-12 shrink-0 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[16px] font-semibold">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-foreground/[0.06] text-[16px] font-semibold">
                       {(c.profile_name ?? c.name).slice(0, 1).toUpperCase()}
                     </div>
                   )}
@@ -214,14 +214,14 @@ export function EvolutionSessionsTab() {
                       ["Mensagens", c.counts.messages],
                     ] as const
                   ).map(([label, n]) => (
-                    <div key={label} className="rounded-md bg-white/[0.03] py-2">
+                    <div key={label} className="rounded-md bg-foreground/[0.03] py-2">
                       <div className="text-[14px] font-semibold">{n.toLocaleString("pt-BR")}</div>
                       <div className="text-[10px] text-muted-foreground">{label}</div>
                     </div>
                   ))}
                 </div>
 
-                <div className="mt-auto flex items-center justify-between border-t border-white/[0.06] pt-3">
+                <div className="mt-auto flex items-center justify-between border-t border-foreground/[0.06] pt-3">
                   <Switch
                     checked={c.enabled}
                     disabled={busy}

@@ -54,7 +54,7 @@ function AdminRegistroPage() {
           <h1 className="text-2xl font-bold text-foreground">Registro de usuários</h1>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-6">
           <h2 className="mb-4 text-lg font-semibold text-foreground">Configurações do sistema</h2>
 
           <div className="flex items-center justify-between gap-6">

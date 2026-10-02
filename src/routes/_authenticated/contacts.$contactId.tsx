@@ -120,13 +120,13 @@ function ContactDetailPage() {
               Nenhum evento neste filtro.
             </div>
           ) : (
-            <ol className="relative space-y-4 border-l border-border pl-6">
+            <ol className="relative space-y-4 border-l border-gray-200 dark:border-slate-800 pl-6">
               {filtered.map((item: TimelineItem) => (
                 <li key={item.id} className="relative">
                   <span className="absolute -left-[31px] flex h-6 w-6 items-center justify-center rounded-full border bg-background">
                     {kindIcon(item.kind)}
                   </span>
-                  <div className="rounded-md border bg-card p-3 shadow-sm">
+                  <div className="rounded-md border bg-white dark:bg-slate-900/40 p-3 shadow-sm">
                     <div className="mb-1 flex items-center gap-2">
                       {channelIcon(item.channel)}
                       <span className="text-sm font-medium">{item.title}</span>

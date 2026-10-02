@@ -8,11 +8,12 @@ import { TwilioSmsService } from './twilio-sms.service';
 import { EvolutionWebhooksService } from './evolution-webhooks.service';
 import { InboundMessageService } from './inbound-message.service';
 import { VoiceModule } from '../voice/voice.module';
+import { EvolutionModule } from '../evolution/evolution.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { MessagesModule } from '../messages/messages.module';
 
 @Module({
-  imports: [VoiceModule, MessagesModule, RealtimeModule],
+  imports: [VoiceModule, MessagesModule, RealtimeModule, EvolutionModule],
   controllers: [
     TwilioWebhooksController,
     EvolutionWebhooksController,

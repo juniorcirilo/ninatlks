@@ -302,7 +302,7 @@ export function NovosClientesPage() {
             }
           />
         ) : (
-          <Card className="overflow-hidden border-border bg-card shadow-elevation-1">
+          <Card className="overflow-hidden border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-elevation-1">
             <Table>
               <TableHeader>
                 <TableRow>

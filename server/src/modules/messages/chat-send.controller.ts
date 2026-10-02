@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Param,
+  ParseUUIDPipe,
   Post,
   UploadedFile,
   UseGuards,
@@ -14,6 +15,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/types/authenticated-request';
 import { ChatSendService, type InteractiveInput } from './chat-send.service';
 import {
+  ForwardMessageDto,
   PresenceDto,
   SendInteractiveDto,
   SendMediaDto,
@@ -38,6 +40,7 @@ export class ChatSendController {
       user.id,
       dto.conversationId,
       dto.content,
+      { replyTo: dto.replyToMessageId },
     );
   }
 
@@ -59,6 +62,7 @@ export class ChatSendController {
       dto.conversationId,
       file,
       dto.caption,
+      { replyTo: dto.replyToMessageId },
     );
   }
 
@@ -105,6 +109,30 @@ export class ChatSendController {
       user.id,
       dto.conversationId,
       input,
+      { replyTo: dto.replyToMessageId },
+    );
+  }
+
+  @Post(':messageId/resend')
+  resend(
+    @Param('accountId') accountId: string,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.resend(accountId, user.id, messageId);
+  }
+
+  @Post('forward')
+  forward(
+    @Param('accountId') accountId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: ForwardMessageDto,
+  ) {
+    return this.service.forward(
+      accountId,
+      user.id,
+      dto.messageId,
+      dto.conversationIds,
     );
   }
 

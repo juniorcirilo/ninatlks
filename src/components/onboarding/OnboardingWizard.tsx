@@ -144,13 +144,13 @@ export function OnboardingWizard({
 
   return (
     <Dialog open onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-lg gap-0 overflow-hidden p-0 bg-card">
+      <DialogContent className="max-w-lg gap-0 overflow-hidden p-0 bg-white dark:bg-slate-900/40">
         <DialogTitle className="sr-only">Setup do Nina Talks</DialogTitle>
         <DialogDescription className="sr-only">
           Configuração inicial das integrações e do primeiro agente.
         </DialogDescription>
         {/* Stepper header */}
-        <div className="border-b border-border bg-muted/40 px-6 py-4">
+        <div className="border-b border-gray-200 dark:border-slate-800 bg-muted/40 px-6 py-4">
           <div className="flex items-center justify-between text-[11px]">
             <span className="font-semibold uppercase tracking-wider text-primary">
               Setup do Nina Talks
@@ -296,7 +296,7 @@ export function OnboardingWizard({
         </div>
 
         {/* Footer nav */}
-        <DialogFooter className="border-t border-border bg-muted/40 px-6 py-3 sm:justify-between">
+        <DialogFooter className="border-t border-gray-200 dark:border-slate-800 bg-muted/40 px-6 py-3 sm:justify-between">
           <div className="flex gap-1">
             {!isFirst && (
               <Button variant="ghost" size="sm" onClick={handleBack} disabled={advancing}>
@@ -351,7 +351,7 @@ function EvolutionInlineStep({
         </p>
       </div>
 
-      <div className="rounded-lg border border-border bg-muted/40 p-4">
+      <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/40 p-4">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <Smartphone className="h-5 w-5" />

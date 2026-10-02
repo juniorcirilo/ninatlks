@@ -18,25 +18,16 @@ export function StatCard({
   className,
 }: StatCardProps) {
   return (
-    <div
-      className={cn(
-        "glass relative overflow-hidden rounded-xl p-5 transition-shadow hover:shadow-glow",
-        className,
-      )}
-    >
+    <div className={cn("glass relative overflow-hidden rounded-xl p-5", className)}>
       <div className="flex items-start justify-between gap-3">
-        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          {label}
-        </div>
+        <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>
         {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
+          <div className="shrink-0 text-slate-400 dark:text-slate-500">
             <Icon className="h-4 w-4" />
           </div>
         )}
       </div>
-      <div className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
-        {value}
-      </div>
+      <div className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{value}</div>
       {delta && (
         <div
           className={cn(

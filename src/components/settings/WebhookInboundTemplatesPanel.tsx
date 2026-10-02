@@ -221,7 +221,7 @@ export function WebhookInboundTemplatesPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+      <div className="rounded-lg border border-foreground/[0.06] bg-foreground/[0.02] p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -232,7 +232,7 @@ export function WebhookInboundTemplatesPanel() {
           <button
             type="button"
             onClick={() => copy(INBOUND_ENDPOINT, "endpoint")}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-white/[0.06] bg-white/[0.02] text-muted-foreground hover:text-foreground"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-foreground/[0.06] bg-foreground/[0.02] text-muted-foreground hover:text-foreground"
             aria-label="Copiar endpoint"
           >
             {copied === "endpoint" ? (
@@ -257,7 +257,7 @@ export function WebhookInboundTemplatesPanel() {
       </div>
 
       {templates.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-white/[0.08] bg-white/[0.02] py-10 text-center text-[12px] text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-foreground/[0.08] bg-foreground/[0.02] py-10 text-center text-[12px] text-muted-foreground">
           Nenhum agente disponível nesta conta.
         </div>
       ) : (
@@ -270,7 +270,7 @@ export function WebhookInboundTemplatesPanel() {
             return (
               <li
                 key={t.agentKey}
-                className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+                className="rounded-lg border border-foreground/[0.06] bg-foreground/[0.02] p-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
@@ -278,7 +278,7 @@ export function WebhookInboundTemplatesPanel() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-[12px] font-semibold">{agent.name}</span>
-                        <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted-foreground">
+                        <span className="rounded-full bg-foreground/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted-foreground">
                           {agent.kind}
                         </span>
                       </div>
@@ -302,7 +302,7 @@ export function WebhookInboundTemplatesPanel() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    <div className="flex items-center gap-0.5 rounded-md border border-white/[0.08] bg-white/[0.02] p-0.5">
+                    <div className="flex items-center gap-0.5 rounded-md border border-foreground/[0.08] bg-foreground/[0.02] p-0.5">
                       {[
                         { value: false, label: "Único" },
                         { value: true, label: "Lote" },
@@ -316,7 +316,7 @@ export function WebhookInboundTemplatesPanel() {
                           className={cn(
                             "rounded px-2 py-0.5 text-[10px] font-medium",
                             isBatch === opt.value
-                              ? "bg-white/[0.10] text-foreground"
+                              ? "bg-foreground/[0.10] text-foreground"
                               : "text-muted-foreground hover:text-foreground",
                           )}
                         >
@@ -342,14 +342,14 @@ export function WebhookInboundTemplatesPanel() {
                         onClick={() =>
                           copy(JSON.stringify(payload, null, 2), `payload-${t.agentKey}`)
                         }
-                        className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-white/[0.08]"
+                        className="rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-foreground/[0.08]"
                       >
                         {copied === `payload-${t.agentKey}` ? "Copiado" : "Copiar payload"}
                       </button>
                       <button
                         type="button"
                         onClick={() => copy(buildCurl(payload), `curl-${t.agentKey}`)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-white/[0.08]"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-foreground/[0.08]"
                       >
                         <Terminal className="h-3 w-3" />
                         {copied === `curl-${t.agentKey}` ? "Copiado" : "Copiar cURL"}
@@ -389,7 +389,7 @@ export function WebhookInboundTemplatesPanel() {
                   <div className="mt-2 space-y-3">
                     <FieldTable title="Contato" fields={t.fields} />
                     <FieldTable title="variables (contexto da fala)" fields={t.variableFields} />
-                    <pre className="overflow-x-auto rounded-md border border-white/[0.06] bg-black/40 p-3 text-[10px] leading-relaxed text-muted-foreground">
+                    <pre className="overflow-x-auto rounded-md border border-foreground/[0.06] bg-black/40 p-3 text-[10px] leading-relaxed text-muted-foreground">
                       {JSON.stringify(payload, null, 2)}
                     </pre>
                     {isBatch && (
@@ -483,7 +483,7 @@ function SourcesBlock({
           type="button"
           onClick={() => onConfigure(null)}
           disabled={configuring}
-          className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-white/[0.12] bg-transparent px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:border-white/[0.2] hover:text-foreground disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-foreground/[0.12] bg-transparent px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:border-foreground/[0.2] hover:text-foreground disabled:opacity-50"
         >
           {configuring ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
           {configuring ? "Configurando…" : "Nova fonte"}
@@ -526,7 +526,7 @@ function SourceRow({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5",
+        "flex flex-wrap items-center gap-2 rounded-md border border-foreground/[0.06] bg-foreground/[0.02] px-2.5 py-1.5",
         !compact && "mt-2",
       )}
     >
@@ -567,7 +567,7 @@ function SourceRow({
           type="button"
           onClick={() => onConfigure(source)}
           disabled={!source && configuring}
-          className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-white/[0.08] disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-foreground/[0.08] disabled:opacity-50"
         >
           {!source && configuring && <Loader2 className="h-3 w-3 animate-spin" />}
           {source ? "Editar" : configuring ? "Configurando…" : "Configurar"}

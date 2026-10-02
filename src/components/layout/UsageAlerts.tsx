@@ -10,7 +10,10 @@ import { AlertTriangle, X, ExternalLink } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useAccount } from "@/lib/account-context";
 import { cn } from "@/lib/utils";
-import { fetchIntegrationsStatus, type IntegrationsStatusReport } from "@/lib/integrations-status-cache";
+import {
+  fetchIntegrationsStatus,
+  type IntegrationsStatusReport,
+} from "@/lib/integrations-status-cache";
 
 type Severity = "warning" | "critical";
 interface Alert {
@@ -74,7 +77,10 @@ export function UsageAlerts() {
       <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
       <span className="flex-1 truncate">{alert.message}</span>
       {alert.href && (
-        <Link to={alert.href} className="inline-flex items-center gap-1 underline hover:no-underline">
+        <Link
+          to={alert.href}
+          className="inline-flex items-center gap-1 underline hover:no-underline"
+        >
           resolver <ExternalLink className="h-2.5 w-2.5" />
         </Link>
       )}

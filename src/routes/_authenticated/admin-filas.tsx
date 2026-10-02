@@ -141,7 +141,7 @@ function AdminFilasPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <PhoneForwarded className="h-4 w-4 text-violet-500" />
+            <PhoneForwarded className="h-4 w-4 text-cyan-500" />
             Chamadas escaladas — transferidas para humano (últimas 50)
           </CardTitle>
         </CardHeader>
@@ -309,7 +309,7 @@ const RIBBON_SEGMENTS: Array<{
   { key: "queued", label: "Na fila", className: "bg-muted-foreground/25" },
   { key: "inFlight", label: "Ligando agora", className: "bg-sky-500" },
   { key: "connected", label: "Atendeu", className: "bg-emerald-500" },
-  { key: "escalated", label: "Transferido", className: "bg-violet-500" },
+  { key: "escalated", label: "Transferido", className: "bg-cyan-500" },
   { key: "voicemail", label: "Caixa postal", className: "bg-amber-500" },
   { key: "failed", label: "Não atendeu / falhou", className: "bg-rose-500" },
   { key: "canceled", label: "Cancelado", className: "bg-muted-foreground/50" },
@@ -465,18 +465,18 @@ function Stat({
   const colorClass = accent
     ? "text-emerald-600 dark:text-emerald-400"
     : escalated
-      ? "text-violet-600 dark:text-violet-400"
+      ? "text-cyan-600 dark:text-cyan-400"
       : "text-foreground";
   const bgClass = accent
     ? "bg-emerald-500/10 ring-1 ring-inset ring-emerald-500/25"
     : escalated
-      ? "bg-violet-500/10 ring-1 ring-inset ring-violet-500/25"
+      ? "bg-cyan-500/10 ring-1 ring-inset ring-cyan-500/25"
       : "bg-muted/40";
 
   return (
     <div className={cn("rounded-lg px-1.5 py-2 text-center", bgClass)}>
       <div className="flex items-center justify-center gap-1">
-        <Icon className={cn("h-3 w-3", accent ? "text-emerald-600" : escalated ? "text-violet-500" : "text-muted-foreground")} />
+        <Icon className={cn("h-3 w-3", accent ? "text-emerald-600" : escalated ? "text-cyan-500" : "text-muted-foreground")} />
         {live && (
           <span className="text-sky-500">
             <LiveDot />
@@ -552,7 +552,7 @@ function EscalatedCallsTable({
               <td className="p-3">
                 {row.transferTarget ? (
                   <span className="flex items-center gap-1.5 font-medium tabular-nums">
-                    <PhoneForwarded className="h-3.5 w-3.5 text-violet-500" />
+                    <PhoneForwarded className="h-3.5 w-3.5 text-cyan-500" />
                     {row.transferTarget}
                   </span>
                 ) : (

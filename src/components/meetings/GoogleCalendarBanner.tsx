@@ -92,7 +92,7 @@ export function GoogleCalendarBanner({
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-border bg-card px-3.5 py-2.5 text-xs">
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-3.5 py-2.5 text-xs">
       <div className="flex items-center gap-2 text-muted-foreground">
         <Video className="h-4 w-4" />
         <span>Conecte o Google Meet para gerar o link de vídeo automaticamente em cada reunião.</span>

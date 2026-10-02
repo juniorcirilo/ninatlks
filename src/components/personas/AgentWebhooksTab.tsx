@@ -122,7 +122,7 @@ export function AgentWebhooksTab({ agentId, agentName, accountId }: {
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : items.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/40 py-10 text-center text-[12px] text-muted-foreground">
+          <div className="rounded-lg border border-dashed border-gray-200 dark:border-slate-800 bg-muted/40 py-10 text-center text-[12px] text-muted-foreground">
             Nenhum webhook cadastrado para este agente.
             <br />
             Cadastre a URL do n8n (ou CRM/ERP) que deve receber os eventos dele.
@@ -135,7 +135,7 @@ export function AgentWebhooksTab({ agentId, agentName, accountId }: {
               return (
                 <li
                   key={endpoint.id}
-                  className="rounded-lg border border-border bg-muted/40 p-3"
+                  className="rounded-lg border border-gray-200 dark:border-slate-800 bg-muted/40 p-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
@@ -149,7 +149,7 @@ export function AgentWebhooksTab({ agentId, agentName, accountId }: {
                             </span>
                           )}
                           {isGlobal && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.06] px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground">
                               <Globe className="h-2.5 w-2.5" /> Global
                             </span>
                           )}
@@ -159,14 +159,14 @@ export function AgentWebhooksTab({ agentId, agentName, accountId }: {
                         </p>
                         <div className="mt-1.5 flex flex-wrap gap-1">
                           {endpoint.events.length === 0 ? (
-                            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">
+                            <span className="rounded-full bg-foreground/[0.06] px-2 py-0.5 text-[10px] text-muted-foreground">
                               Todos os eventos
                             </span>
                           ) : (
                             endpoint.events.map((e) => (
                               <span
                                 key={e}
-                                className="rounded-full bg-white/[0.06] px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
+                                className="rounded-full bg-foreground/[0.06] px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
                               >
                                 {e}
                               </span>
@@ -185,7 +185,7 @@ export function AgentWebhooksTab({ agentId, agentName, accountId }: {
                         type="button"
                         onClick={() => setDialog({ mode: "edit", endpoint })}
                         disabled={isGlobal}
-                        className="rounded-md border border-border bg-muted/40 px-2.5 py-1 text-[11px] font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                        className="rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 px-2.5 py-1 text-[11px] font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Editar
                       </button>
@@ -208,12 +208,12 @@ export function AgentWebhooksTab({ agentId, agentName, accountId }: {
                     <input
                       readOnly
                       value={show ? endpoint.secret : "•".repeat(32)}
-                      className="min-w-0 flex-1 rounded-md border border-border bg-muted/40 px-2 py-1 font-mono text-[11px] focus:outline-none"
+                      className="min-w-0 flex-1 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 px-2 py-1 font-mono text-[11px] focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={() => setRevealed((r) => ({ ...r, [endpoint.id]: !show }))}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 text-muted-foreground hover:text-foreground"
                       aria-label={show ? "Ocultar segredo" : "Mostrar segredo"}
                     >
                       {show ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -221,7 +221,7 @@ export function AgentWebhooksTab({ agentId, agentName, accountId }: {
                     <button
                       type="button"
                       onClick={() => copy(endpoint.secret, endpoint.id)}
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 text-muted-foreground hover:text-foreground"
                       aria-label="Copiar segredo"
                     >
                       {copied === endpoint.id ? (
@@ -235,7 +235,7 @@ export function AgentWebhooksTab({ agentId, agentName, accountId }: {
                       onClick={() => void rotate(endpoint)}
                       disabled={busyId === endpoint.id || isGlobal}
                       className={cn(
-                        "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-border bg-muted/40 px-2 text-[10px] text-muted-foreground hover:text-foreground",
+                        "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border border-gray-200 dark:border-slate-800 bg-muted/40 px-2 text-[10px] text-muted-foreground hover:text-foreground",
                         (busyId === endpoint.id || isGlobal) && "cursor-not-allowed opacity-40",
                       )}
                     >

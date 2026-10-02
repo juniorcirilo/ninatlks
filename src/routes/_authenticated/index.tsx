@@ -230,7 +230,7 @@ function Kpi({
   valueClass?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-elevation-2 transition-shadow hover:shadow-elevation-3">
+    <div className="rounded-2xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-5 shadow-elevation-2 transition-shadow hover:shadow-elevation-3">
       <div className="flex items-start justify-between">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           {label}
@@ -274,8 +274,8 @@ function StageCard({
     <Link
       to="/pipeline"
       className={cn(
-        "rounded-xl border bg-card p-3 shadow-elevation-1 transition hover:border-accent/40 hover:shadow-elevation-2",
-        isWon ? "border-success/40" : isLost ? "border-destructive/40" : "border-border",
+        "rounded-xl border bg-white dark:bg-slate-900/40 p-3 shadow-elevation-1 transition hover:border-accent/40 hover:shadow-elevation-2",
+        isWon ? "border-success/40" : isLost ? "border-destructive/40" : "border-gray-200 dark:border-slate-800",
       )}
     >
       <div className="flex items-center gap-1.5">
@@ -291,7 +291,7 @@ function UpcomingMeetingRow({ meeting }: { meeting: SdrSnapshot["upcoming_meetin
   return (
     <Link
       to="/reunioes"
-      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-elevation-1 transition hover:border-accent/40 hover:bg-accent/5 hover:shadow-elevation-2"
+      className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-3 shadow-elevation-1 transition hover:border-accent/40 hover:bg-accent/5 hover:shadow-elevation-2"
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-center">
         <CalendarDays className="h-4 w-4 text-accent" />
@@ -329,7 +329,7 @@ function OutcomeRow({
   tone: string;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2.5 shadow-elevation-1">
+    <div className="flex items-center justify-between rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-3 py-2.5 shadow-elevation-1">
       <div className="flex items-center gap-2">
         <Icon className={cn("h-3.5 w-3.5", tone)} />
         <span className="text-xs font-medium text-foreground/80">{label}</span>
@@ -341,7 +341,7 @@ function OutcomeRow({
 
 function EmptyCard({ text }: { text: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-border bg-card/50 px-4 py-6 text-center text-xs text-muted-foreground">
+    <div className="rounded-xl border border-dashed border-gray-200 dark:border-slate-800 bg-card/50 px-4 py-6 text-center text-xs text-muted-foreground">
       {text}
     </div>
   );

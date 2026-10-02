@@ -18,7 +18,11 @@ interface ElEventPayload {
   data?: {
     conversation_id?: string;
     status?: string;
-    transcript?: Array<{ role: string; message: string; time_in_call_secs?: number }>;
+    transcript?: Array<{
+      role: string;
+      message: string;
+      time_in_call_secs?: number;
+    }>;
     metadata?: {
       start_time_unix_secs?: number;
       call_duration_secs?: number;

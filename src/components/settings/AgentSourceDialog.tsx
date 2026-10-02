@@ -213,7 +213,7 @@ export function AgentSourceDialog({
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-white/[0.08] bg-background p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-foreground/[0.08] bg-background p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4">
@@ -237,7 +237,7 @@ export function AgentSourceDialog({
           <div className="grid grid-cols-[90px_1fr] gap-2">
             <Field label="Método">
               <Select value={method} onValueChange={(v) => setMethod(v as "GET" | "POST")}>
-                <SelectTrigger className="h-9 w-full min-w-0 bg-white/[0.02] text-[12px]">
+                <SelectTrigger className="h-9 w-full min-w-0 bg-foreground/[0.02] text-[12px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -306,7 +306,7 @@ export function AgentSourceDialog({
               <button
                 type="button"
                 onClick={generateToken}
-                className="shrink-0 rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 text-[11px] font-medium hover:bg-white/[0.08]"
+                className="shrink-0 rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 text-[11px] font-medium hover:bg-foreground/[0.08]"
               >
                 Gerar
               </button>
@@ -314,7 +314,7 @@ export function AgentSourceDialog({
                 <button
                   type="button"
                   onClick={copyToken}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-foreground/[0.08] bg-foreground/[0.02] text-muted-foreground hover:text-foreground"
                   aria-label="Copiar token"
                 >
                   {copied ? (
@@ -398,7 +398,7 @@ export function AgentSourceDialog({
                   <button
                     type="button"
                     onClick={() => setVariables([])}
-                    className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] hover:bg-white/[0.08]"
+                    className="rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2 py-0.5 text-[10px] hover:bg-foreground/[0.08]"
                   >
                     Limpar
                   </button>
@@ -406,7 +406,7 @@ export function AgentSourceDialog({
                 <button
                   type="button"
                   onClick={() => setVariables((v) => [...v, { key: "", from: "" }])}
-                  className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] hover:bg-white/[0.08]"
+                  className="inline-flex items-center gap-1 rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2 py-0.5 text-[10px] hover:bg-foreground/[0.08]"
                 >
                   <Plus className="h-3 w-3" /> Adicionar
                 </button>
@@ -465,7 +465,7 @@ export function AgentSourceDialog({
                 value={campaignKind || "__keep__"}
                 onValueChange={(v) => setCampaignKind(v === "__keep__" ? "" : v)}
               >
-                <SelectTrigger className="h-9 w-full min-w-0 bg-white/[0.02] text-[12px]">
+                <SelectTrigger className="h-9 w-full min-w-0 bg-foreground/[0.02] text-[12px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -540,7 +540,7 @@ export function AgentSourceDialog({
               type="button"
               onClick={() => void test()}
               disabled={!canSave || busy}
-              className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-[11px] font-medium hover:bg-white/[0.08] disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-3 py-1.5 text-[11px] font-medium hover:bg-foreground/[0.08] disabled:opacity-50"
             >
               {testing && <Loader2 className="h-3 w-3 animate-spin" />}
               {testing ? "Buscando…" : "Salvar e testar"}
@@ -562,7 +562,7 @@ export function AgentSourceDialog({
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="rounded-md border border-white/[0.08] px-3 py-1.5 text-[11px] font-medium hover:bg-white/[0.04] disabled:opacity-50"
+              className="rounded-md border border-foreground/[0.08] px-3 py-1.5 text-[11px] font-medium hover:bg-foreground/[0.04] disabled:opacity-50"
             >
               Fechar
             </button>
@@ -582,7 +582,7 @@ export function AgentSourceDialog({
 }
 
 const inputClass =
-  "w-full min-w-0 rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40";
+  "w-full min-w-0 rounded-md border border-foreground/[0.08] bg-foreground/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

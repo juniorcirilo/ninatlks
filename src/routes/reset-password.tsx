@@ -71,14 +71,15 @@ function ResetPasswordPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-glow" />
-      <div className="relative w-full max-w-md">
-        <div className="glass rounded-2xl p-7 shadow-elegant">
-          <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-primary text-primary-foreground shadow-glow">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
+      <div className="pointer-events-none fixed left-0 top-0 z-0 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/20 blur-[128px]" />
+      <div className="pointer-events-none fixed bottom-0 right-0 z-0 h-[500px] w-[500px] translate-x-1/2 translate-y-1/2 rounded-full bg-accent/10 blur-[128px]" />
+      <div className="relative z-10 w-full max-w-md">
+        <div className="rounded-2xl border border-border bg-card p-8 shadow-xl">
+          <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-glow">
             <KeyRound className="h-5 w-5" />
           </div>
-          <h1 className="text-xl font-semibold">Redefinir sua senha</h1>
+          <h1 className="text-2xl font-bold text-foreground">Redefinir sua senha</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Escolha uma nova senha para acessar seu painel.
           </p>
@@ -99,7 +100,7 @@ function ResetPasswordPage() {
                 disabled={!recoveryReady}
                 autoComplete="new-password"
                 required
-                className="h-10 w-full rounded-md border border-input bg-card/50 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                className="h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
               />
             </label>
             <label className="block space-y-1.5">
@@ -111,7 +112,7 @@ function ResetPasswordPage() {
                 disabled={!recoveryReady}
                 autoComplete="new-password"
                 required
-                className="h-10 w-full rounded-md border border-input bg-card/50 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                className="h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
               />
             </label>
 
@@ -124,7 +125,7 @@ function ResetPasswordPage() {
             <button
               type="submit"
               disabled={submitting || !recoveryReady}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-gradient-primary px-4 text-sm font-semibold text-primary-foreground shadow-glow transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white shadow-[0_8px_24px_rgba(30,95,116,0.18)] transition-all hover:opacity-95 active:scale-95 disabled:opacity-60"
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               Atualizar senha

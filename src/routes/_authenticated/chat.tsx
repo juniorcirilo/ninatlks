@@ -111,8 +111,8 @@ function LiveCallsPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)] min-h-0 w-full">
       {/* Column 1: live + recent calls list */}
-      <aside className="flex h-full w-[340px] shrink-0 flex-col border-r border-border bg-background">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <aside className="flex h-full w-[340px] shrink-0 flex-col border-r border-gray-200 dark:border-slate-800 bg-background">
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold">Ao vivo</h2>
             <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -140,7 +140,7 @@ function LiveCallsPage() {
           </Button>
         </div>
 
-        <div className="border-b border-border px-3 py-2">
+        <div className="border-b border-gray-200 dark:border-slate-800 px-3 py-2">
           <Button size="sm" className="w-full gap-1.5" onClick={() => setNewCallOpen(true)}>
             <Phone className="h-3.5 w-3.5" />
             Nova chamada
@@ -200,7 +200,7 @@ function LiveCallsPage() {
           )}
         </ScrollArea>
 
-        <div className="border-t border-border px-3 py-2">
+        <div className="border-t border-gray-200 dark:border-slate-800 px-3 py-2">
           <Link
             to="/calls"
             className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -264,7 +264,7 @@ function CallListItem({
               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : call.direction === "inbound"
                 ? "bg-sky-500/10 text-sky-600 dark:text-sky-400"
-                : "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+                : "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
           )}
         >
           <Icon className="h-3.5 w-3.5" />
@@ -372,7 +372,7 @@ function CallTranscriptPanel({ call }: { call: VoiceCall }) {
 
   return (
     <>
-      <header className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
+      <header className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 bg-background px-5 py-3">
         <div className="flex items-center gap-3">
           <div
             className={cn(
@@ -434,7 +434,7 @@ function CallTranscriptPanel({ call }: { call: VoiceCall }) {
       </ScrollArea>
 
       {!live && (
-        <footer className="border-t border-border bg-background px-5 py-2.5">
+        <footer className="border-t border-gray-200 dark:border-slate-800 bg-background px-5 py-2.5">
           <Link to="/calls" className="text-[11px] text-muted-foreground hover:text-foreground">
             Ver detalhes completos da chamada (briefing, sentimento, gravação) →
           </Link>
@@ -450,14 +450,14 @@ function TranscriptBubble({ role, text, at }: { role: string; text: string; at: 
     <div
       className={cn(
         "rounded-lg border px-3 py-2.5 text-sm",
-        isAgent ? "border-violet-500/15 bg-violet-500/[0.03]" : "border-border bg-background",
+        isAgent ? "border-cyan-500/15 bg-cyan-500/[0.03]" : "border-gray-200 dark:border-slate-800 bg-background",
       )}
     >
       <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
         {isAgent ? (
           <>
-            <Bot className="h-3 w-3 text-violet-500" />
-            <span className="text-violet-600 dark:text-violet-300">Nina</span>
+            <Bot className="h-3 w-3 text-cyan-500" />
+            <span className="text-cyan-600 dark:text-cyan-300">Nina</span>
           </>
         ) : (
           <>

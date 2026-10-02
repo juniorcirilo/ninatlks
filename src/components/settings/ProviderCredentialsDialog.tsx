@@ -413,7 +413,7 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center justify-between gap-2 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2.5 text-xs">
+              <div className="flex items-center justify-between gap-2 rounded-md border border-dashed border-gray-200 dark:border-slate-800 bg-muted/20 px-3 py-2.5 text-xs">
                 <span className="text-muted-foreground">
                   {existing.has("client_id") && existing.has("client_secret")
                     ? "Credenciais salvas — falta autorizar a conta Google."

@@ -170,7 +170,7 @@ export function OperationalListsPanel() {
       </div>
 
       {lists.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-white/[0.08] bg-white/[0.02] py-10 text-center text-[12px] text-muted-foreground">
+        <div className="rounded-lg border border-dashed border-foreground/[0.08] bg-foreground/[0.02] py-10 text-center text-[12px] text-muted-foreground">
           Nenhuma lista operacional ainda.
         </div>
       ) : (
@@ -205,7 +205,7 @@ export function OperationalListsPanel() {
             return (
               <li
                 key={list.id}
-                className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
+                className="rounded-lg border border-foreground/[0.06] bg-foreground/[0.02] p-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-start gap-3">
@@ -214,7 +214,7 @@ export function OperationalListsPanel() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[12px] font-semibold">{list.name}</span>
                         {kind && (
-                          <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted-foreground">
+                          <span className="rounded-full bg-foreground/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase text-muted-foreground">
                             {kind.label}
                           </span>
                         )}
@@ -291,7 +291,7 @@ export function OperationalListsPanel() {
                     <button
                       type="button"
                       onClick={() => setDialog({ mode: "edit", list })}
-                      className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-white/[0.08]"
+                      className="rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-foreground/[0.08]"
                     >
                       Editar
                     </button>
@@ -321,13 +321,13 @@ export function OperationalListsPanel() {
                     </button>
 
                     {expanded && (
-                      <div className="mt-2 space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+                      <div className="mt-2 space-y-2 rounded-lg border border-foreground/[0.06] bg-foreground/[0.02] p-3">
                         <p className="break-all font-mono text-[10px] text-muted-foreground">
                           POST {OPERATIONAL_LIST_ENDPOINT}
                         </p>
 
                         <div className="flex flex-wrap items-center gap-2">
-                          <div className="flex items-center gap-0.5 rounded-md border border-white/[0.08] bg-white/[0.02] p-0.5">
+                          <div className="flex items-center gap-0.5 rounded-md border border-foreground/[0.08] bg-foreground/[0.02] p-0.5">
                             {[
                               { value: false, label: "Acrescenta" },
                               { value: true, label: "Substitui" },
@@ -341,7 +341,7 @@ export function OperationalListsPanel() {
                                 className={cn(
                                   "rounded px-2 py-0.5 text-[10px] font-medium",
                                   replaceMembers === opt.value
-                                    ? "bg-white/[0.10] text-foreground"
+                                    ? "bg-foreground/[0.10] text-foreground"
                                     : "text-muted-foreground hover:text-foreground",
                                 )}
                               >
@@ -361,14 +361,14 @@ export function OperationalListsPanel() {
                             onClick={() =>
                               copy(JSON.stringify(tpl.payload, null, 2), `payload-${list.id}`)
                             }
-                            className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-white/[0.08]"
+                            className="rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-foreground/[0.08]"
                           >
                             {copied === `payload-${list.id}` ? "Copiado" : "Copiar payload"}
                           </button>
                           <button
                             type="button"
                             onClick={() => copy(tpl.curl, `curl-${list.id}`)}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-white/[0.08]"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-foreground/[0.08] bg-foreground/[0.04] px-2.5 py-1 text-[11px] font-medium hover:bg-foreground/[0.08]"
                           >
                             <Terminal className="h-3 w-3" />
                             {copied === `curl-${list.id}` ? "Copiado" : "Copiar cURL"}
@@ -384,7 +384,7 @@ export function OperationalListsPanel() {
                           dynamic_variables na fala da agente.
                         </p>
 
-                        <pre className="max-h-64 overflow-auto rounded-md border border-white/[0.06] bg-black/40 p-3 text-[10px] leading-relaxed text-muted-foreground">
+                        <pre className="max-h-64 overflow-auto rounded-md border border-foreground/[0.06] bg-black/40 p-3 text-[10px] leading-relaxed text-muted-foreground">
                           {JSON.stringify(tpl.payload, null, 2)}
                         </pre>
                       </div>
@@ -464,7 +464,7 @@ function ListDialog({
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-white/[0.08] bg-background p-5 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-foreground/[0.08] bg-background p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4">
@@ -486,7 +486,7 @@ function ListDialog({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Carteira do dia — cobrança"
-              className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="w-full rounded-md border border-foreground/[0.08] bg-foreground/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
           </div>
 
@@ -495,7 +495,7 @@ function ListDialog({
               Tipo de operação
             </label>
             <Select value={campaignKind} onValueChange={setCampaignKind}>
-              <SelectTrigger className="h-9 w-full bg-white/[0.02] text-[12px]">
+              <SelectTrigger className="h-9 w-full bg-foreground/[0.02] text-[12px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -519,7 +519,7 @@ function ListDialog({
                 setExternalKey(e.target.value);
               }}
               placeholder="carteira-do-dia"
-              className="w-full rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 font-mono text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="w-full rounded-md border border-foreground/[0.08] bg-foreground/[0.02] px-3 py-2 font-mono text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
               autoComplete="off"
               spellCheck={false}
             />
@@ -539,7 +539,7 @@ function ListDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="De onde vêm estes contatos e o que a agente deve tratar."
-              className="w-full resize-none rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+              className="w-full resize-none rounded-md border border-foreground/[0.08] bg-foreground/[0.02] px-3 py-2 text-[12px] focus:outline-none focus:ring-1 focus:ring-primary/40"
             />
           </div>
 
@@ -548,7 +548,7 @@ function ListDialog({
               <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                 No payload
               </p>
-              <pre className="overflow-x-auto rounded-md border border-white/[0.06] bg-black/40 p-2 text-[10px] text-muted-foreground">
+              <pre className="overflow-x-auto rounded-md border border-foreground/[0.06] bg-black/40 p-2 text-[10px] text-muted-foreground">
                 {`"listKey": "${effectiveKey.trim()}"`}
               </pre>
             </div>
@@ -561,7 +561,7 @@ function ListDialog({
             onClick={onClose}
             disabled={saving}
             className={cn(
-              "rounded-md border border-white/[0.08] px-3 py-1.5 text-[11px] font-medium hover:bg-white/[0.04]",
+              "rounded-md border border-foreground/[0.08] px-3 py-1.5 text-[11px] font-medium hover:bg-foreground/[0.04]",
               saving && "opacity-50",
             )}
           >

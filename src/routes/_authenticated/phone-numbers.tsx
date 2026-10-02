@@ -291,7 +291,7 @@ function PhoneNumbersPage() {
                   key={c.id}
                   onClick={() => setActiveCall(c)}
                   className={cn(
-                    "glass w-full rounded-lg p-3 text-left text-xs transition-colors hover:bg-white/[0.04]",
+                    "glass w-full rounded-lg p-3 text-left text-xs transition-colors hover:bg-foreground/[0.04]",
                     activeCall?.id === c.id && "ring-1 ring-primary/40",
                   )}
                 >
@@ -512,7 +512,7 @@ function PhoneNumberCard({
                 "inline-flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
                 phoneNumber.enabled
                   ? "border-success/40 text-success"
-                  : "border-border text-muted-foreground",
+                  : "border-gray-200 dark:border-slate-800 text-muted-foreground",
               )}
               title={phoneNumber.enabled ? "Desativar" : "Ativar"}
             >
@@ -523,7 +523,7 @@ function PhoneNumberCard({
               onClick={() => {
                 if (confirm(`Remover ${phoneNumber.e164}?`)) onDelete();
               }}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 dark:border-slate-800 text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -675,7 +675,7 @@ function PhoneNumberCard({
       )}
 
       {/* Outbound */}
-      <div className="mt-4 flex items-center justify-between rounded-lg border border-border bg-card/40 p-3">
+      <div className="mt-4 flex items-center justify-between rounded-lg border border-gray-200 dark:border-slate-800 bg-card/40 p-3">
         <div className="flex items-center gap-2">
           <Switch
             id={`out-${phoneNumber.id}`}
@@ -905,7 +905,7 @@ function VoiceCloneDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border bg-card/30 p-8 text-center transition-colors hover:border-primary/50">
+          <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-800 bg-card/30 p-8 text-center transition-colors hover:border-primary/50">
             <Upload className="h-6 w-6 text-muted-foreground" />
             <span className="text-sm font-medium">
               {file ? file.name : "Clique para selecionar áudio"}
@@ -1020,7 +1020,7 @@ function WebhookRow({
   onCopy: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card/40 p-3">
+    <div className="rounded-lg border border-gray-200 dark:border-slate-800 bg-card/40 p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider">{label}</p>
@@ -1210,7 +1210,7 @@ function NumberBuyWizard({
                 {results.map((r) => (
                   <div
                     key={r.phoneNumber}
-                    className="flex items-center justify-between rounded-md border border-white/[0.06] p-2.5"
+                    className="flex items-center justify-between rounded-md border border-foreground/[0.06] p-2.5"
                   >
                     <div>
                       <div className="font-mono text-xs">{r.phoneNumber}</div>
@@ -1302,13 +1302,13 @@ function VoiceCallDetailSheet({
               )}
             </div>
             {utterances.length === 0 ? (
-              <p className="rounded-md border border-dashed border-white/[0.1] p-3 text-center text-xs text-muted-foreground">
+              <p className="rounded-md border border-dashed border-foreground/[0.1] p-3 text-center text-xs text-muted-foreground">
                 {status === "failed"
                   ? (call.transcription_error ?? "falha")
                   : "sem transcrição ainda"}
               </p>
             ) : (
-              <div className="max-h-80 space-y-2 overflow-y-auto rounded-md border border-white/[0.06] bg-white/[0.01] p-3">
+              <div className="max-h-80 space-y-2 overflow-y-auto rounded-md border border-foreground/[0.06] bg-foreground/[0.01] p-3">
                 {utterances.map((u: any, i: number) => (
                   <div key={i} className="text-xs">
                     <span className="mr-2 rounded bg-primary/15 px-1.5 py-0.5 text-[9px] text-primary">
@@ -1429,7 +1429,7 @@ function ImportNumberDialog({
           <div className="space-y-1.5">
             <Label>Número na conta Twilio</Label>
             {loadingOwned ? (
-              <div className="flex items-center gap-2 rounded-md border border-white/[0.06] px-3 py-2 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-2 rounded-md border border-foreground/[0.06] px-3 py-2 text-[11px] text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" /> Buscando números na Twilio…
               </div>
             ) : ownedError ? (
@@ -1458,8 +1458,8 @@ function ImportNumberDialog({
                         "flex w-full items-center justify-between rounded-md border p-2 text-left transition-colors",
                         disabled && "cursor-not-allowed opacity-50",
                         active
-                          ? "border-violet-500/40 bg-violet-500/[0.08]"
-                          : "border-white/[0.06] hover:bg-white/[0.03]",
+                          ? "border-cyan-500/40 bg-cyan-500/[0.08]"
+                          : "border-foreground/[0.06] hover:bg-foreground/[0.03]",
                       )}
                     >
                       <div className="min-w-0">
@@ -1469,7 +1469,7 @@ function ImportNumberDialog({
                           {disabled ? " · já importado" : n.capabilities.voice ? " · voz" : ""}
                         </div>
                       </div>
-                      {active && <Check className="h-3.5 w-3.5 text-violet-300" />}
+                      {active && <Check className="h-3.5 w-3.5 text-cyan-300" />}
                     </button>
                   );
                 })}
@@ -1520,7 +1520,7 @@ function ImportNumberDialog({
                   "flex-1 rounded-md border px-3 py-2 text-[12px] font-medium transition-colors",
                   behavior === "ai_answer"
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-foreground hover:bg-muted",
+                    : "border-gray-200 dark:border-slate-800 bg-background text-foreground hover:bg-muted",
                 )}
               >
                 IA atende
@@ -1532,7 +1532,7 @@ function ImportNumberDialog({
                   "flex-1 rounded-md border px-3 py-2 text-[12px] font-medium transition-colors",
                   behavior === "voicemail"
                     ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-foreground hover:bg-muted",
+                    : "border-gray-200 dark:border-slate-800 bg-background text-foreground hover:bg-muted",
                 )}
               >
                 Voicemail
@@ -1602,7 +1602,7 @@ function CallRecordingPlayer({ call, accountId }: { call: any; accountId: string
         <a
           href={audioSrc}
           download={`call-${call?.id?.slice(0, 8) ?? "audio"}.mp3`}
-          className="text-[10px] text-violet-300 hover:text-violet-200"
+          className="text-[10px] text-cyan-300 hover:text-cyan-200"
         >
           Baixar MP3
         </a>
@@ -1616,7 +1616,7 @@ function CallRecordingPlayer({ call, accountId }: { call: any; accountId: string
         <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">
           Gravação
         </Label>
-        <div className="rounded-md border border-dashed border-white/[0.1] p-3 text-center">
+        <div className="rounded-md border border-dashed border-foreground/[0.1] p-3 text-center">
           {error ? (
             <p className="text-xs text-rose-300">{error}</p>
           ) : (
@@ -1640,7 +1640,7 @@ function CallRecordingPlayer({ call, accountId }: { call: any; accountId: string
   }
 
   return (
-    <p className="rounded-md border border-dashed border-white/[0.1] p-3 text-center text-xs text-muted-foreground">
+    <p className="rounded-md border border-dashed border-foreground/[0.1] p-3 text-center text-xs text-muted-foreground">
       Sem gravação disponível para esta chamada.
     </p>
   );

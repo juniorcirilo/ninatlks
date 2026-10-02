@@ -273,6 +273,7 @@ export class EvolutionClientService {
     media: string;
     fileName?: string;
     caption?: string;
+    quoted?: QuotedRef;
   }): Promise<{ messageId?: string }> {
     const instance = encodeURIComponent(args.instanceName);
     const number = toEvolutionNumber(args.number);
@@ -286,7 +287,7 @@ export class EvolutionClientService {
           : `/message/sendMedia/${instance}`,
       body:
         args.mediatype === 'audio'
-          ? { number, audio: args.media }
+          ? { number, audio: args.media, quoted: args.quoted }
           : {
               number,
               mediatype: args.mediatype,
@@ -294,6 +295,7 @@ export class EvolutionClientService {
               media: args.media,
               fileName: args.fileName,
               caption: args.caption,
+              quoted: args.quoted,
             },
       timeoutMs: 60_000,
     });
@@ -309,6 +311,7 @@ export class EvolutionClientService {
     description: string;
     footer?: string;
     buttons: InteractiveButton[];
+    quoted?: QuotedRef;
   }): Promise<{ messageId?: string }> {
     const res = await this.evo<MessageResponse>({
       url: args.url,
@@ -321,6 +324,7 @@ export class EvolutionClientService {
         description: args.description,
         footer: args.footer,
         buttons: args.buttons,
+        quoted: args.quoted,
       },
     });
     return { messageId: messageIdOf(res) };
@@ -336,6 +340,7 @@ export class EvolutionClientService {
     footerText?: string;
     buttonText: string;
     sections: InteractiveSection[];
+    quoted?: QuotedRef;
   }): Promise<{ messageId?: string }> {
     const res = await this.evo<MessageResponse>({
       url: args.url,
@@ -349,6 +354,7 @@ export class EvolutionClientService {
         footerText: args.footerText,
         buttonText: args.buttonText,
         sections: args.sections,
+        quoted: args.quoted,
       },
     });
     return { messageId: messageIdOf(res) };
@@ -376,6 +382,69 @@ export class EvolutionClientService {
     });
   }
 
+  async findContacts(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+  }): Promise<RemoteContact[]> {
+    const list = await this.evo<RemoteContact[]>({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path: `/chat/findContacts/${encodeURIComponent(args.instanceName)}`,
+      body: { where: {} },
+      timeoutMs: 60_000,
+    });
+    return Array.isArray(list) ? list : [];
+  }
+
+  async findChats(
+    args: { url: string; apiKey: string; instanceName: string },
+    remoteJid?: string,
+  ): Promise<RemoteChat[]> {
+    const list = await this.evo<RemoteChat[]>({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path: `/chat/findChats/${encodeURIComponent(args.instanceName)}`,
+      body: remoteJid ? { where: { remoteJid } } : { where: {} },
+      timeoutMs: 60_000,
+    });
+    return Array.isArray(list) ? list : [];
+  }
+
+  async fetchAllGroups(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+  }): Promise<RemoteGroup[]> {
+    const list = await this.evo<RemoteGroup[]>({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'GET',
+      path: `/group/fetchAllGroups/${encodeURIComponent(args.instanceName)}?getParticipants=false`,
+      timeoutMs: 60_000,
+    });
+    return Array.isArray(list) ? list : [];
+  }
+
+  /** URL da foto de perfil (null se o contato não tem foto ou ocultou). */
+  async fetchProfilePictureUrl(args: {
+    url: string;
+    apiKey: string;
+    instanceName: string;
+    number: string;
+  }): Promise<string | null> {
+    const res = await this.evo<{ profilePictureUrl?: string | null }>({
+      url: args.url,
+      apiKey: args.apiKey,
+      method: 'POST',
+      path: `/chat/fetchProfilePictureUrl/${encodeURIComponent(args.instanceName)}`,
+      body: { number: toEvolutionNumber(args.number) },
+    });
+    return res?.profilePictureUrl || null;
+  }
+
   /** Send text. Accepts a phone-like string OR a full Baileys JID. */
   async sendText(args: {
     url: string;
@@ -383,6 +452,7 @@ export class EvolutionClientService {
     instanceName: string;
     number: string;
     text: string;
+    quoted?: QuotedRef;
   }): Promise<{ messageId?: string }> {
     const res = await this.evo<{
       key?: { id?: string };
@@ -393,7 +463,11 @@ export class EvolutionClientService {
       apiKey: args.apiKey,
       method: 'POST',
       path: `/message/sendText/${encodeURIComponent(args.instanceName)}`,
-      body: { number: toEvolutionNumber(args.number), text: args.text },
+      body: {
+        number: toEvolutionNumber(args.number),
+        text: args.text,
+        quoted: args.quoted,
+      },
     });
     return { messageId: res?.key?.id ?? res?.messageId ?? res?.id };
   }
@@ -408,6 +482,42 @@ export interface RemoteInstance {
   profilePicUrl?: string;
   integration?: string;
   _count?: { Contact?: number; Chat?: number; Message?: number };
+}
+
+/** Mensagem citada (resposta). */
+export interface QuotedRef {
+  key: { id: string; remoteJid: string; fromMe: boolean };
+  message?: { conversation: string };
+}
+
+export interface RemoteContact {
+  id?: string;
+  remoteJid: string;
+  pushName?: string | null;
+  profilePicUrl?: string | null;
+  isGroup?: boolean;
+}
+
+export interface RemoteChat {
+  remoteJid: string;
+  pushName?: string | null;
+  profilePicUrl?: string | null;
+  lastMessage?: {
+    pushName?: string | null;
+    key?: {
+      fromMe?: boolean;
+      remoteJid?: string;
+      remoteJidAlt?: string;
+      participantAlt?: string;
+    };
+  } | null;
+}
+
+export interface RemoteGroup {
+  id: string;
+  subject?: string;
+  pictureUrl?: string | null;
+  size?: number;
 }
 
 export interface InteractiveButton {

@@ -75,7 +75,7 @@ export function SetupChecklist() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 w-72 overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
+    <div className="fixed bottom-4 right-4 z-40 w-72 overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 shadow-2xl">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -107,7 +107,7 @@ export function SetupChecklist() {
       </button>
 
       {open && (
-        <div className="border-t border-border">
+        <div className="border-t border-gray-200 dark:border-slate-800">
           <ul className="space-y-0.5 px-2 py-2">
             {VISIBLE_STEPS.map((s) => {
               const done = completed.has(s);
@@ -131,7 +131,7 @@ export function SetupChecklist() {
               );
             })}
           </ul>
-          <div className="flex items-center justify-between border-t border-border px-3 py-2">
+          <div className="flex items-center justify-between border-t border-gray-200 dark:border-slate-800 px-3 py-2">
             <button
               type="button"
               onClick={handleDismiss}

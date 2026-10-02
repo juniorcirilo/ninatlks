@@ -523,14 +523,14 @@ function TutorialPage() {
       <div className="grid gap-6 px-6 py-6 lg:grid-cols-[260px_1fr]">
         {/* Índice lateral */}
         <aside className="lg:sticky lg:top-6 lg:self-start">
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div className="rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 p-4">
             <div className="relative mb-3">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar…"
-                className="h-9 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                className="h-9 w-full rounded-md border border-gray-200 dark:border-slate-800 bg-background pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               />
             </div>
             <nav className="space-y-3 text-sm">
@@ -547,9 +547,9 @@ function TutorialPage() {
                       <li key={t.id}>
                         <a
                           href={`#${t.id}`}
-                          className="flex items-center gap-2 rounded px-2 py-1 text-[13px] text-foreground/80 hover:bg-white/[0.04] hover:text-foreground"
+                          className="flex items-center gap-2 rounded px-2 py-1 text-[13px] text-foreground/80 hover:bg-foreground/[0.04] hover:text-foreground"
                         >
-                          <t.icon className="h-3.5 w-3.5 text-violet-400" />
+                          <t.icon className="h-3.5 w-3.5 text-cyan-400" />
                           <span className="truncate">{t.label}</span>
                         </a>
                       </li>
@@ -586,14 +586,14 @@ function TutorialPage() {
                     <article
                       key={t.id}
                       id={t.id}
-                      className="scroll-mt-20 overflow-hidden rounded-xl border border-border bg-card"
+                      className="scroll-mt-20 overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/40"
                     >
                       <button
                         type="button"
                         onClick={() => setActiveId(open ? null : t.id)}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.03]"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
                       >
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 text-violet-400">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/20 text-cyan-400">
                           <t.icon className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -613,13 +613,13 @@ function TutorialPage() {
                       </button>
 
                       {open && (
-                        <div className="space-y-4 border-t border-border bg-background/40 px-4 py-4">
+                        <div className="space-y-4 border-t border-gray-200 dark:border-slate-800 bg-background/40 px-4 py-4">
                           {t.image && (
                             <a
                               href={t.image}
                               target="_blank"
                               rel="noreferrer"
-                              className="block overflow-hidden rounded-lg border border-border bg-black/20"
+                              className="block overflow-hidden rounded-lg border border-gray-200 dark:border-slate-800 bg-black/20"
                               title="Clique para abrir em tamanho real"
                             >
                               <img
@@ -663,7 +663,7 @@ function TutorialPage() {
                               {t.route && (
                                 <Link
                                   to={t.route.to}
-                                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-md bg-gradient-to-r from-violet-600 to-fuchsia-600 px-3 text-xs font-semibold text-white hover:opacity-90"
+                                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-white hover:opacity-90"
                                 >
                                   {t.route.label}
                                   <ChevronRight className="h-3.5 w-3.5" />

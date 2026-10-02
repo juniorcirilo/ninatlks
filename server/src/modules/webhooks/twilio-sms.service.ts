@@ -63,10 +63,10 @@ export class TwilioSmsService {
         [channel.account_id, from, body.slice(0, 140)],
       );
     } else if (optKind === 'opt_in') {
-      await this.dataSource.query(
-        `SELECT public.webhook_sms_opt_in($1, $2)`,
-        [channel.account_id, from],
-      );
+      await this.dataSource.query(`SELECT public.webhook_sms_opt_in($1, $2)`, [
+        channel.account_id,
+        from,
+      ]);
     }
 
     const mediaUrls: string[] = [];
