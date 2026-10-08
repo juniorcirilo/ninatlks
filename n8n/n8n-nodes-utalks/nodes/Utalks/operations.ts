@@ -97,7 +97,7 @@ export const RESOURCES: Array<{ name: string; value: string }> = [
     "value": "webhook"
   },
   {
-    "name": "WhatsApp (Evolution)",
+    "name": "WhatsApp",
     "value": "whatsapp"
   }
 ];
@@ -1816,20 +1816,20 @@ export const OPERATIONS: OperationDef[] = [
   },
   {
     "resource": "whatsapp",
-    "value": "get_evolution",
+    "value": "get_whatsapp",
     "name": "Listar",
     "method": "GET",
-    "path": "/evolution",
+    "path": "/whatsapp",
     "pathParams": [],
     "query": true,
     "body": false
   },
   {
     "resource": "whatsapp",
-    "value": "delete_evolution_channels_by_channelId",
+    "value": "delete_whatsapp_channels_by_channelId",
     "name": "Excluir (channels)",
     "method": "DELETE",
-    "path": "/evolution/channels/:channelId",
+    "path": "/whatsapp/channels/:channelId",
     "pathParams": [
       "channelId"
     ],
@@ -1838,10 +1838,10 @@ export const OPERATIONS: OperationDef[] = [
   },
   {
     "resource": "whatsapp",
-    "value": "get_evolution_channels_qrcode_by_channelId",
+    "value": "get_whatsapp_channels_qrcode_by_channelId",
     "name": "Obter QR code",
     "method": "GET",
-    "path": "/evolution/channels/:channelId/qrcode",
+    "path": "/whatsapp/channels/:channelId/qrcode",
     "pathParams": [
       "channelId"
     ],
@@ -1850,10 +1850,10 @@ export const OPERATIONS: OperationDef[] = [
   },
   {
     "resource": "whatsapp",
-    "value": "get_evolution_channels_status_by_channelId",
+    "value": "get_whatsapp_channels_status_by_channelId",
     "name": "Ver status",
     "method": "GET",
-    "path": "/evolution/channels/:channelId/status",
+    "path": "/whatsapp/channels/:channelId/status",
     "pathParams": [
       "channelId"
     ],
@@ -1862,20 +1862,10 @@ export const OPERATIONS: OperationDef[] = [
   },
   {
     "resource": "whatsapp",
-    "value": "post_evolution_provision",
-    "name": "Provisionar canal",
+    "value": "post_whatsapp_channels",
+    "name": "Criar sessão",
     "method": "POST",
-    "path": "/evolution/provision",
-    "pathParams": [],
-    "query": false,
-    "body": true
-  },
-  {
-    "resource": "whatsapp",
-    "value": "post_evolution_test",
-    "name": "Testar conexão",
-    "method": "POST",
-    "path": "/evolution/test",
+    "path": "/whatsapp/channels",
     "pathParams": [],
     "query": false,
     "body": true

@@ -54,9 +54,33 @@ export type MessageAttributes = {
   caption?: string;
   size?: number;
   storage_path?: string;
+  /** cabeçalho de mídia numa mensagem interativa */
+  media_kind?: "image" | "video";
+  name?: string;
+  phone?: string;
   selected_id?: string;
   forwarded?: boolean;
-  reply_to?: { message_id: string; content: string | null; from_me: boolean };
+  reply_to?: {
+    message_id: string;
+    /** id interno da mensagem citada (para rolar até ela) */
+    target_id?: string;
+    content: string | null;
+    from_me: boolean;
+    media_kind?: string;
+    author_name?: string;
+    edited?: boolean;
+    deleted?: boolean;
+  };
+  /** transcrição automática (STT) de áudios */
+  transcript?: string;
+  edited?: boolean;
+  edited_at?: string;
+  deleted?: boolean;
+  deleted_at?: string;
+  /** texto antes da 1ª edição / da exclusão (citação interna) */
+  original_content?: string | null;
+  /** remetente real em grupos */
+  sender?: { jid: string; name: string | null; avatar_url: string | null };
   title?: string;
   description?: string;
   footer?: string;
@@ -164,12 +188,94 @@ export async function sendConversationInteractive(
   conversationId: string,
   input: InteractiveInput,
   replyToMessageId?: string,
+  media?: File | null,
 ): Promise<SendResult> {
+  if (media) {
+    const form = new FormData();
+    form.append("conversationId", conversationId);
+    if (replyToMessageId) form.append("replyToMessageId", replyToMessageId);
+    form.append("payload", JSON.stringify(input));
+    form.append("file", media);
+    return apiClient.post(`/accounts/${accountId}/messages/send-interactive-media`, form);
+  }
   return apiClient.post(`/accounts/${accountId}/messages/send-interactive`, {
     conversationId,
     ...input,
     replyToMessageId,
   });
+}
+
+export async function sendConversationContact(
+  accountId: string,
+  conversationId: string,
+  contact: { name: string; phone: string },
+  replyToMessageId?: string,
+): Promise<SendResult> {
+  return apiClient.post(`/accounts/${accountId}/messages/send-contact`, {
+    conversationId,
+    ...contact,
+    replyToMessageId,
+  });
+}
+
+export type PixKeyType = "cpf" | "cnpj" | "phone" | "email" | "random";
+
+export async function sendConversationPix(
+  accountId: string,
+  conversationId: string,
+  pix: {
+    key: string;
+    keyType: PixKeyType;
+    title?: string;
+    description?: string;
+    footer?: string;
+    beneficiary?: string;
+    amount?: string;
+  },
+  replyToMessageId?: string,
+): Promise<SendResult> {
+  return apiClient.post(`/accounts/${accountId}/messages/send-pix`, {
+    conversationId,
+    ...pix,
+    replyToMessageId,
+  });
+}
+
+export type DraftTemplate =
+  | "buttons"
+  | "list"
+  | "image_buttons"
+  | "video_buttons"
+  | "pix"
+  | "link_image_buttons"
+  | "coupon"
+  | "promo"
+  | "launch"
+  | "event"
+  | "booking"
+  | "nps"
+  | "review"
+  | "cart";
+
+export type InteractiveDraft = {
+  title: string;
+  description: string;
+  footer?: string;
+  buttonText?: string;
+  buttons?: { text: string; value?: string }[];
+  rows?: { title: string; description?: string }[];
+  beneficiary?: string;
+  amount?: string;
+  key?: string;
+  link?: string;
+  fields?: Record<string, string>;
+};
+
+export async function generateInteractiveDraft(
+  accountId: string,
+  body: { template: DraftTemplate; prompt: string; buttonMode?: "reply" | "action" },
+): Promise<InteractiveDraft> {
+  return apiClient.post(`/accounts/${accountId}/messages/interactive-draft`, body);
 }
 
 export async function sendConversationPresence(
@@ -185,7 +291,6 @@ export type DirectoryContact = {
   name: string | null;
   phone: string | null;
   picture: string | null;
-  resolved_lid: boolean;
 };
 
 export type DirectoryGroup = {
@@ -195,15 +300,18 @@ export type DirectoryGroup = {
   size: number;
 };
 
-export function fetchDirectoryContacts(accountId: string, refresh = false) {
-  return apiClient.get<DirectoryContact[]>(
-    `/accounts/${accountId}/evolution/directory/contacts${refresh ? "?refresh=1" : ""}`,
+/** `pending` > 0 enquanto o servidor ainda busca fotos em segundo plano. */
+export type Directory<T> = { items: T[]; pending: number };
+
+export function fetchDirectoryContacts(accountId: string) {
+  return apiClient.get<Directory<DirectoryContact>>(
+    `/accounts/${accountId}/whatsapp/directory/contacts`,
   );
 }
 
-export function fetchDirectoryGroups(accountId: string, refresh = false) {
-  return apiClient.get<DirectoryGroup[]>(
-    `/accounts/${accountId}/evolution/directory/groups${refresh ? "?refresh=1" : ""}`,
+export function fetchDirectoryGroups(accountId: string) {
+  return apiClient.get<Directory<DirectoryGroup>>(
+    `/accounts/${accountId}/whatsapp/directory/groups`,
   );
 }
 
@@ -224,6 +332,39 @@ export function forwardMessage(accountId: string, messageId: string, conversatio
   );
 }
 
+export function editMessage(accountId: string, messageId: string, content: string) {
+  return apiClient.patch<{ ok: true }>(`/accounts/${accountId}/messages/${messageId}/edit`, {
+    content,
+  });
+}
+
+export function deleteMessage(accountId: string, messageId: string) {
+  return apiClient.delete<{ ok: true }>(`/accounts/${accountId}/messages/${messageId}`);
+}
+
+export function transcribeMessage(accountId: string, messageId: string) {
+  return apiClient.post<{ transcript: string }>(
+    `/accounts/${accountId}/messages/${messageId}/transcribe`,
+    {},
+  );
+}
+
+export function sendSpeech(accountId: string, conversationId: string, content: string) {
+  return apiClient.post<SendResult>(`/accounts/${accountId}/messages/send-speech`, {
+    conversationId,
+    content,
+  });
+}
+
 export function resendMessage(accountId: string, messageId: string) {
   return apiClient.post<SendResult>(`/accounts/${accountId}/messages/${messageId}/resend`, {});
+}
+
+/** Assina a presença (digitando/online) dos chats ativos. Melhor esforço. */
+export async function subscribeConversationsPresence(
+  accountId: string,
+  conversationIds: string[],
+): Promise<void> {
+  if (conversationIds.length === 0) return;
+  await apiClient.post(`/accounts/${accountId}/messages/presence/subscribe`, { conversationIds });
 }

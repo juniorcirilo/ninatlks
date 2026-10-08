@@ -1,6 +1,6 @@
 # Plano: Toggle manual de novos registros
 
-Hoje o Nina Talks bloqueia signups automaticamente (via `signup_open()` + trigger `handle_new_user`) assim que existe um admin. O usuário quer trocar isso pelo modelo do Nina Evolution: **um toggle manual** controlado por qualquer usuário autenticado, com default permissivo quando a configuração não existe.
+Hoje o Utalks bloqueia signups automaticamente (via `signup_open()` + trigger `handle_new_user`) assim que existe um admin. O usuário quer trocar isso pelo modelo do Nina Evolution: **um toggle manual** controlado por qualquer usuário autenticado, com default permissivo quando a configuração não existe.
 
 ## 1. Banco de dados (migration)
 

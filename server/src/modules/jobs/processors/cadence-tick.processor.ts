@@ -1,8 +1,9 @@
+import { extractTarget } from '../../whatsapp/jid.util';
 import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { DataSource } from 'typeorm';
-import { EvolutionClientService } from '../../evolution/evolution-client.service';
+import { WaSendService } from '../../whatsapp/wa-send.service';
 import { renderTemplate } from '../../../common/template.util';
 import {
   resolveOutboundPhoneAndPersona,
@@ -46,7 +47,7 @@ export class CadenceTickProcessor extends WorkerHost {
 
   constructor(
     private readonly dataSource: DataSource,
-    private readonly evolutionClient: EvolutionClientService,
+    private readonly waSend: WaSendService,
   ) {
     super();
   }
@@ -96,7 +97,7 @@ export class CadenceTickProcessor extends WorkerHost {
           // espera resposta do contato (diferente de voz, que espera o
           // desfecho real via waiting_call_id). Se o contato responder, cai
           // no pipeline normal de inbound/auto-reply, sem reabrir a cadência.
-          await dispatchWhatsappFollowup(this.dataSource, this.evolutionClient, it);
+          await dispatchWhatsappFollowup(this.dataSource, this.waSend, it);
           await this.dataSource.query(
             `SELECT public.cadence_advance($1, true, NULL)`,
             [it.execution_id],
@@ -124,7 +125,14 @@ export class CadenceTickProcessor extends WorkerHost {
     this.logger.log(
       `cadence-tick complete: checked=${items.length} advanced=${advanced} waiting=${waiting} failed=${failed} skipped=${skipped} staleRecovered=${staleRecovered}`,
     );
-    return { checked: items.length, advanced, waiting, failed, skipped, staleRecovered };
+    return {
+      checked: items.length,
+      advanced,
+      waiting,
+      failed,
+      skipped,
+      staleRecovered,
+    };
   }
 
   /**
@@ -221,16 +229,15 @@ interface WhatsappStepResolution {
   contact_blocked: boolean;
   inbox_id: string | null;
   channel_config: {
-    evolution_url?: string;
-    evolution_api_key?: string;
-    evolution_instance_name?: string;
+    /** id do canal (sessão Baileys) — gravado em channels.config */
+    wa_channel_id?: string;
   } | null;
   facts: Record<string, string>;
 }
 
 async function dispatchWhatsappFollowup(
   dataSource: DataSource,
-  evolutionClient: EvolutionClientService,
+  waSend: WaSendService,
   it: CadenceDueItem,
 ): Promise<void> {
   const template = (it.step_definition?.message ?? '').trim();
@@ -238,23 +245,23 @@ async function dispatchWhatsappFollowup(
 
   const [row] = await dataSource.query<
     { cadence_whatsapp_step_resolve: WhatsappStepResolution | null }[]
-  >(`SELECT public.cadence_whatsapp_step_resolve($1) AS cadence_whatsapp_step_resolve`, [
-    it.execution_id,
-  ]);
+  >(
+    `SELECT public.cadence_whatsapp_step_resolve($1) AS cadence_whatsapp_step_resolve`,
+    [it.execution_id],
+  );
   const resolved = row?.cadence_whatsapp_step_resolve;
-  if (!resolved) throw new Error('could not resolve contact/account for cadence execution');
+  if (!resolved)
+    throw new Error('could not resolve contact/account for cadence execution');
   if (resolved.contact_blocked) throw new Error('contact blocked');
 
-  const cfg = resolved.channel_config;
-  if (!cfg?.evolution_url || !cfg.evolution_api_key || !cfg.evolution_instance_name) {
-    throw new Error('account has no whatsapp channel configured');
-  }
+  const channelId = resolved.channel_config?.wa_channel_id;
+  if (!channelId) throw new Error('account has no whatsapp channel configured');
   if (!resolved.inbox_id) throw new Error('whatsapp channel has no inbox');
 
   let targetNumber = resolved.contact_phone ?? '';
   if (!targetNumber && resolved.contact_identifier) {
-    const m = /evolution:whatsapp:([^@:]+)/.exec(resolved.contact_identifier);
-    if (m) targetNumber = m[1];
+    const t = extractTarget(resolved.contact_identifier);
+      if (t) targetNumber = t;
   }
   if (!targetNumber) throw new Error('contact has no phone');
 
@@ -265,19 +272,16 @@ async function dispatchWhatsappFollowup(
   });
   if (!message.trim()) throw new Error('rendered whatsapp message is empty');
 
-  await evolutionClient.sendText({
-    url: cfg.evolution_url,
-    apiKey: cfg.evolution_api_key,
-    instanceName: cfg.evolution_instance_name,
-    number: targetNumber,
-    text: message,
-  });
+  await waSend.sendText({ channelId, number: targetNumber, text: message });
 
-  await dataSource.query(`SELECT public.cadence_whatsapp_record_message($1, $2, $3, $4, $5)`, [
-    resolved.account_id,
-    resolved.inbox_id,
-    resolved.contact_id,
-    message,
-    it.execution_id,
-  ]);
+  await dataSource.query(
+    `SELECT public.cadence_whatsapp_record_message($1, $2, $3, $4, $5)`,
+    [
+      resolved.account_id,
+      resolved.inbox_id,
+      resolved.contact_id,
+      message,
+      it.execution_id,
+    ],
+  );
 }

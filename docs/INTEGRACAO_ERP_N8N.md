@@ -1,4 +1,4 @@
-# Integração ERP → n8n → Nina Talks
+# Integração ERP → n8n → Utalks
 
 Carga de listas operacionais vindas de um sistema externo (SQL Server do ERP)
 para as campanhas de voz: prospecção, orçamento não concluído e cobrança de

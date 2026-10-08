@@ -34,7 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/campanhas/$campaignId")({
-  head: () => ({ meta: [{ title: "Campanha — Nina Talks" }] }),
+  head: () => ({ meta: [{ title: "Campanha — Utalks" }] }),
   component: CampaignDetailPage,
 });
 

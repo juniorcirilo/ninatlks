@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/admin-registro")({
   head: () => ({
-    meta: [{ title: "Registro de usuários — Nina Talks" }],
+    meta: [{ title: "Registro de usuários — Utalks" }],
   }),
   component: AdminRegistroPage,
 });

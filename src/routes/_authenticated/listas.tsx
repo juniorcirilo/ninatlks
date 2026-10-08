@@ -251,7 +251,7 @@ function StageCombobox({
 export const Route = createFileRoute("/_authenticated/listas")({
   head: () => ({
     meta: [
-      { title: "Listas operacionais — Nina Talks" },
+      { title: "Listas operacionais — Utalks" },
       {
         name: "description",
         content: "Listas de contatos para campanhas SDR, Cobrança, Pós-venda e Retenção.",

@@ -8,11 +8,11 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/data-deletion")({
   head: () => ({
     meta: [
-      { title: "Exclusão de dados — Nina Talks" },
+      { title: "Exclusão de dados — Utalks" },
       {
         name: "description",
         content:
-          "Solicite a exclusão dos seus dados pessoais da plataforma Nina Talks conforme LGPD/GDPR.",
+          "Solicite a exclusão dos seus dados pessoais da plataforma Utalks conforme LGPD/GDPR.",
       },
     ],
   }),
@@ -50,7 +50,7 @@ function DataDeletionPage() {
   return (
     <LegalLayout title="Exclusão de dados" updatedAt="2026-04-20">
       <p>
-        Você tem direito de solicitar a exclusão dos dados pessoais que o Nina Talks
+        Você tem direito de solicitar a exclusão dos dados pessoais que o Utalks
         processa sobre você, conforme a Lei Geral de Proteção de Dados (LGPD) e
         o GDPR. Use o formulário abaixo ou envie e-mail para{" "}
         <a href="mailto:privacy@ninatalks.viverdeia.ai" className="text-primary underline">
@@ -71,7 +71,7 @@ function DataDeletionPage() {
         </li>
         <li>
           Mensagens de conversas que envolvem você são anonimizadas no painel
-          dos clientes Nina Talks — o conteúdo textual permanece por obrigação legal
+          dos clientes Utalks — o conteúdo textual permanece por obrigação legal
           de guarda, mas sem vincular a você como pessoa.
         </li>
         <li>
@@ -126,7 +126,7 @@ function DataDeletionPage() {
 
           <Field
             label="Identificador adicional (opcional)"
-            hint="Ex.: @seu_instagram, +5511999999999 ou e-mail secundário que conversou com alguma empresa usando Nina Talks."
+            hint="Ex.: @seu_instagram, +5511999999999 ou e-mail secundário que conversou com alguma empresa usando Utalks."
           >
             <input
               type="text"
@@ -171,7 +171,7 @@ function DataDeletionPage() {
           </button>
 
           <p className="text-[11px] text-muted-foreground">
-            Ao enviar, você autoriza o Nina Talks a processar esta solicitação
+            Ao enviar, você autoriza o Utalks a processar esta solicitação
             conforme nossa{" "}
             <a href="/privacy" className="underline">Política de Privacidade</a>.
           </p>

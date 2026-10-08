@@ -12,6 +12,9 @@ const PROVIDERS = [
   'agent-llm',
   'smtp',
   'google_calendar',
+  // Bancos externos consultados pelo Agente de IA (somente leitura).
+  'postgresql',
+  'mssql',
 ];
 
 export class SetSecretDto {

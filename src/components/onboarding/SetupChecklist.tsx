@@ -21,7 +21,7 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
   elevenlabs: "Voz (ElevenLabs)",
   twilio: "Telefonia (Twilio)",
   deepgram: "Transcrição (Deepgram)",
-  evolution: "WhatsApp (Evolution)",
+  evolution: "WhatsApp",
   agente: "Agente IA",
   numero: "Número de telefone",
   done: "Pronto",
@@ -83,7 +83,7 @@ export function SetupChecklist() {
       >
         <div className="min-w-0 flex-1">
           <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-            Setup do Nina Talks
+            Setup do Utalks
           </div>
           <div className="mt-0.5 flex items-center gap-2">
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-border">

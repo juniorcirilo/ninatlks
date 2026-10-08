@@ -1,4 +1,4 @@
-# Nina Talks — Cutover: Supabase → backend próprio (NestJS)
+# Utalks — Cutover: Supabase → backend próprio (NestJS)
 
 Este documento é o estado real da migração descrita em
 `/home/neco/.claude/plans/crie-um-plano-para-virtual-dewdrop.md` (Fases 1-9) e

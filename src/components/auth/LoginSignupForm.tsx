@@ -1,5 +1,5 @@
 import { ArrowRight, Loader2, Lock, Mail, User, UserPlus } from "lucide-react";
-import { NinaTalksLogo } from "@/components/brand/NinaTalksLogo";
+import { UtalksLogo } from "@/components/brand/UtalksLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,7 +71,7 @@ export function LoginSignupForm(props: LoginSignupFormProps) {
     <div className="relative z-10 mx-auto w-full max-w-md">
       <div className="mb-8 text-center">
         <div className="mb-4 inline-flex items-center justify-center">
-          <NinaTalksLogo size="xl" />
+          <UtalksLogo size="xl" />
         </div>
         <h1 className="text-2xl font-bold text-foreground">{title}</h1>
         <p className="mt-2 text-muted-foreground">{subtitle}</p>

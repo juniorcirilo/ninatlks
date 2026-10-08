@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke harness para a API do Nina Talks.
+# Smoke harness para a API do Utalks.
 #   BASE   — origem da API (default: produção atrás do nginx)
 #   COOKIE — cookie de sessão "sid=..." (tiers A/B); vazio = só tier PUBLIC
 #   ACC    — account id
@@ -72,7 +72,6 @@ hit 403,401 POST /webhooks/twilio/incoming         'form:CallSid=fake&From=%2B15
 hit 403,401 POST /webhooks/twilio/status           'form:CallSid=fake&CallStatus=completed'
 hit 403,401 POST /webhooks/twilio/sms-incoming     'form:MessageSid=fake&From=%2B15550001111&Body=oi'
 hit 403,401 POST /webhooks/twilio/recording-status 'form:RecordingSid=fake&CallSid=fake'
-hit 403,401 POST /webhooks/evolution/incoming      '{"event":"fake"}'
 # Meta responde 200 com corpo de erro por exigência do callback de data-deletion
 # deles; o importante é que rejeita o signed_request inválido, e rejeita.
 hit 200     POST /webhooks/meta/data-deletion      '{"signed_request":"fake"}'
@@ -140,7 +139,7 @@ else
   hit 200 GET "/accounts/$ACC/twilio/numbers/owned"
   hit 200 GET "/accounts/$ACC/twilio/numbers/search?countryCode=US&type=Local"
   hit 200 GET "/accounts/$ACC/elevenlabs/voices"
-  hit 200 GET "/accounts/$ACC/evolution"
+  hit 200 GET "/accounts/$ACC/whatsapp"
   hit 200,201 POST "/accounts/$ACC/integrations-status" '{}'
 
   echo

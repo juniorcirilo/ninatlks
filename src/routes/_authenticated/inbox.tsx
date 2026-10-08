@@ -2,46 +2,65 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Bot,
   FileText,
+  Image as ImageIcon,
   ListChecks,
   Loader2,
   MessageCircle,
   Mic,
   Paperclip,
+  Pencil,
   Reply,
   Search,
   Send,
   UserRound,
   Users,
+  Video,
+  Volume2,
   X,
 } from "lucide-react";
 import { useAccount } from "@/lib/account-context";
-import { subscribePresence, subscribeTable } from "@/lib/realtime-client";
+import { subscribeTable } from "@/lib/realtime-client";
+import { presenceLabel, usePresenceMap, type ContactPresence } from "@/lib/use-presence";
 import { MessageBubble } from "@/components/inbox/MessageBubble";
+import { previewOf } from "@/lib/message-preview";
 import { ContactAvatar } from "@/components/inbox/ContactAvatar";
 import { ForwardDialog } from "@/components/inbox/ForwardDialog";
 import { InteractiveDialog } from "@/components/inbox/InteractiveDialog";
+import { ContactCardDialog } from "@/components/inbox/ContactCardDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   fetchConversationMessages,
   fetchDirectoryContacts,
   fetchDirectoryGroups,
+  deleteMessage,
+  editMessage,
   forwardMessage,
   resendMessage,
+  transcribeMessage,
   startConversationByJid,
   type ConversationMessage,
   type DirectoryContact,
   type DirectoryGroup,
   fetchConversations,
   markConversationRead,
+  sendConversationContact,
   sendConversationInteractive,
   sendConversationMedia,
   sendConversationMessage,
+  sendConversationPix,
   sendConversationPresence,
+  subscribeConversationsPresence,
   setConversationAutopilot,
   type ConversationListItem,
   type InteractiveInput,
@@ -50,7 +69,7 @@ import {
 export const Route = createFileRoute("/_authenticated/inbox")({
   head: () => ({
     meta: [
-      { title: "Mensagens — Nina Talks" },
+      { title: "Mensagens — Utalks" },
       {
         name: "description",
         content:
@@ -90,20 +109,43 @@ function InboxPage() {
     staleTime: 10_000,
   });
 
-  const { data: dirContacts = [], isLoading: loadingContacts } = useQuery({
+  // Presença dos chats ativos: assina a conversa aberta e as mais recentes,
+  // e renova antes da assinatura do WhatsApp expirar.
+  const presenceOf = usePresenceMap();
+  const activeIds = useMemo(() => {
+    const ids = conversations.slice(0, 20).map((c) => c.id);
+    if (selectedId && !ids.includes(selectedId)) ids.unshift(selectedId);
+    return ids;
+  }, [conversations, selectedId]);
+  const activeKey = activeIds.join(",");
+  useEffect(() => {
+    if (!accountId || !activeKey) return;
+    const run = () =>
+      subscribeConversationsPresence(accountId, activeKey.split(",")).catch(() => {});
+    run();
+    const t = window.setInterval(run, 4 * 60_000);
+    return () => window.clearInterval(t);
+  }, [accountId, activeKey]);
+
+  // Fotos chegam aos poucos: reconsulta enquanto o servidor ainda está buscando.
+  const { data: contactsDir, isLoading: loadingContacts } = useQuery({
     queryKey: ["directory-contacts", accountId],
     queryFn: () => fetchDirectoryContacts(accountId!),
     enabled: !!accountId && tab === "contacts",
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: (q) => ((q.state.data?.pending ?? 0) > 0 ? 4_000 : false),
   });
-  const { data: dirGroups = [], isLoading: loadingGroups } = useQuery({
+  const { data: groupsDir, isLoading: loadingGroups } = useQuery({
     queryKey: ["directory-groups", accountId],
     queryFn: () => fetchDirectoryGroups(accountId!),
     enabled: !!accountId && tab === "groups",
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: (q) => ((q.state.data?.pending ?? 0) > 0 ? 4_000 : false),
   });
+  const dirContacts = contactsDir?.items ?? [];
+  const dirGroups = groupsDir?.items ?? [];
 
-  const openContact = async (c: DirectoryContact) => {
+  const openContact = async (c: Pick<DirectoryContact, "jid" | "name" | "picture">) => {
     if (!accountId) return;
     setOpening(c.jid);
     try {
@@ -176,7 +218,7 @@ function InboxPage() {
         <div className="shrink-0 space-y-2 bg-gray-100/80 px-4 py-3 dark:bg-[#202c33]">
           <div>
             <h2 className="text-base font-semibold text-gray-800 dark:text-[#e9edef]">Mensagens</h2>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">WhatsApp via Evolution</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">WhatsApp</p>
           </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -214,7 +256,15 @@ function InboxPage() {
           </div>
         </div>
 
-        {tab === "groups" && <GroupList groups={dirGroups} loading={loadingGroups} query={query} />}
+        {tab === "groups" && (
+          <GroupList
+            groups={dirGroups}
+            loading={loadingGroups}
+            query={query}
+            opening={opening}
+            onOpen={openContact}
+          />
+        )}
         {tab === "contacts" && (
           <ContactList
             contacts={dirContacts}
@@ -243,6 +293,7 @@ function InboxPage() {
                   key={c.id}
                   conversation={c}
                   active={c.id === selectedId}
+                  presence={presenceOf(c.contact_phone)}
                   onClick={() => setSelectedId(c.id)}
                 />
               ))}
@@ -262,6 +313,7 @@ function InboxPage() {
             key={selected.id}
             conversation={selected}
             allConversations={conversations}
+            contactPresence={presenceOf(selected.contact_phone)}
           />
         )}
       </section>
@@ -272,10 +324,12 @@ function InboxPage() {
 function ConversationListItemRow({
   conversation,
   active,
+  presence,
   onClick,
 }: {
   conversation: ConversationListItem;
   active: boolean;
+  presence: ContactPresence | null;
   onClick: () => void;
 }) {
   return (
@@ -300,8 +354,16 @@ function ConversationListItemRow({
             {conversation.unread && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[13px] text-gray-500 dark:text-[#8696a0]">
-            <span className="truncate">{conversation.last_message_content || "—"}</span>
-            <span className="shrink-0">· {timeAgo(conversation.last_message_at)}</span>
+            {presence?.state === "composing" || presence?.state === "recording" ? (
+              <span className="animate-pulse truncate font-medium text-emerald-500">
+                {presenceLabel(presence)}
+              </span>
+            ) : (
+              <>
+                <span className="truncate">{conversation.last_message_content || "—"}</span>
+                <span className="shrink-0">· {timeAgo(conversation.last_message_at)}</span>
+              </>
+            )}
           </div>
         </div>
       </button>
@@ -310,18 +372,16 @@ function ConversationListItemRow({
 }
 
 const digits = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "");
-// Compara pelos 8 últimos dígitos: tolera o 9º dígito e o DDI.
-const samePhone = (a: string, b: string) =>
-  a.length >= 8 && b.length >= 8 && a.slice(-8) === b.slice(-8);
-
 const MAX_FILE_MB = 25;
 
 function ConversationThread({
   conversation,
   allConversations,
+  contactPresence,
 }: {
   conversation: ConversationListItem;
   allConversations: ConversationListItem[];
+  contactPresence: ContactPresence | null;
 }) {
   const { accountId } = useAccount();
   const queryClient = useQueryClient();
@@ -331,11 +391,16 @@ function ConversationThread({
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
   const [interactiveOpen, setInteractiveOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [replyTo, setReplyTo] = useState<ConversationMessage | null>(null);
   const [forwardOf, setForwardOf] = useState<ConversationMessage | null>(null);
+  const [editing, setEditing] = useState<ConversationMessage | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
-  const [contactPresence, setContactPresence] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordChunks = useRef<Blob[]>([]);
+  const recordCancelled = useRef(false);
 
   const messagesKey = useMemo(
     () => ["conversation-messages", conversation.id] as const,
@@ -353,29 +418,11 @@ function ConversationThread({
     markConversationRead(accountId, conversation.id).catch(() => {});
   }, [accountId, conversation.id, messages.length]);
 
+  const contactTyping =
+    contactPresence?.state === "composing" || contactPresence?.state === "recording";
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, contactPresence]);
-
-  // Presença do contato ("digitando…" / "gravando áudio…").
-  useEffect(() => {
-    const phone = digits(conversation.contact_phone);
-    let timer: number | undefined;
-    const off = subscribePresence((e) => {
-      if (!samePhone(digits(e.jid), phone)) return;
-      window.clearTimeout(timer);
-      if (e.presence === "composing" || e.presence === "recording") {
-        setContactPresence(e.presence);
-        timer = window.setTimeout(() => setContactPresence(null), 7000);
-      } else {
-        setContactPresence(null);
-      }
-    });
-    return () => {
-      off();
-      window.clearTimeout(timer);
-    };
-  }, [conversation.contact_phone]);
+  }, [messages.length, contactTyping]);
 
   // Nossa presença: avisa "digitando" (no máx. 1x/4s) e "pausou" ao parar.
   const lastTyping = useRef(0);
@@ -418,6 +465,13 @@ function ConversationThread({
     setSending(true);
     window.clearTimeout(pauseTimer.current);
     try {
+      if (editing) {
+        await editMessage(accountId, editing.id, content);
+        setEditing(null);
+        setDraft("");
+        refresh();
+        return;
+      }
       const res = file
         ? await sendConversationMedia(accountId, conversation.id, file, content, replyTo?.id)
         : await sendConversationMessage(accountId, conversation.id, content, replyTo?.id);
@@ -435,10 +489,49 @@ function ConversationThread({
     }
   };
 
-  const handleInteractive = async (input: InteractiveInput) => {
+  const handleContact = async (contact: { name: string; phone: string }) => {
     if (!accountId) return;
     try {
-      const res = await sendConversationInteractive(accountId, conversation.id, input, replyTo?.id);
+      const res = await sendConversationContact(accountId, conversation.id, contact, replyTo?.id);
+      if (!res.ok) toast.error(`Não foi possível enviar: ${res.error}`);
+      setReplyTo(null);
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar contato");
+      throw err;
+    }
+  };
+
+  const handlePix = async (pix: Parameters<typeof sendConversationPix>[2]) => {
+    if (!accountId) return;
+    try {
+      const res = await sendConversationPix(accountId, conversation.id, pix, replyTo?.id);
+      if (!res.ok) toast.error(`Não foi possível enviar: ${res.error}`);
+      setReplyTo(null);
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao enviar PIX");
+      throw err;
+    }
+  };
+
+  const attach = (accept: string) => {
+    const el = fileRef.current;
+    if (!el) return;
+    el.accept = accept;
+    el.click();
+  };
+
+  const handleInteractive = async (input: InteractiveInput, media?: File | null) => {
+    if (!accountId) return;
+    try {
+      const res = await sendConversationInteractive(
+        accountId,
+        conversation.id,
+        input,
+        replyTo?.id,
+        media,
+      );
       if (!res.ok) toast.error(`Não foi possível enviar: ${res.error}`);
       setReplyTo(null);
       refresh();
@@ -456,6 +549,96 @@ function ConversationThread({
     }
     setFile(f);
   };
+
+  const startEdit = (m: ConversationMessage) => {
+    setEditing(m);
+    setReplyTo(null);
+    setFile(null);
+    setDraft(m.content ?? "");
+    textRef.current?.focus();
+  };
+
+  const handleTranscribe = async (m: ConversationMessage) => {
+    if (!accountId) return;
+    try {
+      await transcribeMessage(accountId, m.id);
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível transcrever");
+    }
+  };
+
+  const handleDelete = async (m: ConversationMessage) => {
+    if (!accountId) return;
+    if (!window.confirm("Apagar esta mensagem para todos?")) return;
+    try {
+      await deleteMessage(accountId, m.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível apagar");
+    } finally {
+      refresh();
+    }
+  };
+
+  const stopRecording = (cancel: boolean) => {
+    recordCancelled.current = cancel;
+    recorderRef.current?.stop();
+  };
+
+  const startRecording = async () => {
+    if (!accountId || recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Nota de voz do WhatsApp é ogg/opus; cai para webm/opus onde não há suporte.
+      const mime = ["audio/ogg;codecs=opus", "audio/webm;codecs=opus"].find((m) =>
+        MediaRecorder.isTypeSupported(m),
+      );
+      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      recordChunks.current = [];
+      recordCancelled.current = false;
+      rec.ondataavailable = (e) => e.data.size && recordChunks.current.push(e.data);
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        announce("paused");
+        if (recordCancelled.current || !recordChunks.current.length) return;
+        const type = (rec.mimeType || "audio/ogg").split(";")[0];
+        const ext = type.includes("ogg") ? "ogg" : "webm";
+        const audio = new File(recordChunks.current, `audio-${Date.now()}.${ext}`, { type });
+        setSending(true);
+        try {
+          const res = await sendConversationMedia(
+            accountId,
+            conversation.id,
+            audio,
+            undefined,
+            replyTo?.id,
+          );
+          if (!res.ok) toast.error(`Não foi possível enviar: ${res.error}`);
+          setReplyTo(null);
+          refresh();
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Falha ao enviar áudio");
+        } finally {
+          setSending(false);
+        }
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      sendConversationPresence(accountId, conversation.id, "recording").catch(() => {});
+    } catch {
+      toast.error("Não foi possível acessar o microfone.");
+    }
+  };
+
+  useEffect(
+    () => () => {
+      recordCancelled.current = true;
+      if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+    },
+    [],
+  );
 
   const handleResend = async (m: ConversationMessage) => {
     if (!accountId) return;
@@ -505,22 +688,49 @@ function ConversationThread({
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-sm font-bold text-gray-800 dark:text-slate-100">{title}</h3>
           <p className="truncate text-[11px] text-muted-foreground">
-            {contactPresence === "composing" ? (
-              <span className="animate-pulse font-medium text-orange-400">digitando…</span>
-            ) : contactPresence === "recording" ? (
-              <span className="animate-pulse font-medium text-orange-400">gravando áudio…</span>
+            {contactPresence ? (
+              <span
+                className={cn(
+                  "font-medium",
+                  contactPresence.state === "offline"
+                    ? "text-muted-foreground"
+                    : "text-emerald-500",
+                  (contactPresence.state === "composing" ||
+                    contactPresence.state === "recording") &&
+                    "animate-pulse",
+                )}
+              >
+                {presenceLabel(contactPresence)}
+              </span>
             ) : (
               conversation.contact_phone
             )}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
-          <span>{conversation.ai_autopilot_enabled ? "IA" : "Humano"}</span>
-          <Switch
-            checked={conversation.ai_autopilot_enabled}
-            onCheckedChange={handleAutopilotToggle}
-          />
-        </div>
+        <button
+          type="button"
+          onClick={() => handleAutopilotToggle(!conversation.ai_autopilot_enabled)}
+          title={
+            conversation.ai_autopilot_enabled
+              ? "A IA está atendendo esta conversa. Clique para assumir como humano."
+              : "Atendimento humano. Clique para devolver à IA."
+          }
+          aria-label={conversation.ai_autopilot_enabled ? "IA atendendo" : "Humano atendendo"}
+          aria-pressed={conversation.ai_autopilot_enabled}
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+            conversation.ai_autopilot_enabled
+              ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+              : "border-border bg-muted text-foreground hover:bg-accent",
+          )}
+        >
+          {conversation.ai_autopilot_enabled ? (
+            <Bot className="h-3.5 w-3.5" />
+          ) : (
+            <UserRound className="h-3.5 w-3.5" />
+          )}
+          {conversation.ai_autopilot_enabled ? "IA" : "Humano"}
+        </button>
       </div>
 
       <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto p-6">
@@ -545,13 +755,16 @@ function ConversationThread({
                 }}
                 onForward={setForwardOf}
                 onResend={handleResend}
+                onEdit={startEdit}
+                onDelete={handleDelete}
+                onTranscribe={handleTranscribe}
               />
             ))
           )}
-          {contactPresence && (
+          {(contactPresence?.state === "composing" || contactPresence?.state === "recording") && (
             <div className="flex justify-start">
               <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-gray-200 px-3 py-2 text-gray-500 shadow-sm dark:bg-slate-700/80 dark:text-slate-400">
-                {contactPresence === "recording" ? (
+                {contactPresence?.state === "recording" ? (
                   <Mic className="h-3.5 w-3.5" style={{ animation: "mic-pulse 1s infinite" }} />
                 ) : (
                   [0, 1, 2].map((i) => (
@@ -608,13 +821,35 @@ function ConversationThread({
                   Respondendo {replyTo.sender_type === "Contact" ? title : "a você"}
                 </div>
                 <div className="truncate text-xs text-gray-600 dark:text-slate-400">
-                  {replyTo.content || "Mensagem"}
+                  {previewOf(replyTo)}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setReplyTo(null)}
                 aria-label="Cancelar resposta"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+          {editing && (
+            <div className="m-2 mb-0 flex items-center gap-3 rounded-xl border-l-4 border-amber-500 bg-gray-100 p-2 pl-3 dark:bg-slate-900">
+              <Pencil className="h-4 w-4 shrink-0 text-amber-500" />
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-amber-600">Editando mensagem</div>
+                <div className="truncate text-xs text-gray-600 dark:text-slate-400">
+                  {editing.content}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(null);
+                  setDraft("");
+                }}
+                aria-label="Cancelar edição"
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
               >
                 <X className="h-4 w-4" />
@@ -653,9 +888,59 @@ function ConversationThread({
 
           <div className="flex items-center justify-between gap-2 px-2 pb-2">
             <div className="flex items-center gap-0.5">
-              <ComposerAction label="Anexar arquivo" onClick={() => fileRef.current?.click()}>
-                <Paperclip className="h-[18px] w-[18px]" />
-              </ComposerAction>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    title="Anexar"
+                    aria-label="Anexar"
+                    className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200/70 hover:text-gray-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                  >
+                    <Paperclip className="h-[18px] w-[18px]" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="w-44">
+                  <DropdownMenuItem onSelect={() => attach("image/*")}>
+                    <ImageIcon className="mr-2 h-4 w-4 text-sky-500" /> Imagem
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => attach("video/*")}>
+                    <Video className="mr-2 h-4 w-4 text-fuchsia-500" /> Vídeo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => attach("audio/*")}>
+                    <Volume2 className="mr-2 h-4 w-4 text-amber-500" /> Áudio
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      attach(".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.json,.xml")
+                    }
+                  >
+                    <FileText className="mr-2 h-4 w-4 text-indigo-500" /> Documento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => attach("*/*")}>
+                    <Paperclip className="mr-2 h-4 w-4 text-gray-500" /> Qualquer arquivo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setContactOpen(true)}>
+                    <UserRound className="mr-2 h-4 w-4 text-emerald-500" /> Contato
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {recording ? (
+                <>
+                  <ComposerAction label="Cancelar gravação" onClick={() => stopRecording(true)}>
+                    <X className="h-[18px] w-[18px]" />
+                  </ComposerAction>
+                  <ComposerAction label="Enviar áudio" onClick={() => stopRecording(false)}>
+                    <Send className="h-[18px] w-[18px] text-red-500" />
+                  </ComposerAction>
+                  <span className="ml-1 flex items-center gap-1.5 text-xs text-red-500">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" /> Gravando…
+                  </span>
+                </>
+              ) : (
+                <ComposerAction label="Gravar áudio" onClick={startRecording}>
+                  <Mic className="h-[18px] w-[18px]" />
+                </ComposerAction>
+              )}
               <ComposerAction label="Mensagem interativa" onClick={() => setInteractiveOpen(true)}>
                 <ListChecks className="h-[18px] w-[18px]" />
               </ComposerAction>
@@ -687,14 +972,23 @@ function ConversationThread({
         onOpenChange={(v) => !v && setForwardOf(null)}
         conversations={allConversations}
         currentId={conversation.id}
-        preview={forwardOf?.content || "Mensagem"}
+        preview={forwardOf ? previewOf(forwardOf) : "Mensagem"}
         onForward={handleForward}
       />
 
       <InteractiveDialog
         open={interactiveOpen}
         onOpenChange={setInteractiveOpen}
+        accountId={accountId}
         onSend={handleInteractive}
+        onSendPix={handlePix}
+      />
+
+      <ContactCardDialog
+        open={contactOpen}
+        onOpenChange={setContactOpen}
+        accountId={accountId}
+        onSend={handleContact}
       />
     </>
   );
@@ -839,10 +1133,14 @@ function GroupList({
   groups,
   loading,
   query,
+  opening,
+  onOpen,
 }: {
   groups: DirectoryGroup[];
   loading: boolean;
   query: string;
+  opening: string | null;
+  onOpen: (g: DirectoryGroup) => void;
 }) {
   const list = groups.filter((g) => matchesQuery(query, g.name));
   return (
@@ -855,16 +1153,26 @@ function GroupList({
       ) : (
         <ul>
           {list.map((g) => (
-            <li key={g.jid} className="flex items-center gap-3 px-3 py-3">
-              <ContactAvatar src={g.picture} name={g.name} className="h-12 w-12" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-gray-900 dark:text-[#e9edef]">
-                  {g.name}
+            <li key={g.jid}>
+              <button
+                type="button"
+                onClick={() => onOpen(g)}
+                disabled={opening === g.jid}
+                className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 disabled:opacity-60 dark:hover:bg-[#182229]"
+              >
+                <ContactAvatar src={g.picture} name={g.name} className="h-12 w-12" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-gray-900 dark:text-[#e9edef]">
+                    {g.name}
+                  </div>
+                  <div className="truncate text-[13px] text-gray-500 dark:text-[#8696a0]">
+                    {g.size} participante{g.size === 1 ? "" : "s"}
+                  </div>
                 </div>
-                <div className="truncate text-[13px] text-gray-500 dark:text-[#8696a0]">
-                  {g.size} participante{g.size === 1 ? "" : "s"}
-                </div>
-              </div>
+                {opening === g.jid && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+              </button>
             </li>
           ))}
         </ul>

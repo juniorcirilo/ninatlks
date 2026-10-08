@@ -56,7 +56,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/contacts")({
   head: () => ({
     meta: [
-      { title: "Leads — Nina Talks" },
+      { title: "Leads — Utalks" },
       { name: "description", content: "Lista de leads do agente Nina (SDR)." },
     ],
   }),

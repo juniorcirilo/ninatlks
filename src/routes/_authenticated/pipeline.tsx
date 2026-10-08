@@ -66,7 +66,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({
     meta: [
-      { title: "Pipeline — Nina Talks" },
+      { title: "Pipeline — Utalks" },
       {
         name: "description",
         content: "Funil de leads com auto-classificação por sentimento da IA.",

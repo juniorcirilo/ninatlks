@@ -17,19 +17,32 @@ const DOWNLOAD_URL_TTL_SECONDS = 10 * 60;
 export class StorageService implements OnModuleInit {
   private readonly logger = new Logger(StorageService.name);
   private readonly client: S3Client;
+  /** Assina links entregues ao navegador (host público, não o interno do Docker). */
+  private readonly signer: S3Client;
   readonly attachmentsBucket: string;
 
   constructor(private readonly config: ConfigService) {
     this.attachmentsBucket = this.config.get<string>('s3.attachmentsBucket')!;
+    const credentials = {
+      accessKeyId: this.config.get<string>('s3.accessKey')!,
+      secretAccessKey: this.config.get<string>('s3.secretKey')!,
+    };
+    const endpoint = this.config.get<string>('s3.endpoint');
     this.client = new S3Client({
-      endpoint: this.config.get<string>('s3.endpoint'),
+      endpoint,
       region: 'us-east-1',
       forcePathStyle: true,
-      credentials: {
-        accessKeyId: this.config.get<string>('s3.accessKey')!,
-        secretAccessKey: this.config.get<string>('s3.secretKey')!,
-      },
+      credentials,
     });
+    const publicEndpoint = this.config.get<string>('s3.publicEndpoint');
+    this.signer = publicEndpoint
+      ? new S3Client({
+          endpoint: publicEndpoint,
+          region: 'us-east-1',
+          forcePathStyle: true,
+          credentials,
+        })
+      : this.client;
   }
 
   async onModuleInit(): Promise<void> {
@@ -60,7 +73,7 @@ export class StorageService implements OnModuleInit {
       Key: key,
       ContentType: contentType,
     });
-    const uploadUrl = await getSignedUrl(this.client, command, {
+    const uploadUrl = await getSignedUrl(this.signer, command, {
       expiresIn: UPLOAD_URL_TTL_SECONDS,
     });
     return { uploadUrl, bucket: this.attachmentsBucket };
@@ -72,7 +85,7 @@ export class StorageService implements OnModuleInit {
     ttlSeconds: number = DOWNLOAD_URL_TTL_SECONDS,
   ): Promise<string> {
     const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-    return getSignedUrl(this.client, command, { expiresIn: ttlSeconds });
+    return getSignedUrl(this.signer, command, { expiresIn: ttlSeconds });
   }
 
   async deleteObject(bucket: string, key: string): Promise<void> {

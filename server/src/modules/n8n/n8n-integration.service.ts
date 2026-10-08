@@ -145,7 +145,7 @@ export class N8nIntegrationService {
         path,
         // "lastNode": o que os nós seguintes (a consulta ao ERP que o usuário
         // monta depois) devolverem vira a resposta HTTP — é o que deixa o
-        // Nina Talks receber o JSON de verdade, não um eco vazio do webhook.
+        // Utalks receber o JSON de verdade, não um eco vazio do webhook.
         responseMode: 'lastNode',
         options: {},
       },

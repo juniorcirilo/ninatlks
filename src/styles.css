@@ -131,42 +131,42 @@
   --progress-active: 195 59% 29%;
   --progress-inactive: 210 40% 98% / 15%;
 
-  /* Surfaces */
-  --bg-base: 230 12% 6%;
-  --bg-surface-1: 230 12% 8%;
-  --bg-surface-2: 217.2 28% 16%;
-  --bg-elevated: 232 18% 10%;
-  --bg-subtle-accent: 195 30% 10%;
-  --bg-dark: 230 12% 6%;
-  --bg-darkest: 230 14% 4%;
+  /* Surfaces — azul-ardósia, camadas bem separadas (sem degradê) */
+  --bg-base: 222 22% 7%;
+  --bg-surface-1: 222 20% 10%;
+  --bg-surface-2: 222 17% 15%;
+  --bg-elevated: 222 18% 13%;
+  --bg-subtle-accent: 190 40% 12%;
+  --bg-dark: 222 22% 7%;
+  --bg-darkest: 222 24% 5%;
 
   /* Text */
   --text-primary: 210 40% 98%;
-  --text-secondary: 215 20.2% 65.1%;
-  --text-tertiary: 215 15% 45%;
+  --text-secondary: 215 20% 72%;
+  --text-tertiary: 215 14% 55%;
   --text-on-dark: 210 40% 98%;
-  --text-on-dark-muted: 215 20.2% 65.1%;
+  --text-on-dark-muted: 215 20% 72%;
 
   /* Accents */
-  --accent-primary: 195 59% 29%;
-  --accent-primary-hover: 195 59% 38%;
-  --accent-primary-light: 195 50% 55%;
+  --accent-primary: 190 85% 30%;
+  --accent-primary-hover: 190 85% 38%;
+  --accent-primary-light: 188 75% 55%;
   --accent-warm: 43 90% 56%;
   --accent-success: 160 70% 42%;
 
-  --border-default: 230 12% 10%;
-  --border-subtle: 230 10% 14%;
+  --border-default: 222 14% 20%;
+  --border-subtle: 222 14% 16%;
 
-  /* Gradientes (preservados pra compat com componentes Nina Talks) */
-  --gradient-primary: linear-gradient(hsl(195 59% 29%), hsl(195 59% 29%));
-  --gradient-surface: linear-gradient(180deg, hsl(230 12% 8%), hsl(230 12% 6%));
-  --gradient-glow: radial-gradient(1200px circle at 50% -10%, hsl(195 59% 29% / 0.18), transparent 60%);
+  /* Gradientes: mantidos só por compatibilidade, todos planos (cor única). */
+  --gradient-primary: linear-gradient(hsl(190 85% 30%), hsl(190 85% 30%));
+  --gradient-surface: linear-gradient(hsl(222 20% 10%), hsl(222 20% 10%));
+  --gradient-glow: none;
 
-  --shadow-glow: 0 8px 24px rgba(30, 95, 116, 0.18);
+  --shadow-glow: 0 8px 24px rgba(11, 116, 145, 0.18);
   --shadow-elegant: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
 
-  --glass-bg: hsl(222 47% 11% / 40%); /* slate-900/40 */
-  --glass-border: hsl(217 33% 17%); /* slate-800 */
+  --glass-bg: hsl(222 20% 10% / 70%);
+  --glass-border: hsl(222 14% 20%);
 }
 
 /*
@@ -175,28 +175,28 @@
  */
 .dark {
 
-  --bg-base: 230 12% 6%;
-  --bg-surface-1: 230 12% 8%;
-  --bg-surface-2: 217.2 28% 16%;
-  --bg-elevated: 232 18% 10%;
-  --bg-subtle-accent: 195 30% 10%;
-  --bg-dark: 230 12% 6%;
-  --bg-darkest: 230 14% 4%;
+  --bg-base: 222 22% 7%;
+  --bg-surface-1: 222 20% 10%;
+  --bg-surface-2: 222 17% 15%;
+  --bg-elevated: 222 18% 13%;
+  --bg-subtle-accent: 190 40% 12%;
+  --bg-dark: 222 22% 7%;
+  --bg-darkest: 222 24% 5%;
 
   --text-primary: 210 40% 98%;
-  --text-secondary: 215 20.2% 65.1%;
-  --text-tertiary: 215 15% 45%;
+  --text-secondary: 215 20% 72%;
+  --text-tertiary: 215 14% 55%;
   --text-on-dark: 210 40% 98%;
-  --text-on-dark-muted: 215 20.2% 65.1%;
+  --text-on-dark-muted: 215 20% 72%;
 
-  --accent-primary: 195 59% 29%;
-  --accent-primary-hover: 195 59% 38%;
-  --accent-primary-light: 195 50% 55%;
+  --accent-primary: 190 85% 30%;
+  --accent-primary-hover: 190 85% 38%;
+  --accent-primary-light: 188 75% 55%;
   --accent-warm: 43 90% 56%;
   --accent-success: 160 70% 42%;
 
-  --border-default: 230 12% 10%;
-  --border-subtle: 230 10% 14%;
+  --border-default: 222 14% 20%;
+  --border-subtle: 222 14% 16%;
 }
 
 /*
@@ -212,23 +212,25 @@
   --bg-surface-1: 0 0% 100%;
   --bg-surface-2: 220 13% 98%;
   --bg-elevated: 220 13% 98%;
-  --bg-subtle-accent: 195 40% 94%;
+  --bg-subtle-accent: 190 45% 94%;
   --bg-dark: 220 13% 16%;
   --bg-darkest: 220 13% 10%;
 
-  --text-primary: 220 13% 16%;
-  --text-secondary: 215 20.2% 35.1%;
-  --text-tertiary: 215 15% 50%;
+  --text-primary: 220 15% 14%;
+  --text-secondary: 215 18% 34%;
+  --text-tertiary: 215 12% 46%;
 
-  --accent-primary-hover: 195 59% 24%;
-  --accent-primary-light: 195 50% 40%;
+  --accent-primary: 190 85% 30%;
+  --accent-primary-hover: 190 85% 24%;
+  --accent-primary-light: 190 80% 38%;
 
-  --border-default: 220 13% 95%;
-  --border-subtle: 220 13% 92%;
+  --border-default: 214 20% 88%;
+  --border-subtle: 214 20% 92%;
 
-  --gradient-surface: linear-gradient(180deg, hsl(0 0% 100%), hsl(220 13% 98%));
-  --gradient-glow: radial-gradient(1200px circle at 50% -10%, hsl(195 59% 29% / 0.08), transparent 60%);
-  --shadow-glow: 0 0 0 1px hsl(195 59% 29% / 0.15), 0 12px 32px -12px hsl(195 59% 29% / 0.25);
+  --gradient-primary: linear-gradient(hsl(190 85% 30%), hsl(190 85% 30%));
+  --gradient-surface: linear-gradient(hsl(0 0% 100%), hsl(0 0% 100%));
+  --gradient-glow: none;
+  --shadow-glow: 0 0 0 1px hsl(190 85% 30% / 0.15), 0 12px 32px -12px hsl(190 85% 30% / 0.25);
   --shadow-elegant: 0 10px 30px -12px rgba(15, 23, 42, 0.18);
 
   --glass-bg: hsl(0 0% 100%);
@@ -238,104 +240,101 @@
 /* Tokens base do tema: layer do livechat (/srv/sites/livechat/src/index.css) */
 @layer base {
   :root {
-    /* Force Dark Mode as default - App is 100% dark themed */
-    --background: 230 12% 6%; /* deep navy */
+    /* Dark é o padrão. Paleta plana: ardósia + teal; sem roxo e sem degradê. */
+    --background: 222 22% 7%;
     --foreground: 210 40% 98%;
-    --card: 230 12% 8%;
+    --card: 222 20% 10%;
     --card-foreground: 210 40% 98%;
-    --popover: 232 18% 10%;
+    --popover: 222 18% 13%;
     --popover-foreground: 210 40% 98%;
-    /* Primary color set from provided image: RGB(30,95,116) -> HSL(195 59% 29%) */
-    --primary: 195 59% 29%;
+    --primary: 190 85% 30%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 222 16% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 28% 16%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 280 64% 46%; /* deeper accent */
+    --muted: 222 17% 15%;
+    --muted-foreground: 215 20% 72%;
+    --accent: 222 16% 19%; /* superfície de hover/seleção (neutra) */
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 230 12% 10%;
-    --input: 217 28% 18%; /* slightly lighter than background for inputs */
-    --ring: 195 59% 29%;
-    --radius: 0.75rem; /* slightly larger radius for a softer UI */
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 14% 20%;
+    --input: 222 16% 18%;
+    --ring: 188 80% 45%;
+    --radius: 0.75rem;
 
-    /* Sidebar - Dark themed */
-    --sidebar-background: 230 12% 6%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 195 59% 29%;
+    /* Sidebar */
+    --sidebar-background: 222 24% 6%;
+    --sidebar-foreground: 210 30% 94%;
+    --sidebar-primary: 190 85% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 280 24% 14%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 230 12% 10%;
-    --sidebar-ring: 262 78% 56%;
+    --sidebar-accent: 222 18% 15%;
+    --sidebar-accent-foreground: 210 30% 94%;
+    --sidebar-border: 222 14% 16%;
+    --sidebar-ring: 188 80% 45%;
   }
 
   /* Dark class for compatibility - same values */
   .dark {
-    --background: 230 12% 6%;
+    --background: 222 22% 7%;
     --foreground: 210 40% 98%;
-    --card: 230 12% 8%;
+    --card: 222 20% 10%;
     --card-foreground: 210 40% 98%;
-    --popover: 232 18% 10%;
+    --popover: 222 18% 13%;
     --popover-foreground: 210 40% 98%;
-    /* Primary color (dark) */
-    --primary: 195 59% 29%;
+    --primary: 190 85% 30%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 222 16% 17%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 28% 16%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 280 64% 46%;
+    --muted: 222 17% 15%;
+    --muted-foreground: 215 20% 72%;
+    --accent: 222 16% 19%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 230 12% 10%;
-    --input: 217 28% 18%;
-    --ring: 195 59% 29%;
-    --sidebar-background: 230 12% 6%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 195 59% 29%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 14% 20%;
+    --input: 222 16% 18%;
+    --ring: 188 80% 45%;
+    --sidebar-background: 222 24% 6%;
+    --sidebar-foreground: 210 30% 94%;
+    --sidebar-primary: 190 85% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 280 24% 14%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 230 12% 10%;
-    --sidebar-ring: 262 78% 56%;
+    --sidebar-accent: 222 18% 15%;
+    --sidebar-accent-foreground: 210 30% 94%;
+    --sidebar-border: 222 14% 16%;
+    --sidebar-ring: 188 80% 45%;
   }
 
   /* Light theme variables */
   .light {
     --background: 0 0% 100%;
-    --foreground: 220 13% 16%;
+    --foreground: 220 15% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 220 13% 16%;
-    --popover: 220 13% 98%;
-    --popover-foreground: 220 13% 16%;
-    /* Primary color (light) tuned to the same hue for consistency */
-    --primary: 195 59% 29%;
+    --card-foreground: 220 15% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 15% 14%;
+    --primary: 190 85% 30%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 33% 12%;
-    --secondary-foreground: 220 13% 16%;
-    --muted: 220 13% 98%;
-    --muted-foreground: 215 20.2% 35.1%;
-    --accent: 263 70% 50%;
-    --accent-foreground: 0 0% 100%;
-    --destructive: 0 62.8% 30.6%;
+    --secondary: 214 22% 94%;
+    --secondary-foreground: 220 15% 14%;
+    --muted: 214 22% 96%;
+    --muted-foreground: 215 18% 34%;
+    --accent: 214 22% 93%;
+    --accent-foreground: 220 15% 14%;
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 95%;
-    --input: 220 13% 98%;
-    --ring: 195 59% 29%;
+    --border: 214 20% 88%;
+    --input: 214 20% 90%;
+    --ring: 190 85% 30%;
     --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 220 13% 16%;
-    --sidebar-primary: 195 59% 29%;
+    --sidebar-background: 214 22% 97%;
+    --sidebar-foreground: 220 15% 14%;
+    --sidebar-primary: 190 85% 30%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 220 13% 16%;
-    --sidebar-border: 220 13% 95%;
-    --sidebar-ring: 187 85% 53%;
+    --sidebar-accent: 214 22% 92%;
+    --sidebar-accent-foreground: 220 15% 14%;
+    --sidebar-border: 214 20% 88%;
+    --sidebar-ring: 190 85% 30%;
   }
 }
 
@@ -361,7 +360,7 @@ html.light {
   }
 
   ::selection {
-    background-color: hsl(195 59% 29% / 0.4);
+    background-color: hsl(190 85% 30% / 0.4);
     color: inherit;
   }
 }
@@ -378,6 +377,17 @@ html.light {
   .glass {
     background-color: var(--glass-bg);
     border: 1px solid var(--glass-border);
+  }
+
+  /*
+   * Sem degradê: qualquer utilitário de gradiente do Tailwind
+   * (bg-gradient-to-*, bg-linear-*) vira cor sólida, usando a cor inicial
+   * (`from-*`) como fundo.
+   */
+  [class*="bg-gradient-to-"],
+  [class*="bg-linear-"] {
+    background-image: none !important;
+    background-color: var(--tw-gradient-from, transparent);
   }
 
   .bg-gradient-primary {

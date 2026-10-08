@@ -86,7 +86,7 @@ export class TwilioPhoneNumbersService {
     try {
       bought = await this.twilioNumbers.buyNumber(creds, {
         phoneNumber: input.phoneNumber,
-        friendlyName: input.friendlyName ?? `Nina Talks ${input.phoneNumber}`,
+        friendlyName: input.friendlyName ?? `Utalks ${input.phoneNumber}`,
         voiceUrl,
         voiceMethod: 'POST',
         smsUrl,
@@ -202,7 +202,7 @@ export class TwilioPhoneNumbersService {
     const baseRow = {
       accountId,
       e164: updated.phone_number,
-      friendlyName: updated.friendly_name ?? `Nina Talks ${input.phoneNumber}`,
+      friendlyName: updated.friendly_name ?? `Utalks ${input.phoneNumber}`,
       provider: 'twilio',
       providerConfig: {
         twilio_sid: updated.sid,

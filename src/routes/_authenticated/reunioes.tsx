@@ -49,7 +49,7 @@ import { NewMeetingDialog } from "@/components/meetings/NewMeetingDialog";
 export const Route = createFileRoute("/_authenticated/reunioes")({
   head: () => ({
     meta: [
-      { title: "Reuniões — Nina Talks" },
+      { title: "Reuniões — Utalks" },
       {
         name: "description",
         content: "Calendário das reuniões agendadas pela Nina via round-robin com sua equipe.",

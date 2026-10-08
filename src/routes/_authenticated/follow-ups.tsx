@@ -42,7 +42,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/follow-ups")({
   head: () => ({
     meta: [
-      { title: "Follow-ups — Nina Talks" },
+      { title: "Follow-ups — Utalks" },
       {
         name: "description",
         content: "Cadências de follow-up para reengajar leads.",

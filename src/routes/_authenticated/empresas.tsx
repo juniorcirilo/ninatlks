@@ -62,7 +62,7 @@ import {
 export const Route = createFileRoute("/_authenticated/empresas")({
   head: () => ({
     meta: [
-      { title: "Empresas — Nina Talks" },
+      { title: "Empresas — Utalks" },
       {
         name: "description",
         content: "Empresas vinculadas a clientes — cadastro por empresa_id, razão social, nome fantasia e vendedor.",

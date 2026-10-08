@@ -22,7 +22,9 @@ export type SecretProvider =
   | "custom-llm"
   | "agent-llm"
   | "smtp"
-  | "google_calendar";
+  | "google_calendar"
+  | "postgresql"
+  | "mssql";
 
 export interface AccountSecretEntry {
   provider: SecretProvider;
@@ -52,14 +54,10 @@ export async function deleteAccountSecret(
   provider: SecretProvider,
   keyName: string,
 ): Promise<boolean> {
-  return apiClient.delete<boolean>(
-    `/accounts/${accountId}/secrets/${provider}/${keyName}`,
-  );
+  return apiClient.delete<boolean>(`/accounts/${accountId}/secrets/${provider}/${keyName}`);
 }
 
-export async function listAccountSecrets(
-  accountId: string,
-): Promise<AccountSecretEntry[]> {
+export async function listAccountSecrets(accountId: string): Promise<AccountSecretEntry[]> {
   return apiClient.get<AccountSecretEntry[]>(`/accounts/${accountId}/secrets`);
 }
 

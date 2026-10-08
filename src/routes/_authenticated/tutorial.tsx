@@ -39,7 +39,7 @@ import equipeImg from "@/assets/tutorial/equipe.png";
 export const Route = createFileRoute("/_authenticated/tutorial")({
   head: () => ({
     meta: [
-      { title: "Tutorial — Nina Talks" },
+      { title: "Tutorial — Utalks" },
       {
         name: "description",
         content:

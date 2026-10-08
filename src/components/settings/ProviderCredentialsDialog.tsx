@@ -2,10 +2,6 @@
 // per-account Vault (table account_secrets → vault.secrets via RPC). Values
 // never leave the browser → server flow; Lovable Cloud env vars are NOT
 // touched.
-//
-// Special case: Evolution. Its credentials live on the `channels` row
-// (channel_type='whatsapp', config={evolution_url, evolution_api_key}),
-// not in the vault. We test+persist via the evolution-provision edge.
 
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Loader2, ShieldCheck, ExternalLink, Trash2, Video } from "lucide-react";
@@ -28,7 +24,6 @@ import {
   listAccountSecrets,
   type SecretProvider,
 } from "@/lib/account-secrets";
-import { testEvolution, provisionEvolution } from "@/lib/evolution";
 import { syncAgentSourcesToN8n, describeN8nSync } from "@/lib/n8n";
 import {
   fetchGoogleCalendarStatus,
@@ -41,11 +36,12 @@ export type CredentialProviderKey =
   | "twilio"
   | "elevenlabs"
   | "deepgram"
-  | "evolution"
   | "n8n"
   | "custom-llm"
   | "smtp"
-  | "google_calendar";
+  | "google_calendar"
+  | "postgresql"
+  | "mssql";
 
 interface FieldDef {
   keyName: string;
@@ -56,13 +52,16 @@ interface FieldDef {
   hint?: string;
 }
 
-const PROVIDER_FIELDS: Record<CredentialProviderKey, {
-  label: string;
-  docsUrl: string;
-  docsLabel: string;
-  helper: string;
-  fields: FieldDef[];
-}> = {
+const PROVIDER_FIELDS: Record<
+  CredentialProviderKey,
+  {
+    label: string;
+    docsUrl: string;
+    docsLabel: string;
+    helper: string;
+    fields: FieldDef[];
+  }
+> = {
   twilio: {
     label: "Twilio",
     docsUrl: "https://console.twilio.com/",
@@ -70,11 +69,27 @@ const PROVIDER_FIELDS: Record<CredentialProviderKey, {
     helper:
       "Pegue o Account SID e o Auth Token na home do Console (seção 'Account Info'). Você também pode usar API Key + API Secret se preferir restringir permissões.",
     fields: [
-      { keyName: "account_sid", label: "Account SID", type: "text", placeholder: "AC…", required: true },
-      { keyName: "auth_token",  label: "Auth Token",  type: "password", placeholder: "••••••••",
-        hint: "Use Auth Token OU API Key + Secret (não precisa dos dois)." },
-      { keyName: "api_key",     label: "API Key (opcional)",    type: "text", placeholder: "SK…" },
-      { keyName: "api_secret",  label: "API Secret (opcional)", type: "password", placeholder: "••••••••" },
+      {
+        keyName: "account_sid",
+        label: "Account SID",
+        type: "text",
+        placeholder: "AC…",
+        required: true,
+      },
+      {
+        keyName: "auth_token",
+        label: "Auth Token",
+        type: "password",
+        placeholder: "••••••••",
+        hint: "Use Auth Token OU API Key + Secret (não precisa dos dois).",
+      },
+      { keyName: "api_key", label: "API Key (opcional)", type: "text", placeholder: "SK…" },
+      {
+        keyName: "api_secret",
+        label: "API Secret (opcional)",
+        type: "password",
+        placeholder: "••••••••",
+      },
     ],
   },
   elevenlabs: {
@@ -83,7 +98,13 @@ const PROVIDER_FIELDS: Record<CredentialProviderKey, {
     docsLabel: "Painel ElevenLabs",
     helper: "Crie uma API Key em Settings → API Keys. Precisa de permissão de Voice + ConvAI.",
     fields: [
-      { keyName: "api_key", label: "API Key", type: "password", placeholder: "sk_…", required: true },
+      {
+        keyName: "api_key",
+        label: "API Key",
+        type: "password",
+        placeholder: "sk_…",
+        required: true,
+      },
     ],
   },
   deepgram: {
@@ -95,26 +116,27 @@ const PROVIDER_FIELDS: Record<CredentialProviderKey, {
       { keyName: "api_key", label: "API Key", type: "password", placeholder: "…", required: true },
     ],
   },
-  evolution: {
-    label: "Evolution (WhatsApp Web)",
-    docsUrl: "https://doc.evolution-api.com/",
-    docsLabel: "Docs Evolution",
-    helper:
-      "Servidor Evolution self-hosted. Informe a URL do servidor (ex: https://evo.exemplo.com) e a API key global. As credenciais ficam no canal whatsapp deste workspace.",
-    fields: [
-      { keyName: "evolution_url", label: "URL do servidor", type: "text", placeholder: "https://evo.exemplo.com", required: true },
-      { keyName: "evolution_api_key", label: "API Key", type: "password", placeholder: "••••••••", required: true },
-    ],
-  },
   n8n: {
     label: "n8n",
     docsUrl: "https://docs.n8n.io/api/authentication/",
     docsLabel: "Como gerar a API Key no n8n",
     helper:
-      "URL da sua instância n8n e uma API Key gerada em Settings → n8n API. Ao salvar, criamos automaticamente o workflow \"Utalks\" e sincronizamos as fontes de dados já configuradas.",
+      'URL da sua instância n8n e uma API Key gerada em Settings → n8n API. Ao salvar, criamos automaticamente o workflow "Utalks" e sincronizamos as fontes de dados já configuradas.',
     fields: [
-      { keyName: "api_url", label: "URL da instância", type: "text", placeholder: "https://n8n.suaempresa.com", required: true },
-      { keyName: "api_key", label: "API Key", type: "password", placeholder: "n8n_api_…", required: true },
+      {
+        keyName: "api_url",
+        label: "URL da instância",
+        type: "text",
+        placeholder: "https://n8n.suaempresa.com",
+        required: true,
+      },
+      {
+        keyName: "api_key",
+        label: "API Key",
+        type: "password",
+        placeholder: "n8n_api_…",
+        required: true,
+      },
     ],
   },
   "custom-llm": {
@@ -122,25 +144,67 @@ const PROVIDER_FIELDS: Record<CredentialProviderKey, {
     docsUrl: "https://lmstudio.ai/docs/local-server",
     docsLabel: "Como ligar o servidor local do LM Studio",
     helper:
-      "Padrão da conta para agentes com Modelo = \"IA própria\". Endpoint compatível com a API de Chat Completions da OpenAI (é o que o LM Studio expõe). Cada agente pode substituir a URL/modelo na aba Modelo dele — a API key é sempre a da conta.",
+      'Padrão da conta para agentes com Modelo = "IA própria". Endpoint compatível com a API de Chat Completions da OpenAI (é o que o LM Studio expõe). Cada agente pode substituir a URL/modelo na aba Modelo dele — a API key é sempre a da conta.',
     fields: [
-      { keyName: "api_url", label: "URL do servidor", type: "text", placeholder: "http://seu-host:1234/v1", required: true },
-      { keyName: "model_id", label: "Model ID", type: "text", placeholder: "nome-do-modelo-carregado" },
-      { keyName: "api_key", label: "API Key", type: "password", placeholder: "••••••••", required: true,
-        hint: "Guardada com segurança; ao sincronizar um agente, criamos uma referência protegida dela dentro da ElevenLabs (nunca em texto puro)." },
+      {
+        keyName: "api_url",
+        label: "URL do servidor",
+        type: "text",
+        placeholder: "http://seu-host:1234/v1",
+        required: true,
+      },
+      {
+        keyName: "model_id",
+        label: "Model ID",
+        type: "text",
+        placeholder: "nome-do-modelo-carregado",
+      },
+      {
+        keyName: "api_key",
+        label: "API Key",
+        type: "password",
+        placeholder: "••••••••",
+        required: true,
+        hint: "Guardada com segurança; ao sincronizar um agente, criamos uma referência protegida dela dentro da ElevenLabs (nunca em texto puro).",
+      },
     ],
   },
   smtp: {
     label: "E-mail (SMTP)",
-    docsUrl: "https://www.hostgator.com.br/ajuda/artigo/como-configurar-uma-conta-de-email-no-outlook",
+    docsUrl:
+      "https://www.hostgator.com.br/ajuda/artigo/como-configurar-uma-conta-de-email-no-outlook",
     docsLabel: "Onde achar host/porta/usuário no cPanel (Hostgator)",
     helper:
       "Usado para enviar o e-mail de confirmação (com o link do Google Meet) para o convidado e para quem conduz a reunião. Sem isso, as notificações ficam só no sininho. Funciona com qualquer provedor que ofereça uma conta de e-mail SMTP — o e-mail que já vem com a hospedagem (Hostgator/cPanel), Gmail, Zoho, ou o relay SMTP da Resend. No cPanel, acesse E-mail → Contas de E-mail → Configurar Cliente de E-mail pra ver host, porta e usuário. Usando o e-mail da própria empresa, o remetente já sai profissional, sem precisar de nenhum passo extra de verificação de domínio.",
     fields: [
-      { keyName: "smtp_host", label: "Servidor SMTP (host)", type: "text", placeholder: "mail.suaempresa.com.br", required: true },
-      { keyName: "smtp_port", label: "Porta", type: "text", placeholder: "465 (SSL) ou 587 (TLS)", required: true },
-      { keyName: "smtp_user", label: "Usuário", type: "text", placeholder: "reunioes@suaempresa.com.br", required: true },
-      { keyName: "smtp_password", label: "Senha", type: "password", placeholder: "••••••••", required: true },
+      {
+        keyName: "smtp_host",
+        label: "Servidor SMTP (host)",
+        type: "text",
+        placeholder: "mail.suaempresa.com.br",
+        required: true,
+      },
+      {
+        keyName: "smtp_port",
+        label: "Porta",
+        type: "text",
+        placeholder: "465 (SSL) ou 587 (TLS)",
+        required: true,
+      },
+      {
+        keyName: "smtp_user",
+        label: "Usuário",
+        type: "text",
+        placeholder: "reunioes@suaempresa.com.br",
+        required: true,
+      },
+      {
+        keyName: "smtp_password",
+        label: "Senha",
+        type: "password",
+        placeholder: "••••••••",
+        required: true,
+      },
       {
         keyName: "from_email",
         label: "Remetente (opcional)",
@@ -150,15 +214,140 @@ const PROVIDER_FIELDS: Record<CredentialProviderKey, {
       },
     ],
   },
+  postgresql: {
+    label: "PostgreSQL",
+    docsUrl: "https://www.postgresql.org/docs/current/sql-grant.html",
+    docsLabel: "Como criar um usuário somente leitura (GRANT SELECT)",
+    helper:
+      "Banco de dados do cliente que o Agente de IA consulta durante o atendimento (somente leitura). Use um usuário do banco com permissão apenas de SELECT, restrito às tabelas necessárias: é a proteção que realmente impede qualquer alteração. A senha fica criptografada no vault e nunca volta para o navegador.",
+    fields: [
+      {
+        keyName: "host",
+        label: "Servidor (host)",
+        type: "text",
+        placeholder: "db.suaempresa.com.br",
+        required: true,
+      },
+      { keyName: "port", label: "Porta", type: "text", placeholder: "5432" },
+      {
+        keyName: "database",
+        label: "Banco de dados",
+        type: "text",
+        placeholder: "erp",
+        required: true,
+      },
+      {
+        keyName: "client_id",
+        label: "Client ID (tenant)",
+        type: "text",
+        placeholder: "ex.: 1024",
+        required: true,
+        hint: "Valor da coluna client_id que identifica este cliente no banco multi-tenant. O agente só consulta dados deste tenant: toda consulta é filtrada por ele (o agente escreve :client_id e o sistema preenche o valor). Sem isso, as consultas ficam bloqueadas.",
+      },
+      {
+        keyName: "user",
+        label: "Usuário (somente leitura)",
+        type: "text",
+        placeholder: "agente_leitura",
+        required: true,
+      },
+      {
+        keyName: "password",
+        label: "Senha",
+        type: "password",
+        placeholder: "••••••••",
+        required: true,
+      },
+      {
+        keyName: "ssl",
+        label: "Conexão criptografada (SSL/TLS)",
+        type: "text",
+        placeholder: "true ou false",
+        hint: "Escreva true para exigir SSL/TLS; deixe em branco ou false para conexão sem criptografia.",
+      },
+    ],
+  },
+  mssql: {
+    label: "Microsoft SQL Server",
+    docsUrl: "https://learn.microsoft.com/sql/t-sql/statements/grant-transact-sql",
+    docsLabel: "Como conceder somente SELECT (GRANT)",
+    helper:
+      "Banco de dados do cliente que o Agente de IA consulta durante o atendimento (somente leitura). Use um usuário do banco com permissão apenas de SELECT, restrito às tabelas necessárias: é a proteção que realmente impede qualquer alteração. A senha fica criptografada no vault e nunca volta para o navegador.",
+    fields: [
+      {
+        keyName: "host",
+        label: "Servidor (host)",
+        type: "text",
+        placeholder: "db.suaempresa.com.br",
+        required: true,
+      },
+      { keyName: "port", label: "Porta", type: "text", placeholder: "1433" },
+      {
+        keyName: "database",
+        label: "Banco de dados",
+        type: "text",
+        placeholder: "erp",
+        required: true,
+      },
+      {
+        keyName: "client_id",
+        label: "Client ID (tenant)",
+        type: "text",
+        placeholder: "ex.: 1024",
+        required: true,
+        hint: "Valor da coluna client_id que identifica este cliente no banco multi-tenant. O agente só consulta dados deste tenant: toda consulta é filtrada por ele (o agente escreve :client_id e o sistema preenche o valor). Sem isso, as consultas ficam bloqueadas.",
+      },
+      {
+        keyName: "user",
+        label: "Usuário (somente leitura)",
+        type: "text",
+        placeholder: "agente_leitura",
+        required: true,
+      },
+      {
+        keyName: "password",
+        label: "Senha",
+        type: "password",
+        placeholder: "••••••••",
+        required: true,
+      },
+      {
+        keyName: "ssl",
+        label: "Conexão criptografada (SSL/TLS)",
+        type: "text",
+        placeholder: "true ou false",
+        hint: "Escreva true para exigir SSL/TLS; deixe em branco ou false para conexão sem criptografia.",
+      },
+      {
+        keyName: "trust_cert",
+        label: "Confiar no certificado do servidor",
+        type: "text",
+        placeholder: "true ou false",
+        hint: "Escreva true se o servidor usa certificado autoassinado.",
+      },
+    ],
+  },
   google_calendar: {
     label: "Google Calendar / Meet",
     docsUrl: "https://console.cloud.google.com/apis/credentials",
     docsLabel: "Google Cloud Console — Credenciais",
     helper:
-      "Crie um projeto em console.cloud.google.com, habilite a Google Calendar API e crie uma credencial OAuth 2.0 do tipo \"Aplicativo da Web\". Cadastre a Redirect URI exibida abaixo nessa credencial. Depois de salvar aqui, conecte a conta Google em Reuniões — isso só cria o link do Meet, não envia o e-mail de confirmação (isso é o E-mail SMTP).",
+      'Crie um projeto em console.cloud.google.com, habilite a Google Calendar API e crie uma credencial OAuth 2.0 do tipo "Aplicativo da Web". Cadastre a Redirect URI exibida abaixo nessa credencial. Depois de salvar aqui, conecte a conta Google em Reuniões — isso só cria o link do Meet, não envia o e-mail de confirmação (isso é o E-mail SMTP).',
     fields: [
-      { keyName: "client_id", label: "Client ID", type: "text", placeholder: "xxxx.apps.googleusercontent.com", required: true },
-      { keyName: "client_secret", label: "Client Secret", type: "password", placeholder: "GOCSPX-…", required: true },
+      {
+        keyName: "client_id",
+        label: "Client ID",
+        type: "text",
+        placeholder: "xxxx.apps.googleusercontent.com",
+        required: true,
+      },
+      {
+        keyName: "client_secret",
+        label: "Client Secret",
+        type: "password",
+        placeholder: "GOCSPX-…",
+        required: true,
+      },
     ],
   },
 };
@@ -171,7 +360,13 @@ interface Props {
   onSaved?: () => void;
 }
 
-export function ProviderCredentialsDialog({ open, onOpenChange, provider, accountId, onSaved }: Props) {
+export function ProviderCredentialsDialog({
+  open,
+  onOpenChange,
+  provider,
+  accountId,
+  onSaved,
+}: Props) {
   const def = provider ? PROVIDER_FIELDS[provider] : null;
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -186,23 +381,10 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
 
   // Load which keys are already stored.
   // - Vault providers (twilio/elevenlabs/deepgram): query account_secrets via RPC.
-  // - Evolution: read from `channels` row (config.evolution_url / evolution_api_key).
   useEffect(() => {
     if (!open || !provider || !accountId) return;
     setValues({});
     setLoading(true);
-
-    const loadEvolution = async () => {
-      const channels = await apiClient.get<Array<{ config: Record<string, string> }>>(
-        `/accounts/${accountId}/evolution`,
-      );
-      const data = channels[0];
-      const cfg = (data?.config ?? {}) as Record<string, string>;
-      const set = new Set<string>();
-      if (cfg.evolution_url) set.add("evolution_url");
-      if (cfg.evolution_api_key) set.add("evolution_api_key");
-      setExisting(set);
-    };
 
     const loadVault = async () => {
       const rows = await listAccountSecrets(accountId);
@@ -211,7 +393,7 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
       setExisting(set);
     };
 
-    (provider === "evolution" ? loadEvolution() : loadVault())
+    loadVault()
       .catch((e: any) => toast.error(`Falha ao ler chaves: ${e.message ?? e}`))
       .finally(() => setLoading(false));
 
@@ -264,7 +446,9 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
       }
     }
     const toSave = Object.fromEntries(
-      Object.entries(values).filter(([, v]) => v && v.trim().length > 0).map(([k, v]) => [k, v.trim()]),
+      Object.entries(values)
+        .filter(([, v]) => v && v.trim().length > 0)
+        .map(([k, v]) => [k, v.trim()]),
     );
     if (Object.keys(toSave).length === 0) {
       toast.info("Nenhum campo alterado");
@@ -273,29 +457,7 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
     }
     setSaving(true);
     try {
-      if (provider === "evolution") {
-        // Use existing values for fields the user didn't change
-        const url = toSave.evolution_url ?? "";
-        const apiKey = toSave.evolution_api_key ?? "";
-        // We need both to validate — fall back to no-op if user only changed one
-        // and the other isn't already in DB. Validation above already enforces required.
-        if (url && apiKey) {
-          const res = await testEvolution({ accountId, evolutionUrl: url, evolutionApiKey: apiKey });
-          if (!res.ok) {
-            toast.error(`Falha ao validar Evolution: ${res.error ?? "erro desconhecido"}`);
-            setSaving(false);
-            return;
-          }
-        }
-        // Persist by calling provision (idempotent; creates channel + instance).
-        const prov = await provisionEvolution({ accountId, evolutionUrl: url, evolutionApiKey: apiKey });
-        if (!prov.ok) {
-          toast.error(`Falha ao salvar Evolution: ${prov.error ?? "erro"}`);
-          setSaving(false);
-          return;
-        }
-        toast.success("Evolution: credenciais salvas");
-      } else {
+      {
         await setAccountSecretsBulk(accountId, provider as SecretProvider, toSave);
         toast.success(`${def.label}: credenciais salvas no vault`);
 
@@ -323,7 +485,9 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
         // estão salvos.
         setValues({});
         setExisting((prev) => new Set([...prev, ...Object.keys(toSave)]));
-        fetchGoogleCalendarStatus(accountId).then(setGoogleStatus).catch(() => {});
+        fetchGoogleCalendarStatus(accountId)
+          .then(setGoogleStatus)
+          .catch(() => {});
       } else {
         onOpenChange(false);
       }
@@ -336,15 +500,13 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
 
   async function handleDeleteAll() {
     if (!provider || !hasExisting) return;
-    if (provider === "evolution") {
-      toast.info("Para remover Evolution, vá em Canais → WhatsApp → desconectar instância.");
-      return;
-    }
     if (!confirm(`Remover todas as credenciais ${def!.label} deste workspace?`)) return;
     setDeleting(true);
     try {
       await Promise.all(
-        Array.from(existing).map((k) => deleteAccountSecret(accountId, provider as SecretProvider, k)),
+        Array.from(existing).map((k) =>
+          deleteAccountSecret(accountId, provider as SecretProvider, k),
+        ),
       );
       toast.success(`${def!.label}: credenciais removidas`);
       setExisting(new Set());
@@ -364,8 +526,8 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
         <DialogHeader>
           <DialogTitle>Credenciais — {def.label}</DialogTitle>
           <DialogDescription>
-            Salvas criptografadas no vault deste workspace. Não ficam no código nem nas variáveis
-            de ambiente da plataforma — só edge functions com service-role conseguem decifrar.
+            Salvas criptografadas no vault deste workspace. Não ficam no código nem nas variáveis de
+            ambiente da plataforma — só edge functions com service-role conseguem decifrar.
           </DialogDescription>
         </DialogHeader>
 
@@ -397,8 +559,8 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
                 <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="h-4 w-4 shrink-0" />
                   <span>
-                    Conta Google conectada{googleStatus.email ? ` — ${googleStatus.email}` : ""}. O Meet já é
-                    criado automaticamente nas novas reuniões.
+                    Conta Google conectada{googleStatus.email ? ` — ${googleStatus.email}` : ""}. O
+                    Meet já é criado automaticamente nas novas reuniões.
                   </span>
                 </div>
                 <Button
@@ -429,7 +591,11 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
                   }
                   className="h-7 shrink-0 gap-1.5 text-[11px]"
                 >
-                  {connecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
+                  {connecting ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Video className="h-3 w-3" />
+                  )}
                   Conectar conta Google
                 </Button>
               </div>
@@ -482,13 +648,21 @@ export function ProviderCredentialsDialog({ open, onOpenChange, provider, accoun
                 disabled={deleting || saving}
                 className="text-destructive hover:text-destructive"
               >
-                {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                {deleting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
                 Remover credenciais
               </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || deleting}>
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={saving || deleting}
+            >
               Cancelar
             </Button>
             <Button onClick={handleSave} disabled={saving || deleting || loading}>

@@ -61,12 +61,12 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/phone-numbers")({
   head: () => ({
     meta: [
-      { title: "Telefonia — Nina Talks" },
+      { title: "Telefonia — Utalks" },
       {
         name: "description",
         content: "Conecte números Twilio, voice clone e atendimento por voz com IA.",
       },
-      { property: "og:title", content: "Telefonia — Nina Talks" },
+      { property: "og:title", content: "Telefonia — Utalks" },
       {
         property: "og:description",
         content:
@@ -1335,7 +1335,7 @@ function formatSec(n: number): string {
 }
 
 // Import an existing Twilio number (e.g. the trial's free +1 number) into
-// Nina Talks. Just takes the E.164 number the user sees on the Twilio dashboard,
+// Utalks. Just takes the E.164 number the user sees on the Twilio dashboard,
 // re-points its webhooks, and registers the phone_numbers row. No purchase.
 function ImportNumberDialog({
   open,

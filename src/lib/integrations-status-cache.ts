@@ -1,7 +1,16 @@
 import { apiClient } from "@/lib/api-client";
 
 export interface ProviderReport {
-  key: "elevenlabs" | "twilio" | "evolution" | "deepgram" | "n8n" | "google_calendar" | "smtp";
+  key:
+    | "elevenlabs"
+    | "twilio"
+    | "whatsapp"
+    | "deepgram"
+    | "n8n"
+    | "google_calendar"
+    | "smtp"
+    | "postgresql"
+    | "mssql";
   label: string;
   configured: boolean;
   ok: boolean | null;

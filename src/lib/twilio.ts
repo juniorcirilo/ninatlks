@@ -14,7 +14,7 @@ export async function fetchOwnedTwilioNumbers(accountId: string): Promise<OwnedT
 }
 
 /**
- * Import an EXISTING Twilio number into Nina Talks (e.g. trial account's free
+ * Import an EXISTING Twilio number into Utalks (e.g. trial account's free
  * number, or a pre-existing one on the account). Skips the purchase call —
  * only re-points the voice/sms webhooks and registers the phone_numbers row.
  */

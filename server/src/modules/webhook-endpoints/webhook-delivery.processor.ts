@@ -47,7 +47,7 @@ export class WebhookDeliveryProcessor extends WorkerHost {
     // Job antigo (na fila antes desta coluna existir) não tem `method` — cai em POST.
     const method = data.method ?? 'POST';
     const headers: Record<string, string> = {
-      'User-Agent': 'NinaTalks-Webhook/1',
+      'User-Agent': 'Utalks-Webhook/1',
       'X-Nina-Event': data.event,
       'X-Nina-Delivery': data.deliveryId,
       'X-Nina-Timestamp': timestamp,

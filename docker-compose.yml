@@ -19,8 +19,12 @@ services:
     networks:
       - srv_default
     restart: unless-stopped
-    extra_hosts:
-      - "evolution.ubva.com.br:host-gateway"
+    volumes:
+      # Sessões WhatsApp (Baileys): /data/sessions/<channelId>/{auth,storage}.
+      # Precisa sobreviver a rebuilds do container, senão todo deploy exige novo QR.
+      - /data/sessions:/data/sessions
+      # Workspaces do OpenCode CLI (skills por conta); recriável a qualquer momento.
+      - /data/opencode:/data/opencode
 
 networks:
   srv_default:

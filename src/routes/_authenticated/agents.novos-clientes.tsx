@@ -3,7 +3,7 @@ import { NovosClientesPage } from "./novos-clientes";
 
 export const Route = createFileRoute("/_authenticated/agents/novos-clientes")({
   head: () => ({
-    meta: [{ title: "Novos Clientes — Larissa — Nina Talks" }],
+    meta: [{ title: "Novos Clientes — Larissa — Utalks" }],
   }),
   component: NovosClientesPage,
 });

@@ -3,11 +3,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
-      { title: "Política de Privacidade — Nina Talks" },
+      { title: "Política de Privacidade — Utalks" },
       {
         name: "description",
         content:
-          "Como o Nina Talks coleta, processa e protege dados pessoais de leads atendidos pelo agente de SDR por voz.",
+          "Como o Utalks coleta, processa e protege dados pessoais de leads atendidos pelo agente de SDR por voz.",
       },
     ],
   }),
@@ -18,7 +18,7 @@ function PrivacyPage() {
   return (
     <LegalLayout title="Política de Privacidade" updatedAt="2026-04-27">
       <p>
-        O Nina Talks é uma plataforma de SDR (Sales Development Representative)
+        O Utalks é uma plataforma de SDR (Sales Development Representative)
         por voz com IA. Atende ligações inbound de leads, qualifica a
         oportunidade, agenda reuniões com a equipe comercial da empresa cliente
         e dispara follow-ups por voz e mensagem. Esta política descreve quais
@@ -82,7 +82,7 @@ function PrivacyPage() {
 
       <H2>4. Gravação de chamadas</H2>
       <p>
-        Toda ligação efetuada pelo Nina Talks inicia com aviso verbal de que
+        Toda ligação efetuada pelo Utalks inicia com aviso verbal de que
         pode ser gravada. A gravação e sua transcrição são utilizadas para
         análise de sentimento, qualificação automática do lead, geração do
         briefing entregue ao atendente humano, treinamento do agente e
@@ -104,7 +104,7 @@ function PrivacyPage() {
 
       <H2>6. Janela legal de contato</H2>
       <p>
-        O Nina Talks respeita, por padrão, janela de contato aceita no mercado
+        O Utalks respeita, por padrão, janela de contato aceita no mercado
         brasileiro: segunda a sexta das 8h às 20h e sábado das 8h às 14h, não
         ligando em domingos nem feriados nacionais. Os disparos outbound
         (lembretes T-15 min, retry de no-show, follow-ups) também respeitam a
@@ -122,8 +122,8 @@ function PrivacyPage() {
           (síntese de voz + agente conversacional).
         </li>
         <li>
-          <strong>Provedor de WhatsApp:</strong> Evolution API (instância da
-          empresa cliente).
+          <strong>Provedor de WhatsApp:</strong> conexão direta com o WhatsApp
+          Web (sessão do número da empresa cliente, armazenada no servidor da plataforma).
         </li>
         <li>
           <strong>Provedor de e-mail:</strong> Resend (envio de mensagens
@@ -178,7 +178,7 @@ export function LegalLayout({
       <header className="border-b border-gray-200 dark:border-slate-800">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-5">
           <Link to="/" className="text-sm font-semibold tracking-tight">
-            Nina Talks
+            Utalks
           </Link>
           <div className="flex gap-4 text-xs text-muted-foreground">
             <Link to="/privacy" className="hover:text-foreground">
@@ -206,7 +206,7 @@ export function LegalLayout({
 
       <footer className="border-t border-gray-200 dark:border-slate-800">
         <div className="mx-auto max-w-3xl px-6 py-6 text-center text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Nina Talks — Agente de SDR por voz
+          © {new Date().getFullYear()} Utalks — Agente de SDR por voz
         </div>
       </footer>
     </div>

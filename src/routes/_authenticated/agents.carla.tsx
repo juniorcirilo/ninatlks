@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/layout/EmptyState";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/agents/carla")({
-  head: () => ({ meta: [{ title: "Carla — Nina Talks" }] }),
+  head: () => ({ meta: [{ title: "Carla — Utalks" }] }),
   component: CarlaPage,
 });
 

@@ -5,7 +5,7 @@ import { providerMeta, type ProviderId } from './providers';
 // prioridade, para que o auto-reply de WhatsApp (e qualquer outro consumidor
 // server-side) use exatamente o provedor que a conta já escolheu em
 // Configurações → Integrações → Provedor de IA do Agente:
-//   1. account_secrets['agent-llm'] (seletor novo).
+//   1. account_secrets['agent-llm'] (seletor anterior).
 //   2. account_secrets['custom-llm'] (legado — mesma fonte que os agentes de
 //      voz via ElevenLabsAgentService::resolveCustomLlm).
 //   3. LOVABLE_API_KEY do ambiente.
@@ -27,7 +27,7 @@ export interface ResolvedLlmConfig {
   temperature: number;
 }
 
-async function secretsBundle(
+export async function secretsBundle(
   dataSource: DataSource,
   accountId: string,
   provider: string,
@@ -52,14 +52,22 @@ export async function resolveLlmConfig(
   fallbackModel = 'google/gemini-2.5-flash',
   fallbackTemperature = 0.4,
 ): Promise<ResolvedLlmConfig> {
-  const agentLlm = await secretsBundle(dataSource, accountId, AGENT_LLM_PROVIDER);
+  const agentLlm = await secretsBundle(
+    dataSource,
+    accountId,
+    AGENT_LLM_PROVIDER,
+  );
   const providerId = (agentLlm.provider ?? '').trim();
   if (providerId) {
     const meta = providerMeta(providerId);
     if (!meta) {
-      throw new LlmNotConfiguredError(`Provedor de IA desconhecido: ${providerId}`);
+      throw new LlmNotConfiguredError(
+        `Provedor de IA desconhecido: ${providerId}`,
+      );
     }
-    const baseUrl = (agentLlm.base_url || meta.defaultBaseUrl || '').trim().replace(/\/+$/, '');
+    const baseUrl = (agentLlm.base_url || meta.defaultBaseUrl || '')
+      .trim()
+      .replace(/\/+$/, '');
     if (!baseUrl) {
       throw new LlmNotConfiguredError(
         `Provedor "${meta.label}" está selecionado mas sem Base URL — configure em Configurações → Integrações → Provedor de IA do Agente.`,
@@ -77,11 +85,17 @@ export async function resolveLlmConfig(
       baseUrl,
       apiKey,
       model: (agentLlm.model_id ?? '').trim() || 'default',
-      temperature: Number.isFinite(temperature) ? temperature : fallbackTemperature,
+      temperature: Number.isFinite(temperature)
+        ? temperature
+        : fallbackTemperature,
     };
   }
 
-  const legacy = await secretsBundle(dataSource, accountId, LEGACY_CUSTOM_LLM_PROVIDER);
+  const legacy = await secretsBundle(
+    dataSource,
+    accountId,
+    LEGACY_CUSTOM_LLM_PROVIDER,
+  );
   const legacyUrl = (legacy.api_url ?? '').trim().replace(/\/+$/, '');
   if (legacyUrl) {
     return {

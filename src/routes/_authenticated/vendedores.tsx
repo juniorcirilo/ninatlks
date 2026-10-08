@@ -47,7 +47,7 @@ import {
 export const Route = createFileRoute("/_authenticated/vendedores")({
   head: () => ({
     meta: [
-      { title: "Vendedores — Nina Talks" },
+      { title: "Vendedores — Utalks" },
       {
         name: "description",
         content: "Cadastro de vendedores e telefones usados na transferência das ligações da IA.",

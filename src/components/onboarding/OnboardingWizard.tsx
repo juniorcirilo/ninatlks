@@ -34,7 +34,7 @@ import { ProviderKeyStep } from "./steps/ProviderKeyStep";
 import { AgenteStep } from "./steps/AgenteStep";
 import { PrimeiroNumeroStep } from "./steps/PrimeiroNumeroStep";
 import { PontoStep } from "./steps/PontoStep";
-import { EvolutionQuickConnect } from "./EvolutionQuickConnect";
+import { NewWhatsAppSessionDialog } from "@/components/settings/NewWhatsAppSessionDialog";
 import type { IntegrationsStatusReport } from "@/lib/integrations-status-cache";
 import { Smartphone } from "lucide-react";
 
@@ -54,7 +54,9 @@ export function OnboardingWizard({
 
   // Per-step ephemeral state.
   const [empresaPayload, setEmpresaPayload] = useState<EmpresaPayload | null>(null);
-  const [agenteCreated, setAgenteCreated] = useState<{ personaId: string; synced: boolean } | null>(null);
+  const [agenteCreated, setAgenteCreated] = useState<{ personaId: string; synced: boolean } | null>(
+    null,
+  );
 
   // Health-check report compartilhado entre os steps de provedor.
   const [report, setReport] = useState<IntegrationsStatusReport | null>(
@@ -63,9 +65,13 @@ export function OnboardingWizard({
 
   // Carrega o status uma vez quando entramos nos steps de provedor (se ainda não tem).
   useEffect(() => {
-    const isProviderStep = ["elevenlabs", "twilio", "deepgram", "evolution", "agente"].includes(step);
+    const isProviderStep = ["elevenlabs", "twilio", "deepgram", "evolution", "agente"].includes(
+      step,
+    );
     if (!isProviderStep || !accountId || report) return;
-    runHealthCheck(accountId, { force: false }).then(setReport).catch(() => undefined);
+    runHealthCheck(accountId, { force: false })
+      .then(setReport)
+      .catch(() => undefined);
   }, [step, accountId, report]);
 
   const isFinal = step === "numero";
@@ -145,7 +151,7 @@ export function OnboardingWizard({
   return (
     <Dialog open onOpenChange={(o) => !o && handleClose()}>
       <DialogContent className="max-w-lg gap-0 overflow-hidden p-0 bg-white dark:bg-slate-900/40">
-        <DialogTitle className="sr-only">Setup do Nina Talks</DialogTitle>
+        <DialogTitle className="sr-only">Setup do Utalks</DialogTitle>
         <DialogDescription className="sr-only">
           Configuração inicial das integrações e do primeiro agente.
         </DialogDescription>
@@ -153,7 +159,7 @@ export function OnboardingWizard({
         <div className="border-b border-gray-200 dark:border-slate-800 bg-muted/40 px-6 py-4">
           <div className="flex items-center justify-between text-[11px]">
             <span className="font-semibold uppercase tracking-wider text-primary">
-              Setup do Nina Talks
+              Setup do Utalks
             </span>
             <span className="tabular-nums text-muted-foreground">
               {idx + 1} de {total}
@@ -198,7 +204,8 @@ export function OnboardingWizard({
                       label: "API Key",
                       placeholder: "sk_...",
                       required: true,
-                      helpText: "Começa com 'sk_'. Crie em Settings → API Keys com permissões de Voice + ConvAI.",
+                      helpText:
+                        "Começa com 'sk_'. Crie em Settings → API Keys com permissões de Voice + ConvAI.",
                     },
                   ]}
                   dashboardUrl="https://elevenlabs.io/app/settings/api-keys"
@@ -271,7 +278,7 @@ export function OnboardingWizard({
               )}
 
               {step === "evolution" && (
-                <EvolutionInlineStep
+                <WhatsAppInlineStep
                   accountId={accountId}
                   onConnected={() => runHealthCheck(accountId, { force: true }).then(setReport)}
                 />
@@ -280,7 +287,10 @@ export function OnboardingWizard({
               {step === "agente" && (
                 <AgenteStep
                   accountId={accountId}
-                  state={{ ...state, health_check_results: (report ?? state.health_check_results) as any }}
+                  state={{
+                    ...state,
+                    health_check_results: (report ?? state.health_check_results) as any,
+                  }}
                   onCreated={(info) =>
                     setAgenteCreated({ personaId: info.personaId, synced: info.synced })
                   }
@@ -315,11 +325,7 @@ export function OnboardingWizard({
                 Pular
               </Button>
             )}
-            <Button
-              size="sm"
-              onClick={handleAdvance}
-              disabled={advancing || !canAdvance}
-            >
+            <Button size="sm" onClick={handleAdvance} disabled={advancing || !canAdvance}>
               {advancing && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
               {isFinal ? "Concluir" : "Avançar"}
               {!isFinal && <ArrowRight className="ml-1 h-3.5 w-3.5" />}
@@ -331,9 +337,9 @@ export function OnboardingWizard({
   );
 }
 
-// Tela do Evolution: abre o EvolutionQuickConnect (que tem fluxo URL+key→QR).
-// Mostra também um resumo do que vai acontecer.
-function EvolutionInlineStep({
+// Passo de WhatsApp (a chave interna do passo continua "evolution" porque é o
+// que já está gravado no progresso de onboarding das contas existentes).
+function WhatsAppInlineStep({
   accountId,
   onConnected,
 }: {
@@ -344,10 +350,10 @@ function EvolutionInlineStep({
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">WhatsApp via Evolution (opcional)</h2>
+        <h2 className="text-lg font-semibold text-foreground">WhatsApp (opcional)</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Se você já tem um servidor Evolution rodando, conecte um número do
-          WhatsApp escaneando um QR code. Pode pular se for usar só telefone.
+          Conecte um número do WhatsApp escaneando um QR code (ou por código de pareamento). Pode
+          pular se for usar só telefone.
         </p>
       </div>
 
@@ -359,8 +365,7 @@ function EvolutionInlineStep({
           <div className="min-w-0 flex-1">
             <h4 className="text-sm font-semibold text-foreground">Conectar WhatsApp</h4>
             <p className="mt-0.5 text-[12px] text-muted-foreground">
-              Cole a URL e a API key do seu servidor Evolution. Vamos criar a
-              instância e gerar o QR code automaticamente.
+              Dê um nome à sessão e escaneie o QR code. Não precisa de servidor externo.
             </p>
           </div>
         </div>
@@ -370,18 +375,18 @@ function EvolutionInlineStep({
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        Não tem servidor Evolution? Pule este passo — você pode adicionar
-        depois em <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-foreground">Configurações → Integrações</code>.
+        Quer deixar para depois? Pule este passo — você pode adicionar depois em{" "}
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-foreground">
+          Configurações → WhatsApp
+        </code>
+        .
       </p>
 
-      <EvolutionQuickConnect
+      <NewWhatsAppSessionDialog
         open={open}
         onOpenChange={setOpen}
         accountId={accountId}
-        onConnected={() => {
-          onConnected();
-          setOpen(false);
-        }}
+        onChanged={onConnected}
       />
     </div>
   );

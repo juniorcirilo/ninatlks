@@ -5,5 +5,6 @@ import { AgentLlmProviderService } from './agent-llm-provider.service';
 @Module({
   controllers: [AgentLlmProviderController],
   providers: [AgentLlmProviderService],
+  exports: [AgentLlmProviderService],
 })
 export class AgentLlmProviderModule {}

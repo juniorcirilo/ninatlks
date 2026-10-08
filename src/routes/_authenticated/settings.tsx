@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
+  Bot,
   Copy,
   Check,
   ChevronRight,
@@ -35,8 +36,9 @@ import { WebhookDeliveriesPanel } from "@/components/settings/WebhookDeliveriesP
 import { WebhookEndpointsPanel } from "@/components/settings/WebhookEndpointsPanel";
 import { WebhookInboundTemplatesPanel } from "@/components/settings/WebhookInboundTemplatesPanel";
 import { OperationalListsPanel } from "@/components/settings/OperationalListsPanel";
-import { EvolutionSessionsTab } from "@/components/settings/EvolutionSessionsTab";
+import { WhatsAppSessionsTab } from "@/components/settings/WhatsAppSessionsTab";
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab";
+import { AiAgentTab } from "@/components/settings/AiAgentTab";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
 import {
@@ -51,7 +53,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({
     meta: [
-      { title: "Configurações — Nina Talks" },
+      { title: "Configurações — Utalks" },
       {
         name: "description",
         content: "Integrações, dados da empresa e webhooks.",
@@ -59,17 +61,19 @@ export const Route = createFileRoute("/_authenticated/settings")({
     ],
   }),
   validateSearch: (s: Record<string, unknown>): SettingsSearch => ({
-    tab: pick(s.tab, SETTINGS_TABS),
+    // `evolution` era o nome antigo da aba (links salvos continuam funcionando).
+    tab: pick(s.tab === "evolution" ? "whatsapp" : s.tab, SETTINGS_TABS),
     wh: pick(s.wh, WEBHOOK_TABS),
     rx: pick(s.rx, RECEIVE_TABS),
   }),
   component: SettingsPage,
 });
 
-// Links fixos: /settings?tab=evolution, /settings?tab=webhooks&wh=recebimento&rx=listas
+// Links fixos: /settings?tab=whatsapp, /settings?tab=webhooks&wh=recebimento&rx=listas
 const SETTINGS_TABS = [
   "integrations",
-  "evolution",
+  "whatsapp",
+  "ai-agent",
   "general",
   "dialing",
   "account",
@@ -97,7 +101,8 @@ const SETTINGS_NAV: {
     label: "Conexões",
     items: [
       { value: "integrations", label: "Integrações", icon: Plug },
-      { value: "evolution", label: "Evolution (WhatsApp Web)", icon: MessageCircle },
+      { value: "whatsapp", label: "WhatsApp", icon: MessageCircle },
+      { value: "ai-agent", label: "Agente de IA", icon: Bot },
     ],
   },
   {
@@ -122,6 +127,7 @@ function pick<T extends string>(v: unknown, allowed: readonly T[]): T | undefine
 }
 
 function SettingsPage() {
+  const { accountId } = useAccount();
   const search = Route.useSearch();
   const navigate = useNavigate({ from: "/settings" });
   const tab = search.tab ?? "integrations";
@@ -190,10 +196,18 @@ function SettingsPage() {
           <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
             <Tabs value={tab} onValueChange={setTab} className="w-full">
               <TabsContent value="integrations">
-                <IntegrationsTab onManageEvolution={() => setTab("evolution")} />
+                <IntegrationsTab onManageWhatsApp={() => setTab("whatsapp")} />
               </TabsContent>
-              <TabsContent value="evolution">
-                <EvolutionSessionsTab />
+              <TabsContent value="whatsapp">
+                <WhatsAppSessionsTab />
+              </TabsContent>
+              <TabsContent value="ai-agent">
+                {accountId ? (
+                  <AiAgentTab
+                    accountId={accountId}
+                    onOpenIntegrations={() => setTab("integrations")}
+                  />
+                ) : null}
               </TabsContent>
               <TabsContent value="general">
                 <GeneralTab />
@@ -488,7 +502,7 @@ function GeneralTab() {
         <h3 className="text-[13px] font-semibold">Configuração inicial</h3>
         <p className="mt-1 text-[12px] text-muted-foreground">
           Reabra o assistente de onboarding para revisar empresa, chaves de provedores (ElevenLabs,
-          Twilio, Deepgram, Evolution), agente e primeiro número.
+          Twilio, Deepgram, WhatsApp), agente e primeiro número.
         </p>
         <button
           onClick={async () => {
@@ -788,16 +802,6 @@ const INTEGRATION_PROVIDERS: ProviderDef[] = [
       { key: "auth_token", label: "Auth Token", type: "password" },
     ],
   },
-  {
-    provider: "evolution",
-    name: "Evolution (WhatsApp)",
-    desc: "Follow-up por WhatsApp em cadências configuradas.",
-    required: false,
-    fields: [
-      { key: "api_url", label: "API URL", type: "text", placeholder: "https://..." },
-      { key: "api_key", label: "API Key", type: "password" },
-    ],
-  },
 ];
 
 function ApiKeysTab() {
@@ -1059,6 +1063,8 @@ function ProviderEditDialog({
 
 function WebhooksTab() {
   const { accountId } = useAccount();
+  const { wh, rx } = Route.useSearch();
+  const navigate = useNavigate({ from: "/settings" });
   const [secret, setSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState<string | null>(null);
@@ -1090,8 +1096,6 @@ function WebhooksTab() {
     );
   }
 
-  const { wh, rx } = Route.useSearch();
-  const navigate = useNavigate({ from: "/settings" });
   return (
     <Tabs
       value={wh ?? "envio"}
@@ -1109,7 +1113,7 @@ function WebhooksTab() {
         <div className="space-y-4">
           <Card
             title="Destinos de envio"
-            desc="Para onde o Nina Talks manda os eventos. Cadastre quantos precisar — um por sistema."
+            desc="Para onde o Utalks manda os eventos. Cadastre quantos precisar — um por sistema."
           >
             <WebhookEndpointsPanel />
           </Card>

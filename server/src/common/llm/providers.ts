@@ -22,14 +22,62 @@ export interface ProviderMeta {
 }
 
 export const PROVIDERS: ProviderMeta[] = [
-  { id: 'openai', label: 'OpenAI', defaultBaseUrl: 'https://api.openai.com/v1', kind: 'openai-compatible', requiresApiKey: true },
-  { id: 'gemini', label: 'Google Gemini', defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', kind: 'openai-compatible', requiresApiKey: true },
-  { id: 'anthropic', label: 'Anthropic', defaultBaseUrl: 'https://api.anthropic.com', kind: 'anthropic', requiresApiKey: true },
-  { id: 'groq', label: 'Groq', defaultBaseUrl: 'https://api.groq.com/openai/v1', kind: 'openai-compatible', requiresApiKey: true },
-  { id: 'deepseek', label: 'DeepSeek', defaultBaseUrl: 'https://api.deepseek.com/v1', kind: 'openai-compatible', requiresApiKey: true },
-  { id: 'mistral', label: 'Mistral AI', defaultBaseUrl: 'https://api.mistral.ai/v1', kind: 'openai-compatible', requiresApiKey: true },
-  { id: 'ollama', label: 'Ollama (Local)', defaultBaseUrl: 'http://localhost:11434/v1', kind: 'openai-compatible', requiresApiKey: false },
-  { id: 'lmstudio', label: 'LM Studio', defaultBaseUrl: null, kind: 'openai-compatible', requiresApiKey: false },
+  {
+    id: 'openai',
+    label: 'OpenAI',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    kind: 'openai-compatible',
+    requiresApiKey: true,
+  },
+  {
+    id: 'gemini',
+    label: 'Google Gemini',
+    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    kind: 'openai-compatible',
+    requiresApiKey: true,
+  },
+  {
+    id: 'anthropic',
+    label: 'Anthropic',
+    defaultBaseUrl: 'https://api.anthropic.com',
+    kind: 'anthropic',
+    requiresApiKey: true,
+  },
+  {
+    id: 'groq',
+    label: 'Groq',
+    defaultBaseUrl: 'https://api.groq.com/openai/v1',
+    kind: 'openai-compatible',
+    requiresApiKey: true,
+  },
+  {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    defaultBaseUrl: 'https://api.deepseek.com/v1',
+    kind: 'openai-compatible',
+    requiresApiKey: true,
+  },
+  {
+    id: 'mistral',
+    label: 'Mistral AI',
+    defaultBaseUrl: 'https://api.mistral.ai/v1',
+    kind: 'openai-compatible',
+    requiresApiKey: true,
+  },
+  {
+    id: 'ollama',
+    label: 'Ollama (Local)',
+    defaultBaseUrl: 'http://localhost:11434/v1',
+    kind: 'openai-compatible',
+    requiresApiKey: false,
+  },
+  {
+    id: 'lmstudio',
+    label: 'LM Studio',
+    defaultBaseUrl: null,
+    kind: 'openai-compatible',
+    requiresApiKey: false,
+  },
 ];
 
 export function providerMeta(id: string): ProviderMeta | undefined {
@@ -61,27 +109,33 @@ export interface ChatCallArgs {
 
 export async function callChatCompletion(args: ChatCallArgs): Promise<string> {
   const isAnthropic =
-    args.provider !== 'lovable' && providerMeta(args.provider)?.kind === 'anthropic';
+    args.provider !== 'lovable' &&
+    providerMeta(args.provider)?.kind === 'anthropic';
   return isAnthropic ? callAnthropic(args) : callOpenAiCompatible(args);
 }
 
 async function callOpenAiCompatible(args: ChatCallArgs): Promise<string> {
-  const res = await fetch(`${args.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(args.apiKey ? { Authorization: `Bearer ${args.apiKey}` } : {}),
+  const res = await fetch(
+    `${args.baseUrl.replace(/\/+$/, '')}/chat/completions`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(args.apiKey ? { Authorization: `Bearer ${args.apiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        model: args.model,
+        temperature: args.temperature,
+        messages: args.messages,
+        ...(args.maxTokens ? { max_tokens: args.maxTokens } : {}),
+      }),
     },
-    body: JSON.stringify({
-      model: args.model,
-      temperature: args.temperature,
-      messages: args.messages,
-      ...(args.maxTokens ? { max_tokens: args.maxTokens } : {}),
-    }),
-  });
+  );
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`${providerLabel(args.provider)} ${res.status}: ${body.slice(0, 200)}`);
+    throw new Error(
+      `${providerLabel(args.provider)} ${res.status}: ${body.slice(0, 200)}`,
+    );
   }
   const json = (await res.json()) as {
     choices?: { message?: { content?: string } }[];

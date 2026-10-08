@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/agents/sofia")({
-  head: () => ({ meta: [{ title: "Sofia — Nina Talks" }] }),
+  head: () => ({ meta: [{ title: "Sofia — Utalks" }] }),
   component: SofiaPage,
 });
 

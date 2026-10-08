@@ -3,7 +3,10 @@ import { createTransport } from 'nodemailer';
 import { TenantTxHost } from '../../common/tenant-tx.host';
 import { SecretsService } from '../secrets/secrets.service';
 import { n8nLockedByEnv } from '../n8n/n8n-client.service';
+import { SessionManagerService } from '../whatsapp/session-manager.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
+import { ExternalDbService } from '../ai-agent/external-db.service';
+import type { SqlDialect } from '../ai-agent/tool-sql';
 
 export interface ProviderStatus {
   key: string;
@@ -39,19 +42,32 @@ export class IntegrationsStatusService {
     private readonly tx: TenantTxHost,
     private readonly secrets: SecretsService,
     private readonly googleCalendar: GoogleCalendarService,
+    private readonly waSessions: SessionManagerService,
+    private readonly externalDb: ExternalDbService,
   ) {}
 
   async check(accountId: string): Promise<IntegrationsStatusReport> {
-    const [elevenlabs, twilio, evolution, deepgram, n8n, googleCalendar, smtp] =
-      await Promise.all([
-        this.checkElevenLabs(accountId),
-        this.checkTwilio(accountId),
-        this.checkEvolution(accountId),
-        this.checkDeepgram(accountId),
-        this.checkN8n(accountId),
-        this.checkGoogleCalendar(accountId),
-        this.checkSmtp(accountId),
-      ]);
+    const [
+      elevenlabs,
+      twilio,
+      whatsapp,
+      deepgram,
+      n8n,
+      googleCalendar,
+      smtp,
+      postgresql,
+      mssql,
+    ] = await Promise.all([
+      this.checkElevenLabs(accountId),
+      this.checkTwilio(accountId),
+      this.checkWhatsApp(accountId),
+      this.checkDeepgram(accountId),
+      this.checkN8n(accountId),
+      this.checkGoogleCalendar(accountId),
+      this.checkSmtp(accountId),
+      this.checkDatabase(accountId, 'postgresql', 'PostgreSQL'),
+      this.checkDatabase(accountId, 'mssql', 'Microsoft SQL Server'),
+    ]);
 
     const personas = await this.tx.manager.query<
       { id: string; elevenlabs_agent_id: string | null }[]
@@ -75,11 +91,13 @@ export class IntegrationsStatusService {
       providers: [
         elevenlabs,
         twilio,
-        evolution,
+        whatsapp,
         deepgram,
         n8n,
         googleCalendar,
         smtp,
+        postgresql,
+        mssql,
       ],
       nexus: {
         agents_total: personas.length,
@@ -270,7 +288,9 @@ export class IntegrationsStatusService {
     }
   }
 
-  private async checkGoogleCalendar(accountId: string): Promise<ProviderStatus> {
+  private async checkGoogleCalendar(
+    accountId: string,
+  ): Promise<ProviderStatus> {
     if (!(await this.googleCalendar.isConfigured(accountId))) {
       return {
         key: 'google_calendar',
@@ -287,7 +307,8 @@ export class IntegrationsStatusService {
         label: 'Google Calendar / Meet',
         configured: false,
         ok: null,
-        detail: 'Credenciais salvas — falta conectar a conta Google em Reuniões',
+        detail:
+          'Credenciais salvas — falta conectar a conta Google em Reuniões',
       };
     }
     return {
@@ -297,6 +318,42 @@ export class IntegrationsStatusService {
       ok: status.enabled,
       detail: status.email ? `Conectado como ${status.email}` : 'Conectado',
     };
+  }
+
+  /** Banco externo do Agente de IA: configurado? conecta (timeout curto)? */
+  private async checkDatabase(
+    accountId: string,
+    type: SqlDialect,
+    label: string,
+  ): Promise<ProviderStatus> {
+    const cfg = await this.externalDb.config(accountId, type);
+    if (!cfg) return { key: type, label, configured: false, ok: null };
+    try {
+      const version = await Promise.race([
+        this.externalDb.test(accountId, type),
+        new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new Error('sem resposta em 8s')), 8_000),
+        ),
+      ]);
+      return {
+        key: type,
+        label,
+        configured: true,
+        ok: true,
+        detail: `${cfg.host}:${cfg.port}/${cfg.database} — ${version}`.slice(
+          0,
+          160,
+        ),
+      };
+    } catch (err) {
+      return {
+        key: type,
+        label,
+        configured: true,
+        ok: false,
+        detail: String((err as Error).message).slice(0, 120),
+      };
+    }
   }
 
   private async checkSmtp(accountId: string): Promise<ProviderStatus> {
@@ -339,67 +396,32 @@ export class IntegrationsStatusService {
     }
   }
 
-  private async checkEvolution(accountId: string): Promise<ProviderStatus> {
-    const rows = await this.tx.manager.query<
-      { config: Record<string, string> }[]
-    >(
-      `SELECT config FROM channels WHERE account_id = $1 AND channel_type = 'whatsapp' LIMIT 1`,
+  /** WhatsApp (Baileys): sessões deste processo, sem chamada externa. */
+  private async checkWhatsApp(accountId: string): Promise<ProviderStatus> {
+    const rows = await this.tx.manager.query<{ id: string }[]>(
+      `SELECT id FROM channels WHERE account_id = $1 AND channel_type = 'whatsapp'`,
       [accountId],
     );
-    const cfg = rows[0]?.config ?? {};
-    if (!cfg.evolution_url || !cfg.evolution_api_key) {
+    if (rows.length === 0) {
       return {
-        key: 'evolution',
-        label: 'Evolution (WhatsApp Web)',
+        key: 'whatsapp',
+        label: 'WhatsApp',
         configured: false,
         ok: null,
       };
     }
-    try {
-      const res = await fetch(
-        `${cfg.evolution_url.replace(/\/$/, '')}/instance/fetchInstances`,
-        {
-          headers: { apikey: cfg.evolution_api_key },
-        },
-      );
-      if (!res.ok) {
-        return {
-          key: 'evolution',
-          label: 'Evolution (WhatsApp Web)',
-          configured: true,
-          ok: false,
-          detail: `HTTP ${res.status}`,
-        };
-      }
-      const list = (await res.json().catch(() => [])) as Array<{
-        connectionStatus?: string;
-        instance?: { state?: string };
-      }>;
-      const total = Array.isArray(list) ? list.length : 0;
-      const connected = Array.isArray(list)
-        ? list.filter((i) =>
-            (i.connectionStatus ?? i.instance?.state ?? '')
-              .toString()
-              .includes('open'),
-          ).length
-        : 0;
-      return {
-        key: 'evolution',
-        label: 'Evolution (WhatsApp Web)',
-        configured: true,
-        ok: connected > 0,
-        detail: `${connected}/${total} conectada(s)`,
-        usage: { instancias_total: total, instancias_conectadas: connected },
-      };
-    } catch (err) {
-      return {
-        key: 'evolution',
-        label: 'Evolution',
-        configured: true,
-        ok: false,
-        detail: String(err).slice(0, 120),
-      };
-    }
+    const total = rows.length;
+    const connected = rows.filter(
+      (r) => this.waSessions.get(r.id)?.status === 'connected',
+    ).length;
+    return {
+      key: 'whatsapp',
+      label: 'WhatsApp',
+      configured: true,
+      ok: connected > 0,
+      detail: `${connected}/${total} conectada(s)`,
+      usage: { instancias_total: total, instancias_conectadas: connected },
+    };
   }
 
   /**
@@ -425,7 +447,13 @@ export class IntegrationsStatusService {
       apiKey = (bundle.api_key ?? '').trim();
     }
     if (!baseUrl || !apiKey) {
-      return { key: 'n8n', label: 'n8n (automação)', configured: false, ok: null, locked };
+      return {
+        key: 'n8n',
+        label: 'n8n (automação)',
+        configured: false,
+        ok: null,
+        locked,
+      };
     }
     try {
       const res = await fetch(`${baseUrl}/api/v1/workflows?limit=1`, {

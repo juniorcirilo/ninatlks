@@ -4,11 +4,11 @@ import { LegalLayout } from "./privacy";
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
-      { title: "Termos de Uso — Nina Talks" },
+      { title: "Termos de Uso — Utalks" },
       {
         name: "description",
         content:
-          "Termos e condições de uso da plataforma Nina Talks (agente de SDR por voz com IA).",
+          "Termos e condições de uso da plataforma Utalks (agente de SDR por voz com IA).",
       },
     ],
   }),
@@ -19,14 +19,14 @@ function TermsPage() {
   return (
     <LegalLayout title="Termos de Uso" updatedAt="2026-04-20">
       <p>
-        Ao criar uma conta no Nina Talks e usar a plataforma, você concorda com estes
+        Ao criar uma conta no Utalks e usar a plataforma, você concorda com estes
         termos. Leia com atenção. Se discordar de qualquer ponto, não use o
         serviço.
       </p>
 
       <H2>1. Objeto</H2>
       <p>
-        O Nina Talks fornece uma plataforma SaaS de SDR por voz: atende
+        O Utalks fornece uma plataforma SaaS de SDR por voz: atende
         ligações inbound, qualifica leads automaticamente, agenda reuniões e
         entrega briefing pra atendentes humanos. Inclui canais complementares
         (WhatsApp, Instagram, Messenger, SMS) e automações de follow-up.
@@ -42,7 +42,7 @@ function TermsPage() {
 
       <H2>3. Uso permitido</H2>
       <p>
-        Você pode usar o Nina Talks para atender clientes que tenham iniciado contato
+        Você pode usar o Utalks para atender clientes que tenham iniciado contato
         ou autorizado receber mensagens suas, respeitando:
       </p>
       <ul>
@@ -70,7 +70,7 @@ function TermsPage() {
       <H2>5. Integrações de terceiros</H2>
       <p>
         Conectar Meta, Twilio, ElevenLabs, Deepgram ou outros provedores
-        implica aceitar também os termos desses serviços. O Nina Talks não
+        implica aceitar também os termos desses serviços. O Utalks não
         se responsabiliza por indisponibilidades ou mudanças de política
         desses terceiros.
       </p>
@@ -85,7 +85,7 @@ function TermsPage() {
 
       <H2>7. Propriedade intelectual</H2>
       <p>
-        Código, design e marca do Nina Talks pertencem aos seus autores. Conteúdo
+        Código, design e marca do Utalks pertencem aos seus autores. Conteúdo
         gerado na sua conta (conversas, automações, configurações) pertence a
         você e é processado conforme nossa{" "}
         <a href="/privacy" className="text-primary underline">Política de Privacidade</a>.
@@ -102,7 +102,7 @@ function TermsPage() {
       <p>
         Nenhuma das partes será responsável por danos indiretos, lucros
         cessantes ou perdas decorrentes de caso fortuito, força maior ou falha
-        de terceiros. A responsabilidade máxima do Nina Talks limita-se ao valor
+        de terceiros. A responsabilidade máxima do Utalks limita-se ao valor
         pago nos últimos 12 meses.
       </p>
 

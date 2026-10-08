@@ -105,7 +105,12 @@ export function useRealtimeRefresh(
   }, [accountId, key, debounceMs]);
 }
 
-export type PresenceEvent = { jid: string; presence: string };
+export type PresenceEvent = {
+  jid: string;
+  chatJid?: string;
+  presence: string;
+  lastSeen?: number;
+};
 
 /** "digitando…" do contato (evento efêmero, não vem do banco). */
 export function subscribePresence(cb: (event: PresenceEvent) => void): () => void {
@@ -113,5 +118,22 @@ export function subscribePresence(cb: (event: PresenceEvent) => void): () => voi
   s.on("presence", cb);
   return () => {
     s.off("presence", cb);
+  };
+}
+
+export type WaSessionEvent = {
+  channelId: string;
+  status: "disconnected" | "connecting" | "qr_ready" | "connected";
+  qr?: string | null;
+  pairingCode?: string | null;
+  phone?: string | null;
+};
+
+/** Estado/QR da sessão WhatsApp em tempo real (substitui o polling). */
+export function subscribeSessionState(cb: (event: WaSessionEvent) => void): () => void {
+  const s = getSocket();
+  s.on("wa_session", cb);
+  return () => {
+    s.off("wa_session", cb);
   };
 }

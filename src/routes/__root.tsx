@@ -42,15 +42,15 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Nina Talks — Agente de SDR por voz" },
+      { title: "Utalks — Agente de SDR por voz" },
       {
         name: "description",
         content:
-          "Nina Talks é o agente de SDR por voz com IA. Atende inbound, qualifica leads em tempo real, agenda reuniões e entrega briefing pro seu time comercial.",
+          "Utalks é o agente de SDR por voz com IA. Atende inbound, qualifica leads em tempo real, agenda reuniões e entrega briefing pro seu time comercial.",
       },
-      { name: "author", content: "Nina Talks" },
+      { name: "author", content: "Utalks" },
       { name: "theme-color", content: "#1a1030" },
-      { property: "og:title", content: "Nina Talks — Agente de SDR por voz" },
+      { property: "og:title", content: "Utalks — Agente de SDR por voz" },
       {
         property: "og:description",
         content:
@@ -58,10 +58,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Nina Talks — Agente de SDR por voz" },
-      { name: "description", content: "Nina Talks is an AI-powered SDR voice agent that qualifies inbound leads, schedules meetings, and hands off enriched briefings to human reps." },
-      { property: "og:description", content: "Nina Talks is an AI-powered SDR voice agent that qualifies inbound leads, schedules meetings, and hands off enriched briefings to human reps." },
-      { name: "twitter:description", content: "Nina Talks is an AI-powered SDR voice agent that qualifies inbound leads, schedules meetings, and hands off enriched briefings to human reps." },
+      { name: "twitter:title", content: "Utalks — Agente de SDR por voz" },
+      { name: "description", content: "Utalks is an AI-powered SDR voice agent that qualifies inbound leads, schedules meetings, and hands off enriched briefings to human reps." },
+      { property: "og:description", content: "Utalks is an AI-powered SDR voice agent that qualifies inbound leads, schedules meetings, and hands off enriched briefings to human reps." },
+      { name: "twitter:description", content: "Utalks is an AI-powered SDR voice agent that qualifies inbound leads, schedules meetings, and hands off enriched briefings to human reps." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/dbbad1b1-4371-4d4f-bac2-5100c7474d25/id-preview-7aabe68b--975b0cb1-8180-4007-a7ad-ebcba2bc4122.lovable.app-1777494093066.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/dbbad1b1-4371-4d4f-bac2-5100c7474d25/id-preview-7aabe68b--975b0cb1-8180-4007-a7ad-ebcba2bc4122.lovable.app-1777494093066.png" },
     ],

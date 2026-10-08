@@ -14,10 +14,10 @@
  * direto com `localhost`; só o navegador precisa do domínio público, porque
  * ele está fora do container.
  */
-const API_URL =
+export const API_URL =
   typeof window === "undefined"
     ? `http://localhost:${process.env.API_PORT ?? 3001}`
-    : import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+    : (import.meta.env.VITE_API_URL ?? "http://localhost:3001");
 
 export class ApiError extends Error {
   status: number;
@@ -41,7 +41,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
     headers: {
       // FormData: o navegador define o Content-Type (com boundary).
-      ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+      ...(init?.body && !(init.body instanceof FormData)
+        ? { "Content-Type": "application/json" }
+        : {}),
       ...init?.headers,
     },
   });
@@ -63,7 +65,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const apiClient = {
-  get: <T>(path: string, headers?: HeadersInit) => request<T>(path, headers ? { headers } : undefined),
+  get: <T>(path: string, headers?: HeadersInit) =>
+    request<T>(path, headers ? { headers } : undefined),
   post: <T>(path: string, data?: unknown) =>
     request<T>(path, {
       method: "POST",

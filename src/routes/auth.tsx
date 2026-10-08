@@ -14,7 +14,7 @@ export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
-      { title: "Entrar — Nina Talks" },
+      { title: "Entrar — Utalks" },
       {
         name: "description",
         content: "Acesse o painel do agente de SDR por voz.",

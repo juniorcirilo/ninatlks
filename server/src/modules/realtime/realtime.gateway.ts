@@ -41,7 +41,10 @@ const COOKIE_NAME = process.env.SESSION_COOKIE_NAME ?? 'sid';
  * correctly once there's more than one API replica.
  */
 @WebSocketGateway({
-  cors: { origin: process.env.WEB_ORIGIN ?? true, credentials: true },
+  cors: {
+    origin: process.env.WEB_ORIGIN ?? process.env.NODE_ENV !== 'production',
+    credentials: true,
+  },
 })
 export class RealtimeGateway
   implements OnGatewayConnection, OnGatewayDisconnect
@@ -91,9 +94,30 @@ export class RealtimeGateway
   /** Presença efêmera (digitando…) — não passa pelo banco. */
   emitPresence(
     accountId: string,
-    payload: { jid: string; presence: string },
+    payload: {
+      /** só dígitos (casa por telefone no front) */
+      jid: string;
+      /** JID normalizado (@s.whatsapp.net) */
+      chatJid?: string;
+      presence: string;
+      lastSeen?: number;
+    },
   ): void {
     this.server.to(`account:${accountId}`).emit('presence', payload);
+  }
+
+  /** Estado da sessão WhatsApp (QR, conectado…) em tempo real. */
+  emitSessionState(
+    accountId: string,
+    payload: {
+      channelId: string;
+      status: string;
+      qr?: string | null;
+      pairingCode?: string | null;
+      phone?: string | null;
+    },
+  ): void {
+    this.server.to(`account:${accountId}`).emit('wa_session', payload);
   }
 
   broadcast(payload: AppChangePayload): void {

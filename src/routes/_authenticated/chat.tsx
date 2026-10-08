@@ -28,7 +28,7 @@ import { formatDuration } from "@/lib/calls";
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
     meta: [
-      { title: "Ao vivo — Nina Talks" },
+      { title: "Ao vivo — Utalks" },
       {
         name: "description",
         content: "Acompanhe ligações da Nina em tempo real com transcrição ao vivo.",

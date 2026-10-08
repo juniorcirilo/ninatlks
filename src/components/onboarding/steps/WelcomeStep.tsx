@@ -8,7 +8,7 @@ export function WelcomeStep() {
           <Sparkles className="h-6 w-6 text-primary-foreground" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold">Bem-vindo ao Nina Talks</h2>
+          <h2 className="text-xl font-semibold">Bem-vindo ao Utalks</h2>
           <p className="text-sm text-muted-foreground">
             Agente de SDR por voz — atende inbound, qualifica leads e agenda
             reuniões. Vamos configurar passo a passo.
@@ -37,7 +37,7 @@ export function WelcomeStep() {
       <div className="rounded-md border border-primary/20 bg-primary/[0.06] p-3 text-[12px] text-foreground/80">
         <strong className="font-semibold text-primary">O que vamos fazer:</strong>{" "}
         nome da empresa, suas keys da ElevenLabs (voz), Twilio (telefonia),
-        Deepgram (transcrição) e Evolution (WhatsApp). Por fim, criar o
+        Deepgram (transcrição) e WhatsApp. Por fim, criar o
         primeiro agente. Pode pular qualquer passo e voltar depois.
       </div>
     </div>

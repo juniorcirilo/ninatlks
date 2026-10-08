@@ -34,7 +34,7 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth-context";
 import { useAccount } from "@/lib/account-context";
-import { NinaTalksLogo } from "@/components/brand/NinaTalksLogo";
+import { UtalksLogo } from "@/components/brand/UtalksLogo";
 import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts";
 import { NotificationToasts } from "@/components/layout/NotificationToasts";
 import { NotificationsBell } from "@/components/layout/NotificationsBell";
@@ -244,11 +244,11 @@ function SidebarContent({
           onClick={onNavigate}
           className={cn("group mb-6 flex items-center gap-3 py-1", collapsed && "justify-center")}
         >
-          <NinaTalksLogo size={collapsed ? "md" : "lg"} />
+          <UtalksLogo size={collapsed ? "md" : "lg"} />
           {!collapsed && (
             <div className="flex flex-col overflow-hidden">
               <span className="whitespace-nowrap text-[17px] font-bold leading-tight tracking-tight text-foreground">
-                Nina Talks
+                Utalks
               </span>
               <span className="mt-0.5 flex items-center gap-1 text-[9.5px] font-semibold uppercase tracking-[0.18em] text-cyan-400/90">
                 <Sparkles className="h-2.5 w-2.5" /> Agente de SDR
@@ -461,8 +461,8 @@ function MobileNav({ open, onOpenChange }: { open: boolean; onOpenChange: (v: bo
     <div className="md:hidden">
       <div className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-gray-200/50 bg-white/80 px-4 backdrop-blur-xl dark:border-slate-800/50 dark:bg-slate-950/80">
         <Link to="/" className="flex items-center gap-2">
-          <NinaTalksLogo size="sm" />
-          <span className="text-sm font-bold tracking-tight">Nina Talks</span>
+          <UtalksLogo size="sm" />
+          <span className="text-sm font-bold tracking-tight">Utalks</span>
         </Link>
         <button
           type="button"

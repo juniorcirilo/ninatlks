@@ -10,6 +10,7 @@ import {
   ChevronRight,
   CircleAlert,
   CircleDashed,
+  Database,
   KeyRound,
   Loader2,
   Lock,
@@ -27,12 +28,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAccount } from "@/lib/account-context";
 import { cn } from "@/lib/utils";
-import { fetchIntegrationsStatus, type NexusReport, type ProviderReport } from "@/lib/integrations-status-cache";
+import {
+  fetchIntegrationsStatus,
+  type NexusReport,
+  type ProviderReport,
+} from "@/lib/integrations-status-cache";
 import {
   ProviderCredentialsDialog,
   type CredentialProviderKey,
 } from "@/components/settings/ProviderCredentialsDialog";
-import { EvolutionQuickConnect } from "@/components/onboarding/EvolutionQuickConnect";
+import { NewWhatsAppSessionDialog } from "@/components/settings/NewWhatsAppSessionDialog";
 import { syncAgentSourcesToN8n, describeN8nSync } from "@/lib/n8n";
 import { AgentLlmProviderCard } from "@/components/settings/AgentLlmProviderCard";
 
@@ -50,44 +55,64 @@ const PROVIDER_META: Record<
 > = {
   deepgram: {
     icon: Sparkles,
-    setupHint: "API key da Deepgram, usada para transcrever chamadas. Salva no vault deste workspace.",
+    setupHint:
+      "API key da Deepgram, usada para transcrever chamadas. Salva no vault deste workspace.",
     setupHref: "/settings",
     credentialKey: "deepgram",
   },
   elevenlabs: {
     icon: Volume2,
-    setupHint: "Pegue a API Key em elevenlabs.io/app/settings/api-keys. As keys ficam no vault deste workspace, não no código.",
+    setupHint:
+      "Pegue a API Key em elevenlabs.io/app/settings/api-keys. As keys ficam no vault deste workspace, não no código.",
     setupHref: "/agents",
     credentialKey: "elevenlabs",
   },
   twilio: {
     icon: Phone,
-    setupHint: "Account SID + Auth Token em console.twilio.com. As credenciais são salvas criptografadas no vault deste workspace.",
+    setupHint:
+      "Account SID + Auth Token em console.twilio.com. As credenciais são salvas criptografadas no vault deste workspace.",
     setupHref: "/phone-numbers",
     credentialKey: "twilio",
   },
   n8n: {
     icon: Workflow,
     setupHint:
-      "URL da instância + API Key (gerada em Settings → n8n API). Ao conectar, criamos o workflow \"Utalks\" e um nó por agente com fonte de dados — ver Webhooks → Recebimento.",
+      'URL da instância + API Key (gerada em Settings → n8n API). Ao conectar, criamos o workflow "Utalks" e um nó por agente com fonte de dados — ver Webhooks → Recebimento.',
     setupHref: "/settings",
     credentialKey: "n8n",
   },
-  evolution: {
+  whatsapp: {
     icon: MessageCircle,
-    setupHint: "URL + API key do seu servidor Evolution self-hosted. Conecte WhatsApp pelo assistente de onboarding ou aqui em Integrações.",
+    setupHint:
+      "Conecte um ou mais números direto ao WhatsApp (QR code ou código de pareamento). Sem servidor externo.",
     setupHref: "/settings",
     credentialKey: null,
   },
   google_calendar: {
     icon: Video,
-    setupHint: "Cole o Client ID/Secret do Google Cloud Console aqui. Depois, conecte a conta Google em Reuniões para gerar o link do Meet em cada reunião criada por um admin.",
+    setupHint:
+      "Cole o Client ID/Secret do Google Cloud Console aqui. Depois, conecte a conta Google em Reuniões para gerar o link do Meet em cada reunião criada por um admin.",
     setupHref: "/reunioes",
     credentialKey: "google_calendar",
   },
+  postgresql: {
+    icon: Database,
+    setupHint:
+      "Host, banco, usuário e senha do PostgreSQL do cliente. O Agente de IA consulta tabelas e procedures durante o atendimento, somente leitura (use um usuário só com SELECT).",
+    setupHref: "/settings",
+    credentialKey: "postgresql",
+  },
+  mssql: {
+    icon: Database,
+    setupHint:
+      "Host, banco, usuário e senha do Microsoft SQL Server do cliente. O Agente de IA consulta tabelas e procedures durante o atendimento, somente leitura (use um login só com SELECT).",
+    setupHref: "/settings",
+    credentialKey: "mssql",
+  },
   smtp: {
     icon: Mail,
-    setupHint: "Host, usuário e senha SMTP (Hostgator/cPanel, Gmail, Resend via SMTP, etc.), usados para enviar o e-mail de confirmação de reunião (convidado + host).",
+    setupHint:
+      "Host, usuário e senha SMTP (Hostgator/cPanel, Gmail, Resend via SMTP, etc.), usados para enviar o e-mail de confirmação de reunião (convidado + host).",
     setupHref: "/settings",
     credentialKey: "smtp",
   },
@@ -100,7 +125,7 @@ function statusOf(p: ProviderReport): Status {
   return "unknown";
 }
 
-export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () => void } = {}) {
+export function IntegrationsTab({ onManageWhatsApp }: { onManageWhatsApp?: () => void } = {}) {
   const { accountId } = useAccount();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,7 +133,7 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
   const [providers, setProviders] = useState<ProviderReport[]>([]);
   const [nexus, setNexus] = useState<NexusReport | null>(null);
   const [credDialogFor, setCredDialogFor] = useState<CredentialProviderKey | null>(null);
-  const [evolutionOpen, setEvolutionOpen] = useState(false);
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
   const [syncingN8n, setSyncingN8n] = useState(false);
 
   /**
@@ -208,7 +233,12 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
             <h3 className="text-sm font-semibold">Integrações indisponíveis agora</h3>
             <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => load({ silent: true })} disabled={refreshing}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => load({ silent: true })}
+            disabled={refreshing}
+          >
             <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           </Button>
         </div>
@@ -240,9 +270,7 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
           )}
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold">
-              {readinessOk
-                ? "Plataforma pronta pra operar"
-                : "Faltam alguns passos pra ligar tudo"}
+              {readinessOk ? "Plataforma pronta pra operar" : "Faltam alguns passos pra ligar tudo"}
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
               {readinessOk
@@ -250,7 +278,12 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
                 : "Configure as integrações abaixo e crie ao menos 1 agente sincronizado + 1 número com IA ativa."}
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => load({ silent: true })} disabled={refreshing}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => load({ silent: true })}
+            disabled={refreshing}
+          >
             <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
           </Button>
         </div>
@@ -267,7 +300,9 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
               key={p.key}
               report={p}
               onConfigure={(k) => setCredDialogFor(k)}
-              onEvolutionConnect={() => (onManageEvolution ? onManageEvolution() : setEvolutionOpen(true))}
+              onWhatsAppConnect={() =>
+                onManageWhatsApp ? onManageWhatsApp() : setWhatsAppOpen(true)
+              }
               onSyncN8n={handleSyncN8n}
               syncingN8n={syncingN8n}
             />
@@ -288,11 +323,11 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
         </div>
       )}
 
-      {/* Nina Talks readiness */}
+      {/* Utalks readiness */}
       {nexus && (
         <div>
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Seu setup dentro do Nina Talks
+            Seu setup dentro do Utalks
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <StatCard
@@ -322,8 +357,8 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
             <StatCard
               icon={Sparkles}
               label="Canais de mensagem"
-              value={`${providers.filter((p) => p.key === "evolution").reduce((acc, p) => acc + (typeof p.usage?.instancias_conectadas === "number" ? p.usage.instancias_conectadas : 0), 0)}`}
-              detail="Instâncias WhatsApp conectadas via Evolution"
+              value={`${providers.filter((p) => p.key === "whatsapp").reduce((acc, p) => acc + (typeof p.usage?.instancias_conectadas === "number" ? p.usage.instancias_conectadas : 0), 0)}`}
+              detail="Sessões WhatsApp conectadas"
               href="/settings"
               ok={true}
             />
@@ -334,18 +369,20 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
       {accountId && (
         <ProviderCredentialsDialog
           open={credDialogFor !== null}
-          onOpenChange={(v) => { if (!v) setCredDialogFor(null); }}
+          onOpenChange={(v) => {
+            if (!v) setCredDialogFor(null);
+          }}
           provider={credDialogFor}
           accountId={accountId}
           onSaved={() => load({ silent: true })}
         />
       )}
       {accountId && (
-        <EvolutionQuickConnect
-          open={evolutionOpen}
-          onOpenChange={setEvolutionOpen}
+        <NewWhatsAppSessionDialog
+          open={whatsAppOpen}
+          onOpenChange={setWhatsAppOpen}
           accountId={accountId}
-          onConnected={() => load({ silent: true })}
+          onChanged={() => load({ silent: true })}
         />
       )}
     </div>
@@ -355,13 +392,13 @@ export function IntegrationsTab({ onManageEvolution }: { onManageEvolution?: () 
 function ProviderCard({
   report,
   onConfigure,
-  onEvolutionConnect,
+  onWhatsAppConnect,
   onSyncN8n,
   syncingN8n,
 }: {
   report: ProviderReport;
   onConfigure: (k: CredentialProviderKey) => void;
-  onEvolutionConnect: () => void;
+  onWhatsAppConnect: () => void;
   onSyncN8n: () => void;
   syncingN8n: boolean;
 }) {
@@ -369,12 +406,15 @@ function ProviderCard({
   const Icon = meta.icon;
   const status = statusOf(report);
   const isN8n = report.key === "n8n";
-  const isEvolution = report.key === "evolution";
+  const isWhatsApp = report.key === "whatsapp";
 
   return (
     <div
-      className={cn("glass flex flex-col gap-3 rounded-lg p-4", isEvolution && "cursor-pointer transition-colors hover:bg-foreground/[0.04]")}
-      onClick={isEvolution ? onEvolutionConnect : undefined}
+      className={cn(
+        "glass flex flex-col gap-3 rounded-lg p-4",
+        isWhatsApp && "cursor-pointer transition-colors hover:bg-foreground/[0.04]",
+      )}
+      onClick={isWhatsApp ? onWhatsAppConnect : undefined}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -401,12 +441,12 @@ function ProviderCard({
         </div>
         {status === "ok" && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />}
         {status === "fail" && <CircleAlert className="h-4 w-4 shrink-0 text-rose-400" />}
-        {status === "missing" && <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />}
+        {status === "missing" && (
+          <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
       </div>
 
-      {report.detail && (
-        <p className="text-[11px] text-muted-foreground">{report.detail}</p>
-      )}
+      {report.detail && <p className="text-[11px] text-muted-foreground">{report.detail}</p>}
 
       {status === "missing" && (
         <p className="rounded-md bg-muted/40 px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
@@ -468,12 +508,12 @@ function ProviderCard({
               </Button>
             )}
           </div>
-        ) : isEvolution ? (
+        ) : isWhatsApp ? (
           <Button
             type="button"
             size="sm"
             variant={status === "ok" ? "outline" : "default"}
-            onClick={onEvolutionConnect}
+            onClick={onWhatsAppConnect}
             className="h-7 text-[11px]"
           >
             <MessageCircle className="h-3 w-3" />
@@ -482,10 +522,10 @@ function ProviderCard({
         ) : (
           <span className="text-[10px] text-muted-foreground">Configurado por canal</span>
         )}
-        {isEvolution ? (
+        {isWhatsApp ? (
           <button
             type="button"
-            onClick={onEvolutionConnect}
+            onClick={onWhatsAppConnect}
             className="inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary"
           >
             Abrir <ChevronRight className="h-3 w-3" />
@@ -528,9 +568,7 @@ function StatCard({
     >
       <div className="flex items-center gap-2">
         <Icon className="h-4 w-4 text-muted-foreground" />
-        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-          {label}
-        </span>
+        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
         {ok ? (
           <CheckCircle2 className="ml-auto h-3.5 w-3.5 text-emerald-400" />
         ) : (

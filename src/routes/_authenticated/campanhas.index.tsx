@@ -60,7 +60,7 @@ function localDateTimeValue(d: Date): string {
 export const Route = createFileRoute("/_authenticated/campanhas/")({
   head: () => ({
     meta: [
-      { title: "Campanhas — Nina Talks" },
+      { title: "Campanhas — Utalks" },
       { name: "description", content: "Campanhas operacionais de ligações com IA." },
     ],
   }),

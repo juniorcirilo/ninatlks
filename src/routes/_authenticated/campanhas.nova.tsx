@@ -27,7 +27,7 @@ export const Route = createFileRoute("/_authenticated/campanhas/nova")({
     listId: typeof s.listId === "string" ? s.listId : undefined,
   }),
   head: () => ({
-    meta: [{ title: "Nova campanha — Nina Talks" }],
+    meta: [{ title: "Nova campanha — Utalks" }],
   }),
   component: NewCampaignPage,
 });

@@ -3,7 +3,7 @@ import { OrcamentosPage } from "./orcamentos";
 
 export const Route = createFileRoute("/_authenticated/agents/orcamentos")({
   head: () => ({
-    meta: [{ title: "Orçamentos — Bruno — Nina Talks" }],
+    meta: [{ title: "Orçamentos — Bruno — Utalks" }],
   }),
   component: OrcamentosPage,
 });

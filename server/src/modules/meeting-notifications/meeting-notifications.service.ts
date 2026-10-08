@@ -135,7 +135,7 @@ export class MeetingNotificationsService {
       `SELECT name FROM public.accounts WHERE id = $1`,
       [meeting.accountId],
     );
-    const accountName = accountRows[0]?.name?.trim() || 'Nina Talks';
+    const accountName = accountRows[0]?.name?.trim() || 'Utalks';
 
     let hostName: string | null = null;
     let hostEmail: string | null = null;

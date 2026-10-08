@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api-client";
 
-/** Destino de webhook de envio (Nina Talks → sistema do cliente). */
+/** Destino de webhook de envio (Utalks → sistema do cliente). */
 export interface WebhookEndpoint {
   id: string;
   name: string;

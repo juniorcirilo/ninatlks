@@ -1,4 +1,4 @@
-# Nina Talks — Checklist de Go-Live pós-remix
+# Utalks — Checklist de Go-Live pós-remix
 
 Este projeto é uma plataforma omnichannel de atendimento com IA (voz + WhatsApp + Meta) construída no Lovable Cloud.
 
@@ -110,7 +110,7 @@ Nada a fazer — rodam automaticamente.
 
 ## 7. Pós-go-live (recomendado)
 
-- **Rotação de secrets**: se o remix herdou as credenciais Nina Talks, gere as próprias em ElevenLabs/Twilio/Deepgram/Evolution e atualize via Connectors → Lovable Cloud → Secrets.
+- **Rotação de secrets**: se o remix herdou as credenciais Utalks, gere as próprias em ElevenLabs/Twilio/Deepgram/Evolution e atualize via Connectors → Lovable Cloud → Secrets.
 - **RLS hardening**: rodar o linter de segurança em **Cloud → Security** e endereçar warnings de `SECURITY DEFINER` executáveis por anon e `search_path` mutável.
 - **Domínio próprio**: conectar via **Project Settings → Domains** e atualizar todos os webhooks acima para o domínio final.
 

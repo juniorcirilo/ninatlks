@@ -5,8 +5,12 @@ import {
   CheckCheck,
   ExternalLink,
   FileText,
+  Ban,
+  Captions,
   Forward,
+  Pencil,
   Reply,
+  Trash2,
   RotateCw,
   ListChecks,
   Phone,
@@ -15,6 +19,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { ContactAvatar } from "@/components/inbox/ContactAvatar";
+import { mediaLabel } from "@/lib/message-preview";
 import type { ConversationMessage } from "@/lib/inbox";
 
 function Media({ message }: { message: ConversationMessage }) {
@@ -65,6 +71,14 @@ function Interactive({ message }: { message: ConversationMessage }) {
   const a = message.content_attributes;
   return (
     <div className="space-y-2">
+      {message.media_url &&
+        (a.media_kind === "video" ? (
+          <video src={message.media_url} controls preload="metadata" className="max-h-72 rounded-md" />
+        ) : a.media_kind === "image" ? (
+          <a href={message.media_url} target="_blank" rel="noreferrer">
+            <img src={message.media_url} alt="" loading="lazy" className="max-h-72 rounded-md object-cover" />
+          </a>
+        ) : null)}
       {a.title && <p className="font-semibold">{a.title}</p>}
       {a.description && <p className="whitespace-pre-wrap leading-relaxed">{a.description}</p>}
       {a.footer && <p className="text-[11px] opacity-60">{a.footer}</p>}
@@ -116,17 +130,36 @@ function Ticks({ status }: { status?: string | null }) {
   }
 }
 
+const EDIT_WINDOW_MS = 15 * 60_000;
+
+/** Rola até a mensagem original e a destaca por um instante. */
+function jumpTo(id?: string) {
+  if (!id) return;
+  const el = document.getElementById(`msg-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  el.classList.add("bg-primary/10");
+  window.setTimeout(() => el.classList.remove("bg-primary/10"), 1500);
+}
+
 export function MessageBubble({
   message,
   onReply,
   onForward,
   onResend,
+  onEdit,
+  onDelete,
+  onTranscribe,
 }: {
   message: ConversationMessage;
   onReply?: (m: ConversationMessage) => void;
   onForward?: (m: ConversationMessage) => void;
   onResend?: (m: ConversationMessage) => Promise<void> | void;
+  onEdit?: (m: ConversationMessage) => void;
+  onDelete?: (m: ConversationMessage) => void;
+  onTranscribe?: (m: ConversationMessage) => Promise<void> | void;
 }) {
+  const [transcribing, setTranscribing] = useState(false);
   const [resending, setResending] = useState(false);
   const isOutbound = message.sender_type === "User" || message.sender_type === "AgentBot";
   const isBot = message.sender_type === "AgentBot";
@@ -135,17 +168,31 @@ export function MessageBubble({
   const isInteractive = a.kind === "buttons" || a.kind === "list";
   const isReply = a.kind === "interactive_reply";
   const caption = isMedia ? (a.caption ?? "") : "";
+  const isDeleted = a.deleted === true;
+  const isEdited = a.edited === true && !isDeleted;
+  const sender = !isOutbound ? a.sender : undefined;
+  const canEdit =
+    !!onEdit &&
+    isOutbound &&
+    !isBot &&
+    !isDeleted &&
+    a.kind === "text" &&
+    message.delivery_status !== "error" &&
+    Date.now() - new Date(message.created_at).getTime() < EDIT_WINDOW_MS;
+  const canDelete =
+    !!onDelete && isOutbound && !isBot && !isDeleted && message.delivery_status !== "error";
 
   return (
     <div
+      id={`msg-${message.id}`}
       className={cn(
-        "group flex items-center gap-1.5",
+        "group flex items-center gap-1.5 rounded-lg transition-colors duration-700",
         isOutbound ? "flex-row-reverse justify-start" : "justify-start",
       )}
     >
       <div
         className={cn(
-          "relative max-w-[75%] min-w-0 break-words rounded-2xl px-5 pb-3 pt-3 text-sm leading-relaxed shadow-md",
+          "relative max-w-[75%] min-w-[128px] break-words rounded-2xl px-5 pb-3 pt-3 text-sm leading-relaxed shadow-md",
           message.delivery_status === "error" && "ring-2 ring-red-500/70",
           isOutbound
             ? isBot
@@ -154,6 +201,16 @@ export function MessageBubble({
             : "rounded-tl-sm border border-gray-300/50 bg-gray-200 text-gray-700 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-200",
         )}
       >
+        {sender && (
+          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-primary dark:text-cyan-300">
+            <ContactAvatar
+              src={sender.avatar_url}
+              name={sender.name || sender.jid.split("@")[0]}
+              className="h-5 w-5"
+            />
+            <span className="truncate">{sender.name || `+${sender.jid.split("@")[0]}`}</span>
+          </div>
+        )}
         {isOutbound && (
           <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-white/80">
             {isBot ? (
@@ -171,31 +228,85 @@ export function MessageBubble({
         )}
 
         {a.forwarded && (
-          <div className="mb-1 flex items-center gap-1 text-[11px] italic opacity-70">
+          <div className="mb-1 flex items-center gap-1 text-[11px] italic text-blue-400 dark:text-blue-300">
             <Forward className="h-3 w-3" /> Encaminhada
           </div>
         )}
         {a.reply_to && (
+          <button
+            type="button"
+            onClick={() => jumpTo(a.reply_to?.target_id)}
+            className="mb-2 block w-full rounded-lg border-l-4 border-emerald-500 bg-black/10 px-3 py-1.5 text-left text-xs dark:bg-black/20"
+          >
+            <div className="font-semibold text-emerald-600 dark:text-emerald-400">
+              {a.reply_to.from_me ? "Você" : (a.reply_to.author_name ?? "Contato")}
+            </div>
+            <div className="line-clamp-2 opacity-80">
+              {a.reply_to.deleted ? (
+                <span className="flex items-center gap-1 italic text-red-500 dark:text-red-400">
+                  <Ban className="h-3 w-3" /> Mensagem apagada
+                </span>
+              ) : (
+                (a.reply_to.content ?? mediaLabel(a.reply_to.media_kind) ?? "Mensagem")
+              )}
+            </div>
+            {a.reply_to.edited && !a.reply_to.deleted && (
+              <div className="text-[10px] italic text-amber-600 dark:text-amber-400">editada</div>
+            )}
+          </button>
+        )}
+        {(isDeleted || isEdited) && a.original_content && (
           <div
             className={cn(
-              "mb-2 rounded-lg border-l-4 px-3 py-1.5 text-xs",
-              isOutbound
-                ? "border-sky-300/70 bg-black/15"
-                : "border-primary bg-black/10 dark:bg-black/20",
+              "mb-2 rounded-lg border-l-4 bg-black/10 px-3 py-1.5 text-xs",
+              isDeleted ? "border-red-500" : "border-amber-500",
             )}
           >
-            <div className="font-semibold opacity-80">
-              {a.reply_to.from_me ? "Você" : "Contato"}
+            <div
+              className={cn(
+                "font-semibold",
+                isDeleted ? "text-red-500 dark:text-red-400" : "text-amber-600 dark:text-amber-400",
+              )}
+            >
+              {isDeleted ? "Mensagem apagada" : "Mensagem original"}
             </div>
-            <div className="line-clamp-2 opacity-80">{a.reply_to.content ?? "Mensagem"}</div>
+            <div className="line-clamp-3 whitespace-pre-wrap opacity-80">{a.original_content}</div>
           </div>
         )}
-        {isInteractive ? (
+        {isDeleted ? (
+          <p className="flex items-center gap-1.5 text-xs italic text-red-500 dark:text-red-400">
+            <Ban className="h-3.5 w-3.5" /> Esta mensagem foi apagada
+          </p>
+        ) : isInteractive ? (
           <Interactive message={message} />
         ) : isMedia ? (
           <div className="space-y-1.5">
             <Media message={message} />
             {caption && <p className="whitespace-pre-wrap leading-relaxed">{caption}</p>}
+            {a.kind === "audio" && a.transcript && (
+              <p className="flex gap-1.5 rounded-md bg-black/10 px-2 py-1.5 text-xs italic leading-relaxed">
+                <Captions className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" />
+                <span className="whitespace-pre-wrap">{a.transcript}</span>
+              </p>
+            )}
+            {a.kind === "audio" && !a.transcript && onTranscribe && message.media_url && (
+              <button
+                type="button"
+                disabled={transcribing}
+                onClick={async () => {
+                  setTranscribing(true);
+                  try {
+                    await onTranscribe(message);
+                  } finally {
+                    setTranscribing(false);
+                  }
+                }}
+                className="flex items-center gap-1 text-[11px] font-semibold underline-offset-2 opacity-80 hover:underline disabled:opacity-50"
+              >
+                <Captions className="h-3.5 w-3.5" />
+                {transcribing ? "Transcrevendo…" : "Transcrever"}
+              </button>
+            )}
           </div>
         ) : (
           <p className="whitespace-pre-wrap leading-relaxed">
@@ -205,6 +316,9 @@ export function MessageBubble({
         )}
 
         <div className="mt-1 flex items-center justify-end gap-1 text-[10px] font-bold opacity-70">
+          {isEdited && (
+            <span className="font-normal italic text-amber-600 dark:text-amber-400">editada</span>
+          )}
           {new Date(message.created_at).toLocaleTimeString("pt-BR", {
             hour: "2-digit",
             minute: "2-digit",
@@ -240,7 +354,7 @@ export function MessageBubble({
           </div>
         )}
       </div>
-      {(onReply || onForward) && (
+      {!isDeleted && (onReply || onForward || canEdit || canDelete) && (
         <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
           {onReply && message.delivery_status !== "error" && (
             <button
@@ -251,6 +365,28 @@ export function MessageBubble({
               className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200/80 text-gray-600 hover:bg-gray-300 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               <Reply className="h-4 w-4" />
+            </button>
+          )}
+          {canEdit && (
+            <button
+              type="button"
+              title="Editar"
+              aria-label="Editar"
+              onClick={() => onEdit?.(message)}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200/80 text-gray-600 hover:bg-gray-300 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              title="Apagar para todos"
+              aria-label="Apagar para todos"
+              onClick={() => onDelete?.(message)}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200/80 text-gray-600 hover:bg-red-100 hover:text-red-600 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-red-950"
+            >
+              <Trash2 className="h-4 w-4" />
             </button>
           )}
           {onForward && (

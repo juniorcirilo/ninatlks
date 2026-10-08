@@ -1,3 +1,4 @@
+import { extractTarget } from '../whatsapp/jid.util';
 import {
   BadRequestException,
   ConflictException,
@@ -7,14 +8,24 @@ import {
   Scope,
 } from '@nestjs/common';
 import { TenantTxHost } from '../../common/tenant-tx.host';
+import { WhatsAppError } from '../whatsapp/baileys';
+import { SessionManagerService } from '../whatsapp/session-manager.service';
 import {
-  EvolutionClientService,
-  EvolutionError,
+  WaSendService,
   type InteractiveButton,
+  type InteractiveContent,
   type InteractiveSection,
   type QuotedRef,
-} from '../evolution/evolution-client.service';
+} from '../whatsapp/wa-send.service';
 import { StorageService } from '../storage/storage.service';
+import { SpeechService } from '../speech/speech.service';
+import {
+  buildBrCode,
+  normalizePixKey,
+  PIX_KEY_LABEL,
+  qrPng,
+  type PixKeyType,
+} from './pix.util';
 
 interface ConversationRow {
   id: string;
@@ -36,7 +47,7 @@ interface InboxRow {
 interface Target {
   conv: ConversationRow;
   number: string;
-  cfg: Required<EvolutionChannelConfig>;
+  channelId: string;
 }
 
 export type InteractiveInput =
@@ -74,6 +85,9 @@ interface StoredAttrs {
   buttonText?: string;
   sections?: InteractiveSection[];
   reply_to?: { message_id?: string };
+  media_kind?: 'image' | 'video';
+  name?: string;
+  phone?: string;
 }
 
 export interface SendOpts {
@@ -87,6 +101,9 @@ interface QuotedInfo {
   attr: { message_id: string; content: string | null; from_me: boolean };
 }
 
+/** Janela em que o WhatsApp aceita edição de mensagens. */
+const EDIT_WINDOW_MS = 15 * 60_000;
+
 function mediatypeOf(mime: string): 'image' | 'video' | 'audio' | 'document' {
   if (mime.startsWith('image/')) return 'image';
   if (mime.startsWith('video/')) return 'video';
@@ -94,15 +111,9 @@ function mediatypeOf(mime: string): 'image' | 'video' | 'audio' | 'document' {
   return 'document';
 }
 
-interface EvolutionChannelConfig {
-  evolution_url?: string;
-  evolution_api_key?: string;
-  evolution_instance_name?: string;
-}
-
 /**
  * Ported from supabase/functions/chat-send-message/index.ts — operator
- * sends a manual WhatsApp message via Evolution from the Live Chat UI.
+ * sends a manual WhatsApp message (Baileys) from the Live Chat UI.
  */
 @Injectable({ scope: Scope.REQUEST })
 export class ChatSendService {
@@ -110,11 +121,13 @@ export class ChatSendService {
 
   constructor(
     private readonly tx: TenantTxHost,
-    private readonly evolutionClient: EvolutionClientService,
+    private readonly waSend: WaSendService,
+    private readonly sessions: SessionManagerService,
     private readonly storage: StorageService,
+    private readonly speech: SpeechService,
   ) {}
 
-  /** Resolve conversa → número de destino + credenciais do Evolution. */
+  /** Resolve conversa → número de destino + canal (sessão) do WhatsApp. */
   private async resolveTarget(
     accountId: string,
     conversationId: string,
@@ -144,40 +157,26 @@ export class ChatSendService {
       throw new ConflictException('inbox is not a whatsapp channel');
     }
 
-    let cfg: EvolutionChannelConfig | null = null;
-    if (inbox.channel_id) {
-      const rows = await this.tx.manager.query<
-        { config: EvolutionChannelConfig }[]
-      >(`SELECT config FROM channels WHERE id = $1 LIMIT 1`, [
-        inbox.channel_id,
-      ]);
-      cfg = rows[0]?.config ?? null;
-    }
-    if (!cfg) {
-      const rows = await this.tx.manager.query<
-        { config: EvolutionChannelConfig }[]
-      >(
-        `SELECT config FROM channels WHERE account_id = $1 AND channel_type = 'whatsapp' AND enabled = true LIMIT 1`,
+    let channelId = inbox.channel_id;
+    if (!channelId) {
+      const rows = await this.tx.manager.query<{ id: string }[]>(
+        `SELECT id FROM channels WHERE account_id = $1 AND channel_type = 'whatsapp' AND enabled = true LIMIT 1`,
         [accountId],
       );
-      cfg = rows[0]?.config ?? null;
+      channelId = rows[0]?.id ?? null;
     }
-    if (
-      !cfg?.evolution_url ||
-      !cfg?.evolution_api_key ||
-      !cfg?.evolution_instance_name
-    ) {
+    if (!channelId || !this.sessions.get(channelId)) {
       throw new ConflictException('WhatsApp channel not configured');
     }
 
     let number = contact.phone_number ?? '';
     if (!number && contact.identifier) {
-      const m = /evolution:whatsapp:(\d+(?:@lid)?)/.exec(contact.identifier);
-      if (m) number = m[1];
+      const t = extractTarget(contact.identifier);
+      if (t) number = t;
     }
     if (!number) throw new ConflictException('no destination number');
 
-    return { conv, number, cfg: cfg as Required<EvolutionChannelConfig> };
+    return { conv, number, channelId };
   }
 
   /**
@@ -191,8 +190,8 @@ export class ChatSendService {
     try {
       return { providerId: (await fn()).messageId };
     } catch (err) {
-      const msg = err instanceof EvolutionError ? err.message : String(err);
-      this.logger.warn(`evolution send failed: ${msg.slice(0, 500)}`);
+      const msg = err instanceof WhatsAppError ? err.message : String(err);
+      this.logger.warn(`whatsapp send failed: ${msg.slice(0, 500)}`);
       return { error: msg.slice(0, 500) };
     }
   }
@@ -214,7 +213,7 @@ export class ChatSendService {
     contentType: 0 | 1 | 2;
     contentAttributes: Record<string, unknown>;
     providerId?: string;
-    /** sent (aceita pelo Evolution) ou error (falha no envio). */
+    /** sent (aceita pelo WhatsApp) ou error (falha no envio). */
     status?: 'sent' | 'error';
     error?: string;
   }): Promise<string> {
@@ -245,8 +244,10 @@ export class ChatSendService {
         }),
       ],
     );
+    // Operador respondeu → a IA sai da conversa (o botão IA/Humano do header
+    // volta para "Humano"; o operador pode devolver à IA quando quiser).
     await this.tx.manager.query(
-      `UPDATE conversations SET last_activity_at = now() WHERE id = $1`,
+      `UPDATE conversations SET last_activity_at = now(), ai_autopilot_enabled = false WHERE id = $1`,
       [args.conv.id],
     );
     return rows[0].id;
@@ -261,17 +262,15 @@ export class ChatSendService {
   ): Promise<SendResult> {
     const text = content.trim();
     if (!text) throw new BadRequestException('content required');
-    const { conv, number, cfg } = await this.resolveTarget(
+    const { conv, number, channelId } = await this.resolveTarget(
       accountId,
       conversationId,
     );
     const quoted = await this.quotedFor(accountId, conv, number, opts.replyTo);
     const sent = await this.deliver(() =>
-      this.evolutionClient.sendText({
+      this.waSend.sendText({
         quoted: quoted?.ref,
-        url: cfg.evolution_url,
-        apiKey: cfg.evolution_api_key,
-        instanceName: cfg.evolution_instance_name,
+        channelId,
         number,
         text,
       }),
@@ -299,7 +298,7 @@ export class ChatSendService {
     opts: SendOpts = {},
   ): Promise<SendResult> {
     if (!file?.buffer?.length) throw new BadRequestException('file required');
-    const { conv, number, cfg } = await this.resolveTarget(
+    const { conv, number, channelId } = await this.resolveTarget(
       accountId,
       conversationId,
     );
@@ -310,15 +309,13 @@ export class ChatSendService {
 
     const quoted = await this.quotedFor(accountId, conv, number, opts.replyTo);
     const sent = await this.deliver(() =>
-      this.evolutionClient.sendMedia({
+      this.waSend.sendMedia({
         quoted: quoted?.ref,
-        url: cfg.evolution_url,
-        apiKey: cfg.evolution_api_key,
-        instanceName: cfg.evolution_instance_name,
+        channelId,
         number,
         mediatype,
         mimetype: mime,
-        media: file.buffer.toString('base64'),
+        buffer: file.buffer,
         fileName,
         caption: text || undefined,
       }),
@@ -364,44 +361,187 @@ export class ChatSendService {
     return this.result(messageId, sent);
   }
 
+  private async loadStored(accountId: string, path: string): Promise<Buffer> {
+    if (!path.includes(`/${accountId}/`)) {
+      throw new ConflictException(
+        'o arquivo desta mensagem não foi guardado; envie-o novamente',
+      );
+    }
+    const slash = path.indexOf('/');
+    return this.storage.getObjectBuffer(
+      path.slice(0, slash),
+      path.slice(slash + 1),
+    );
+  }
+
+  /** PIX: imagem do QR Code (BR Code gerado aqui) + chave e tipo na legenda. */
+  async sendPix(
+    accountId: string,
+    userId: string,
+    conversationId: string,
+    pix: {
+      key: string;
+      keyType: PixKeyType;
+      title?: string;
+      description?: string;
+      footer?: string;
+      beneficiary?: string;
+      amount?: string;
+    },
+    opts: SendOpts = {},
+  ): Promise<SendResult> {
+    const raw = pix.key.trim();
+    const copiaECola = /^000201/.test(raw);
+    const keyLabel = copiaECola ? 'Copia e cola' : PIX_KEY_LABEL[pix.keyType];
+    const keyText = copiaECola ? raw : normalizePixKey(raw, pix.keyType);
+    const payload = copiaECola
+      ? raw
+      : buildBrCode({
+          key: raw,
+          type: pix.keyType,
+          name: pix.beneficiary,
+          amount: pix.amount,
+        });
+    const png = await qrPng(payload);
+    const amount = pix.amount?.trim().replace(/^R\$\s*/i, '');
+    const description = [
+      pix.description?.trim(),
+      pix.beneficiary?.trim() && `Beneficiário: ${pix.beneficiary.trim()}`,
+      amount && `Valor: R$ ${amount}`,
+      `Chave PIX (${keyLabel}):\n${keyText}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    return this.sendInteractive(
+      accountId,
+      userId,
+      conversationId,
+      {
+        kind: 'buttons',
+        title: pix.title?.trim() || 'Pagamento via PIX',
+        description,
+        footer: pix.footer?.trim() || undefined,
+        buttons: [
+          {
+            type: 'copy',
+            displayText: copiaECola ? 'Copiar PIX' : 'Copiar chave PIX',
+            copyCode: keyText,
+          },
+        ],
+      },
+      opts,
+      { buffer: png, originalname: 'pix-qrcode.png', mimetype: 'image/png' },
+    );
+  }
+
+  async sendContact(
+    accountId: string,
+    userId: string,
+    conversationId: string,
+    contact: { name: string; phone: string },
+    opts: SendOpts = {},
+  ): Promise<SendResult> {
+    const digits = contact.phone.replace(/\D/g, '');
+    if (digits.length < 8) throw new BadRequestException('invalid phone');
+    const name = contact.name.trim();
+    const { conv, number, channelId } = await this.resolveTarget(
+      accountId,
+      conversationId,
+    );
+    const quoted = await this.quotedFor(accountId, conv, number, opts.replyTo);
+    const sent = await this.deliver(() =>
+      this.waSend.sendContact({
+        channelId,
+        number,
+        name,
+        phone: digits,
+        quoted: quoted?.ref,
+      }),
+    );
+    const messageId = await this.record({
+      accountId,
+      userId,
+      conv,
+      content: `👤 ${name}\n+${digits}`,
+      contentType: 0,
+      contentAttributes: this.extras(
+        { kind: 'contact', name, phone: digits },
+        quoted,
+        opts,
+      ),
+      providerId: sent.providerId,
+      status: sent.error ? 'error' : 'sent',
+      error: sent.error,
+    });
+    return this.result(messageId, sent);
+  }
+
   async sendInteractive(
     accountId: string,
     userId: string,
     conversationId: string,
     input: InteractiveInput,
     opts: SendOpts = {},
+    media?: { buffer: Buffer; originalname: string; mimetype: string },
   ): Promise<SendResult> {
-    const { conv, number, cfg } = await this.resolveTarget(
+    const { conv, number, channelId } = await this.resolveTarget(
       accountId,
       conversationId,
     );
     const base = {
-      url: cfg.evolution_url,
-      apiKey: cfg.evolution_api_key,
-      instanceName: cfg.evolution_instance_name,
+      channelId,
       number,
     };
+    let mediaKind: 'image' | 'video' | undefined;
+    let mime = '';
+    let fileName = '';
+    if (media) {
+      if (input.kind !== 'buttons')
+        throw new BadRequestException('media only with buttons');
+      mime = media.mimetype || 'application/octet-stream';
+      const t = mediatypeOf(mime);
+      if (t !== 'image' && t !== 'video')
+        throw new BadRequestException('media must be image or video');
+      mediaKind = t;
+      fileName = media.originalname.replace(/[^\w.\- ]/g, '_');
+    }
     const quoted = await this.quotedFor(accountId, conv, number, opts.replyTo);
+    const content: InteractiveContent =
+      media && mediaKind && input.kind === 'buttons'
+        ? {
+            ...input,
+            media: { kind: mediaKind, buffer: media.buffer, mimetype: mime },
+          }
+        : input;
     const sent = await this.deliver(() =>
-      input.kind === 'buttons'
-        ? this.evolutionClient.sendButtons({
-            ...base,
-            quoted: quoted?.ref,
-            title: input.title,
-            description: input.description,
-            footer: input.footer,
-            buttons: input.buttons,
-          })
-        : this.evolutionClient.sendList({
-            ...base,
-            quoted: quoted?.ref,
-            title: input.title,
-            description: input.description,
-            footerText: input.footer,
-            buttonText: input.buttonText,
-            sections: input.sections,
-          }),
+      this.waSend.sendInteractive({
+        ...base,
+        quoted: quoted?.ref,
+        content,
+      }),
     );
+    let mediaAttrs: Record<string, unknown> = {};
+    if (media && mediaKind) {
+      let storagePath: string | undefined;
+      try {
+        const key = `${accountId}/outgoing/${conv.id}/${Date.now()}-${fileName}`;
+        await this.storage.uploadObject(
+          this.storage.attachmentsBucket,
+          key,
+          media.buffer,
+          mime,
+        );
+        storagePath = `${this.storage.attachmentsBucket}/${key}`;
+      } catch {
+        /* mensagem já enviada */
+      }
+      mediaAttrs = {
+        media_kind: mediaKind,
+        mime,
+        filename: fileName,
+        storage_path: storagePath,
+      };
+    }
     const messageId = await this.record({
       accountId,
       userId,
@@ -411,7 +551,7 @@ export class ChatSendService {
           ? `${input.title}\n${input.description}`.trim()
           : `${input.title}${input.description ? `\n${input.description}` : ''}`,
       contentType: 2,
-      contentAttributes: this.extras({ ...input }, quoted, opts),
+      contentAttributes: this.extras({ ...input, ...mediaAttrs }, quoted, opts),
       providerId: sent.providerId,
       status: sent.error ? 'error' : 'sent',
       error: sent.error,
@@ -445,9 +585,10 @@ export class ChatSendService {
         content: string | null;
         source_id: string | null;
         message_type: number;
+        content_attributes: { sender?: { jid?: string } } | null;
       }[]
     >(
-      `SELECT id, content, source_id, message_type FROM messages
+      `SELECT id, content, source_id, message_type, content_attributes FROM messages
         WHERE id = $1 AND account_id = $2 AND conversation_id = $3 LIMIT 1`,
       [replyTo, accountId, conv.id],
     );
@@ -461,7 +602,16 @@ export class ChatSendService {
     const fromMe = m.message_type === 1;
     return {
       ref: {
-        key: { id: m.source_id, remoteJid, fromMe },
+        key: {
+          id: m.source_id,
+          remoteJid,
+          fromMe,
+          // Em grupo a citação precisa do autor da mensagem original.
+          participant:
+            !fromMe && remoteJid.endsWith('@g.us')
+              ? m.content_attributes?.sender?.jid
+              : undefined,
+        },
         message: m.content
           ? { conversation: m.content.slice(0, 500) }
           : undefined,
@@ -472,6 +622,160 @@ export class ChatSendService {
         from_me: fromMe,
       },
     };
+  }
+
+  /** Texto → voz (TTS próprio) enviada como nota de voz. */
+  async sendSpeech(
+    accountId: string,
+    userId: string,
+    conversationId: string,
+    text: string,
+    opts: SendOpts = {},
+  ): Promise<SendResult> {
+    const input = text.trim();
+    if (!input) throw new BadRequestException('content required');
+    let buffer: Buffer;
+    try {
+      buffer = await this.speech.synthesize(input);
+    } catch (err) {
+      throw new ConflictException((err as Error).message);
+    }
+    const res = await this.sendMedia(
+      accountId,
+      userId,
+      conversationId,
+      { buffer, originalname: 'voz.ogg', mimetype: 'audio/ogg' },
+      undefined,
+      opts,
+    );
+    if (res.ok)
+      await this.tx.manager.query(
+        `UPDATE messages SET content_attributes = content_attributes || jsonb_build_object('transcript', $2::text)
+          WHERE id = $1`,
+        [res.message_id, input],
+      );
+    return res;
+  }
+
+  /** Transcreve (de novo) o áudio de uma mensagem já armazenada. */
+  async transcribeMessage(
+    accountId: string,
+    messageId: string,
+  ): Promise<{ transcript: string }> {
+    const rows = await this.tx.manager.query<
+      { content_attributes: StoredAttrs | null }[]
+    >(
+      `SELECT content_attributes FROM messages WHERE id = $1 AND account_id = $2 LIMIT 1`,
+      [messageId, accountId],
+    );
+    const attrs = rows[0]?.content_attributes;
+    if (!rows[0]) throw new NotFoundException('message not found');
+    const path = attrs?.storage_path;
+    if (attrs?.kind !== 'audio' || !path || !path.includes(`/${accountId}/`))
+      throw new ConflictException('message has no stored audio');
+    if (!this.speech.enabled) throw new ConflictException('STT not configured');
+    const slash = path.indexOf('/');
+    const buffer = await this.storage.getObjectBuffer(
+      path.slice(0, slash),
+      path.slice(slash + 1),
+    );
+    const out = await this.speech.transcribe(buffer, attrs.mime ?? 'audio/ogg');
+    if (!out) throw new ConflictException('could not transcribe audio');
+    await this.tx.manager.query(
+      `UPDATE messages SET content_attributes = content_attributes || jsonb_build_object('transcript', $2::text)
+        WHERE id = $1`,
+      [messageId, out.text],
+    );
+    return { transcript: out.text };
+  }
+
+  /** Carrega uma mensagem enviada (com id do WhatsApp) para editar/apagar. */
+  private async ownMessage(accountId: string, messageId: string) {
+    const rows = await this.tx.manager.query<
+      {
+        id: string;
+        conversation_id: string;
+        source_id: string | null;
+        content_type: number;
+        created_at: Date;
+        content_attributes: (StoredAttrs & { deleted?: boolean }) | null;
+      }[]
+    >(
+      `SELECT id, conversation_id, source_id, content_type, created_at, content_attributes
+         FROM messages WHERE id = $1 AND account_id = $2 AND message_type = 1 LIMIT 1`,
+      [messageId, accountId],
+    );
+    const msg = rows[0];
+    if (!msg) throw new NotFoundException('message not found');
+    if (!msg.source_id)
+      throw new ConflictException('message was not delivered');
+    if (msg.content_attributes?.deleted)
+      throw new ConflictException('message already deleted');
+    return msg;
+  }
+
+  /** Edita (para todos) o texto de uma mensagem enviada. */
+  async editMessage(
+    accountId: string,
+    messageId: string,
+    content: string,
+  ): Promise<{ ok: true }> {
+    const text = content.trim();
+    if (!text) throw new BadRequestException('content required');
+    const msg = await this.ownMessage(accountId, messageId);
+    if (msg.content_type !== 0 || msg.content_attributes?.kind !== 'text')
+      throw new ConflictException('only text messages can be edited');
+    if (Date.now() - new Date(msg.created_at).getTime() > EDIT_WINDOW_MS)
+      throw new ConflictException('edit window (15 min) expired');
+    const { number, channelId } = await this.resolveTarget(
+      accountId,
+      msg.conversation_id,
+    );
+    try {
+      await this.waSend.editText({
+        channelId,
+        number,
+        messageId: msg.source_id!,
+        text,
+      });
+    } catch (err) {
+      throw new ConflictException(
+        err instanceof WhatsAppError ? err.message : 'edit failed',
+      );
+    }
+    await this.tx.manager.query(
+      `SELECT public.webhook_apply_message_edit($1,$2,$3)`,
+      [channelId, msg.source_id, text],
+    );
+    return { ok: true };
+  }
+
+  /** Apaga para todos uma mensagem enviada. */
+  async deleteMessage(
+    accountId: string,
+    messageId: string,
+  ): Promise<{ ok: true }> {
+    const msg = await this.ownMessage(accountId, messageId);
+    const { number, channelId } = await this.resolveTarget(
+      accountId,
+      msg.conversation_id,
+    );
+    try {
+      await this.waSend.revoke({
+        channelId,
+        number,
+        messageId: msg.source_id!,
+      });
+    } catch (err) {
+      throw new ConflictException(
+        err instanceof WhatsAppError ? err.message : 'delete failed',
+      );
+    }
+    await this.tx.manager.query(
+      `SELECT public.webhook_apply_message_revoke($1,$2)`,
+      [channelId, msg.source_id],
+    );
+    return { ok: true };
   }
 
   /**
@@ -506,14 +810,12 @@ export class ChatSendService {
       throw new ConflictException('only failed messages can be resent');
     }
     const attrs: StoredAttrs = msg.content_attributes ?? {};
-    const { conv, number, cfg } = await this.resolveTarget(
+    const { conv, number, channelId } = await this.resolveTarget(
       accountId,
       msg.conversation_id,
     );
     const base = {
-      url: cfg.evolution_url,
-      apiKey: cfg.evolution_api_key,
-      instanceName: cfg.evolution_instance_name,
+      channelId,
       number,
     };
     // Citação é opcional: se a mensagem original sumiu, reenvia sem ela.
@@ -544,43 +846,59 @@ export class ChatSendService {
       );
       const mime = String(attrs.mime ?? 'application/octet-stream');
       sent = await this.deliver(() =>
-        this.evolutionClient.sendMedia({
+        this.waSend.sendMedia({
           ...base,
           quoted: quoted?.ref,
           mediatype: mediatypeOf(mime),
           mimetype: mime,
-          media: buffer.toString('base64'),
+          buffer,
           fileName: String(attrs.filename ?? 'arquivo'),
           caption:
             typeof attrs.caption === 'string' ? attrs.caption : undefined,
         }),
       );
-    } else if (attrs.kind === 'buttons') {
+    } else if (attrs.kind === 'contact' && attrs.name && attrs.phone) {
       sent = await this.deliver(() =>
-        this.evolutionClient.sendButtons({
+        this.waSend.sendContact({
           ...base,
           quoted: quoted?.ref,
-          title: String(attrs.title ?? ''),
-          description: String(attrs.description ?? attrs.title ?? ''),
-          footer: attrs.footer,
-          buttons: attrs.buttons ?? [],
+          name: attrs.name!,
+          phone: attrs.phone!,
         }),
       );
-    } else if (attrs.kind === 'list') {
+    } else if (attrs.kind === 'buttons' || attrs.kind === 'list') {
+      const content: InteractiveInput =
+        attrs.kind === 'buttons'
+          ? {
+              kind: 'buttons',
+              title: String(attrs.title ?? ''),
+              description: String(attrs.description ?? attrs.title ?? ''),
+              footer: attrs.footer,
+              buttons: attrs.buttons ?? [],
+              ...(attrs.media_kind && attrs.storage_path
+                ? {
+                    media: {
+                      kind: attrs.media_kind,
+                      mimetype: String(attrs.mime ?? 'image/jpeg'),
+                      buffer: await this.loadStored(accountId, attrs.storage_path),
+                    },
+                  }
+                : {}),
+            }
+          : {
+              kind: 'list',
+              title: String(attrs.title ?? ''),
+              description: attrs.description,
+              footer: attrs.footer,
+              buttonText: String(attrs.buttonText ?? 'Ver opções'),
+              sections: attrs.sections ?? [],
+            };
       sent = await this.deliver(() =>
-        this.evolutionClient.sendList({
-          ...base,
-          quoted: quoted?.ref,
-          title: String(attrs.title ?? ''),
-          description: attrs.description,
-          footerText: attrs.footer,
-          buttonText: String(attrs.buttonText ?? 'Ver opções'),
-          sections: attrs.sections ?? [],
-        }),
+        this.waSend.sendInteractive({ ...base, quoted: quoted?.ref, content }),
       );
     } else {
       sent = await this.deliver(() =>
-        this.evolutionClient.sendText({
+        this.waSend.sendText({
           ...base,
           quoted: quoted?.ref,
           text: msg.content ?? '',
@@ -710,17 +1028,36 @@ export class ChatSendService {
     conversationId: string,
     presence: 'composing' | 'recording' | 'paused',
   ): Promise<{ ok: true }> {
-    const { number, cfg } = await this.resolveTarget(accountId, conversationId);
-    await this.evolutionClient
+    const { number, channelId } = await this.resolveTarget(
+      accountId,
+      conversationId,
+    );
+    await this.waSend
       .sendPresence({
-        url: cfg.evolution_url,
-        apiKey: cfg.evolution_api_key,
-        instanceName: cfg.evolution_instance_name,
+        channelId,
         number,
         presence,
       })
       // Presença é best-effort: nunca derruba a UI.
       .catch(() => undefined);
     return { ok: true };
+  }
+
+  /** Assina a presença dos chats ativos (melhor esforço, ignora falhas). */
+  async subscribePresence(
+    accountId: string,
+    conversationIds: string[],
+  ): Promise<{ ok: true; subscribed: number }> {
+    let subscribed = 0;
+    for (const id of conversationIds.slice(0, 30)) {
+      try {
+        const { number, channelId } = await this.resolveTarget(accountId, id);
+        await this.waSend.subscribePresence(channelId, number);
+        subscribed++;
+      } catch {
+        /* conversa sem canal/sessão: segue para a próxima */
+      }
+    }
+    return { ok: true, subscribed };
   }
 }

@@ -83,7 +83,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/cobrancas")({
   head: () => ({
     meta: [
-      { title: "Cobranças — Nina Talks" },
+      { title: "Cobranças — Utalks" },
       { name: "description", content: "Títulos em aberto controlados pelo Diego, o agente de cobrança da UBVA." },
     ],
   }),

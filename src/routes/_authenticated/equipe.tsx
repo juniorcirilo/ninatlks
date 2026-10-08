@@ -34,7 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export const Route = createFileRoute("/_authenticated/equipe")({
   head: () => ({
     meta: [
-      { title: "Equipe — Nina Talks" },
+      { title: "Equipe — Utalks" },
       {
         name: "description",
         content: "Convide colaboradores e gerencie permissões do workspace.",

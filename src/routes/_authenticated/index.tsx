@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
     meta: [
-      { title: "Painel — Nina Talks" },
+      { title: "Painel — Utalks" },
       {
         name: "description",
         content: "Visão geral do agente Nina: leads, calls, reuniões e funil.",
@@ -75,7 +75,7 @@ function DashboardPage() {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Olá, {firstName}.</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Nina Talks · agente de SDR por voz. Atende, qualifica, agenda e entrega briefing.
+          Utalks · agente de SDR por voz. Atende, qualifica, agenda e entrega briefing.
         </p>
       </header>
 

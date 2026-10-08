@@ -39,7 +39,7 @@ import {
 
 export const Route = createFileRoute("/_authenticated/admin-filas")({
   head: () => ({
-    meta: [{ title: "Filas e processamento — Nina Talks" }],
+    meta: [{ title: "Filas e processamento — Utalks" }],
   }),
   component: AdminFilasPage,
 });

@@ -3,7 +3,7 @@ import { BaseExceptionFilter } from '@nestjs/core';
 import { Request, Response } from 'express';
 
 /**
- * Provider client errors (TwilioError/TwilioConfigError, and the Evolution/
+ * Provider client errors (TwilioError/TwilioConfigError, and the
  * ElevenLabs/Meta equivalents) are plain Error subclasses carrying a
  * `status` field — not NestJS HttpExceptions, so without this filter they'd
  * fall through to the default 500 handler regardless of the real cause

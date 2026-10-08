@@ -53,6 +53,9 @@ import { toast } from "sonner";
  */
 const AGENT_NAME = "Larissa";
 
+/** Aceita a grafia "Larrisa" (nome atual da persona) e "Larissa". */
+const isLarissa = (name?: string | null) => /^larr?iss?a\b/i.test((name ?? "").trim());
+
 const COLUMNS = [
   { key: "client_id", label: "Client ID" },
   { key: "telefone", label: "Telefone" },
@@ -65,7 +68,7 @@ const DEFAULT_COLUMNS = COLUMNS.map((c) => c.key);
 export const Route = createFileRoute("/_authenticated/novos-clientes")({
   head: () => ({
     meta: [
-      { title: "Novos clientes — Nina Talks" },
+      { title: "Novos clientes — Utalks" },
       {
         name: "description",
         content: `Contatos importados pelo agente ${AGENT_NAME}.`,
@@ -108,7 +111,7 @@ export function NovosClientesPage() {
   const fromAgent = useMemo(
     () =>
       rows.filter(
-        (r) => (r.source_agent_name ?? "").trim().toLowerCase() === AGENT_NAME.toLowerCase(),
+        (r) => isLarissa(r.source_agent_name),
       ),
     [rows],
   );
@@ -163,7 +166,7 @@ export function NovosClientesPage() {
     try {
       const sources = await fetchAgentSources(accountId);
       const source = sources.find(
-        (s) => (s.agent_name ?? "").trim().toLowerCase() === AGENT_NAME.toLowerCase(),
+        (s) => isLarissa(s.agent_name),
       );
       if (!source) {
         toast.error(

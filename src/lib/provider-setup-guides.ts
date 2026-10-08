@@ -5,28 +5,22 @@
 // Keys são salvas no workspace (Vault da conta) via setAccountSecretsBulk —
 // não em variáveis de ambiente do projeto.
 
-export type ProviderKey =
-  | "elevenlabs"
-  | "twilio"
-  | "evolution"
-  | "deepgram";
+export type ProviderKey = "elevenlabs" | "twilio" | "evolution" | "deepgram";
 
 export interface ProviderGuide {
   label: string;
-  what: string;          // one-liner: what is this provider for?
+  what: string; // one-liner: what is this provider for?
   secrets: { name: string; description: string }[];
-  steps: string[];       // ordered "how to get the key" instructions
+  steps: string[]; // ordered "how to get the key" instructions
   dashboardUrl?: string; // direct link to provider's API/keys page
-  docsUrl?: string;      // optional further reading
+  docsUrl?: string; // optional further reading
 }
 
 export const PROVIDER_GUIDES: Record<ProviderKey, ProviderGuide> = {
   elevenlabs: {
     label: "ElevenLabs",
     what: "Voz IA realista para ligações e mensagens em áudio.",
-    secrets: [
-      { name: "api_key", description: "API key da sua conta ElevenLabs (xi_...)" },
-    ],
+    secrets: [{ name: "api_key", description: "API key da sua conta ElevenLabs (xi_...)" }],
     steps: [
       "Acesse https://elevenlabs.io/app/settings/api-keys e faça login.",
       "Clique em 'Create API Key' e copie o valor (xi_...).",
@@ -54,22 +48,19 @@ export const PROVIDER_GUIDES: Record<ProviderKey, ProviderGuide> = {
     docsUrl: "https://www.twilio.com/docs/iam/access-tokens",
   },
   evolution: {
-    label: "Evolution API (WhatsApp Web)",
-    what: "Conexão WhatsApp via QR Code (não-oficial). Configurada por canal.",
-    secrets: [], // Per-account — lives on the channel row, not in env
+    label: "WhatsApp (conexão direta)",
+    what: "Conexão WhatsApp. Uma sessão por número.",
+    secrets: [], // Por conta — fica no canal e em disco, não em env
     steps: [
-      "Tenha um servidor Evolution rodando (URL e API key globais).",
-      "Vá em Canais → Adicionar WhatsApp → escolha 'WhatsApp via QR'.",
-      "Informe a URL do servidor e a global API key (AUTHENTICATION_API_KEY).",
-      "Escaneie o QR code que aparecer com o WhatsApp do celular.",
+      "Vá em Configurações → WhatsApp → Nova sessão.",
+      "Dê um nome à sessão.",
+      "Escaneie o QR code com o WhatsApp do celular (Aparelhos conectados) — ou use o código de pareamento.",
     ],
   },
   deepgram: {
     label: "Deepgram",
     what: "Transcrição de áudio (voz → texto) para mensagens recebidas.",
-    secrets: [
-      { name: "api_key", description: "API key da Deepgram" },
-    ],
+    secrets: [{ name: "api_key", description: "API key da Deepgram" }],
     steps: [
       "Acesse https://console.deepgram.com.",
       "Crie um projeto se ainda não tiver.",
@@ -85,4 +76,3 @@ export function guideForKey(key: string): ProviderGuide | null {
   if (key in PROVIDER_GUIDES) return PROVIDER_GUIDES[key as ProviderKey];
   return null;
 }
-

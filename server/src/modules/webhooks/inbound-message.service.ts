@@ -99,7 +99,13 @@ export class InboundMessageService {
     );
 
     const result = row?.webhook_ingest_inbound_message;
-    if (result?.inserted && result.conversation_id && result.message_id) {
+    // Grupos não recebem resposta automática da persona.
+    if (
+      result?.inserted &&
+      result.conversation_id &&
+      result.message_id &&
+      !identifier.endsWith('@g.us')
+    ) {
       void this.autoReply.maybeReply({
         conversationId: result.conversation_id,
         triggeringMessageId: result.message_id,

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { validateEnv } from './config/env.validation';
@@ -31,7 +32,7 @@ import { SecretsModule } from './modules/secrets/secrets.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
 import { AccountSettingsModule } from './modules/account-settings/account-settings.module';
 import { TwilioModule } from './modules/twilio/twilio.module';
-import { EvolutionModule } from './modules/evolution/evolution.module';
+import { WhatsAppModule } from './modules/whatsapp/whatsapp.module';
 import { ElevenLabsModule } from './modules/elevenlabs/elevenlabs.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { VoiceModule } from './modules/voice/voice.module';
@@ -46,6 +47,7 @@ import { DashboardsModule } from './modules/dashboards/dashboards.module';
 import { AgentToolsModule } from './modules/agent-tools/agent-tools.module';
 import { IngestModule } from './modules/ingest/ingest.module';
 import { AgentLlmProviderModule } from './modules/agent-llm-provider/agent-llm-provider.module';
+import { AiAgentModule } from './modules/ai-agent/ai-agent.module';
 import { GoogleCalendarModule } from './modules/google-calendar/google-calendar.module';
 import { EmailModule } from './modules/email/email.module';
 import { MeetingNotificationsModule } from './modules/meeting-notifications/meeting-notifications.module';
@@ -58,6 +60,8 @@ import { MeetingNotificationsModule } from './modules/meeting-notifications/meet
       load: [redisConfig, s3Config],
     }),
     TypeOrmModule.forRoot(typeOrmDataSourceOptions),
+    // Só vale onde o ThrottlerGuard é aplicado (/auth); login e afins têm limite próprio.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     CommonModule,
     AuthModule,
     InvitesModule,
@@ -79,7 +83,7 @@ import { MeetingNotificationsModule } from './modules/meeting-notifications/meet
     ComplianceModule,
     AccountSettingsModule,
     TwilioModule,
-    EvolutionModule,
+    WhatsAppModule,
     ElevenLabsModule,
     WebhooksModule,
     VoiceModule,
@@ -94,6 +98,7 @@ import { MeetingNotificationsModule } from './modules/meeting-notifications/meet
     AgentToolsModule,
     IngestModule,
     AgentLlmProviderModule,
+    AiAgentModule,
     GoogleCalendarModule,
     EmailModule,
     MeetingNotificationsModule,

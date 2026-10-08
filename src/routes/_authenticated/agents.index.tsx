@@ -1,8 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useCallback } from "react";
 import {
-  Bot, Plus, Loader2, Mic, MessageSquare, BookOpen, CheckCircle2, AlertCircle,
-  ExternalLink, Languages,
+  Bot,
+  Plus,
+  Loader2,
+  Mic,
+  MessageSquare,
+  BookOpen,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  Languages,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/layout/EmptyState";
@@ -10,10 +18,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { useAccount } from "@/lib/account-context";
 import { fetchPersonas, createPersona, type Persona } from "@/lib/personas";
+import { generateAiSkill } from "@/lib/ai-agent";
 import { AgentEditor } from "@/components/personas/AgentEditor";
 import { apiClient } from "@/lib/api-client";
 import { toast } from "sonner";
@@ -50,8 +64,11 @@ function langDisplay(code?: string | null): { label: string; flag: string; isPt:
 export const Route = createFileRoute("/_authenticated/agents/")({
   head: () => ({
     meta: [
-      { title: "Agentes de voz — Nina Talks" },
-      { name: "description", content: "Configure agentes conversacionais ElevenLabs especializados em SDR." },
+      { title: "Agentes de voz — Utalks" },
+      {
+        name: "description",
+        content: "Configure agentes conversacionais ElevenLabs especializados em SDR.",
+      },
     ],
   }),
   component: AgentsPage,
@@ -79,7 +96,9 @@ function AgentsPage() {
     }
   }, [accountId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +122,9 @@ function AgentsPage() {
       setAgentInfo(Object.fromEntries(results));
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [personas, accountId]);
 
   return (
@@ -167,7 +188,9 @@ function AgentsPage() {
         persona={editing}
         accountId={accountId ?? ""}
         onClose={() => setEditing(null)}
-        onSaved={() => { load(); }}
+        onSaved={() => {
+          load();
+        }}
       />
     </div>
   );
@@ -175,10 +198,17 @@ function AgentsPage() {
 
 /** URL da página dedicada ao agente, ou null se não houver. */
 function agentPagePath(persona: Persona): string | null {
+  // Normaliza acento/caixa e ignora prefixos ("Agente Larissa", "SDR - Larissa") e a grafia "Larrisa" já cadastrada.
+  const nameLower = persona.name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  // Larissa busca clientes novos (sem orçamento) mas pode ter document_kind
+  // "orcamento"; o nome precisa vencer o tipo pra ela não cair em Orçamentos.
+  if (/\blarr?iss?a\b/.test(nameLower)) return "/agents/novos-clientes";
   if (persona.document_kind === "orcamento") return "/agents/orcamentos";
   if (persona.document_kind === "cobranca") return "/agents/cobrancas";
-  const nameLower = persona.name.trim().toLowerCase();
-  if (nameLower.startsWith("larissa")) return "/agents/novos-clientes";
   if (nameLower.startsWith("sofia")) return "/agents/sofia";
   if (nameLower.startsWith("elena")) return "/agents/elena";
   if (nameLower.startsWith("carla")) return "/agents/carla";
@@ -238,9 +268,7 @@ function AgentCard({
       </div>
 
       {persona.description && (
-        <p className="line-clamp-2 text-[11px] text-muted-foreground">
-          {persona.description}
-        </p>
+        <p className="line-clamp-2 text-[11px] text-muted-foreground">{persona.description}</p>
       )}
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -255,7 +283,9 @@ function AgentCard({
             {info === undefined ? (
               <>
                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                <span className="text-[10px] text-muted-foreground">Lendo config da ElevenLabs…</span>
+                <span className="text-[10px] text-muted-foreground">
+                  Lendo config da ElevenLabs…
+                </span>
               </>
             ) : info.found === false ? (
               <>
@@ -264,7 +294,9 @@ function AgentCard({
               </>
             ) : (
               <>
-                <Languages className={cn("h-3 w-3", lang.isPt ? "text-emerald-700" : "text-amber-700")} />
+                <Languages
+                  className={cn("h-3 w-3", lang.isPt ? "text-emerald-700" : "text-amber-700")}
+                />
                 <span className="text-[11px] font-medium leading-none">
                   <span className="mr-1">{lang.flag}</span>
                   {lang.label}
@@ -293,7 +325,10 @@ function AgentCard({
 
       <button
         type="button"
-        onClick={(e) => { e.stopPropagation(); onConfigure(); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          onConfigure();
+        }}
         className="mt-auto text-left text-[10px] text-primary opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
       >
         Clique para configurar →
@@ -338,9 +373,11 @@ function CreateAgentDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [creating, setCreating] = useState(false);
+  const [phase, setPhase] = useState<"agent" | "skill">("agent");
 
   useEffect(() => {
     if (open) {
+      setPhase("agent");
       setName("");
       setDescription("");
       setCreating(false);
@@ -357,6 +394,24 @@ function CreateAgentDialog({
         description: description.trim() || undefined,
       });
       toast.success("Agente criado — agora configure o prompt e a voz");
+      // O IA Agent analisa a descrição e cria a skill do agente. Falha aqui
+      // não desfaz o agente: avisa e segue.
+      if (description.trim().length >= 3) {
+        setPhase("skill");
+        try {
+          const skill = await generateAiSkill(accountId, {
+            name: name.trim(),
+            description: description.trim(),
+            personaId: created.id,
+          });
+          toast.success(`Skill "${skill.name}" criada pelo IA Agent`);
+        } catch (e: unknown) {
+          const body = (e as { body?: { message?: string } })?.body?.message;
+          toast.warning(
+            `Agente criado, mas a skill não foi gerada: ${(body ?? (e instanceof Error ? e.message : "erro")).toString().slice(0, 180)}`,
+          );
+        }
+      }
       onCreated(created);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro desconhecido";
@@ -379,17 +434,23 @@ function CreateAgentDialog({
             Novo agente de voz
           </DialogTitle>
           <DialogDescription className="text-[11px]">
-            Crie o agente. No próximo passo você configura prompt, voz, modelo e
-            base de conhecimento.
+            Crie o agente. No próximo passo você configura prompt, voz, modelo e base de
+            conhecimento.
           </DialogDescription>
         </DialogHeader>
 
         <form
-          onSubmit={(e) => { e.preventDefault(); handleCreate(); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleCreate();
+          }}
           className="space-y-3"
         >
           <div>
-            <label htmlFor="agent-name" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <label
+              htmlFor="agent-name"
+              className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               Nome
             </label>
             <Input
@@ -403,8 +464,11 @@ function CreateAgentDialog({
             />
           </div>
           <div>
-            <label htmlFor="agent-desc" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Descrição (opcional)
+            <label
+              htmlFor="agent-desc"
+              className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+            >
+              O que o agente faz (gera a skill)
             </label>
             <Textarea
               id="agent-desc"
@@ -427,7 +491,7 @@ function CreateAgentDialog({
               ) : (
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
               )}
-              Criar e configurar
+              {creating && phase === "skill" ? "IA Agent criando a skill…" : "Criar e configurar"}
             </Button>
           </DialogFooter>
         </form>

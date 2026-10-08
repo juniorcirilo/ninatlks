@@ -85,7 +85,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/orcamentos")({
   head: () => ({
     meta: [
-      { title: "Orçamentos — Nina Talks" },
+      { title: "Orçamentos — Utalks" },
       { name: "description", content: "Orçamentos controlados pelo Bruno, o orçamentista IA da UBVA." },
     ],
   }),

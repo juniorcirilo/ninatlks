@@ -39,7 +39,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/calls")({
   head: () => ({
     meta: [
-      { title: "Ligações — Nina Talks" },
+      { title: "Ligações — Utalks" },
       {
         name: "description",
         content: "Histórico de ligações da Nina com transcrição, sentimento e briefing.",
