@@ -1,1 +1,0 @@
-ALTER TABLE public.agent_personas ALTER COLUMN source_user_id DROP NOT NULL;
