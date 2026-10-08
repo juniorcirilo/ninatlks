@@ -93,8 +93,10 @@ export function getPublicUrl(req: {
   return `${proto}://${host}${req.originalUrl}`;
 }
 
-/** Convenience: true when HMAC enforcement is disabled via env flag (staging/first-boot only). */
+/** Convenience: true when HMAC enforcement is disabled via env flag (ignorada em produção). */
 export function isWebhookVerificationDisabled(): boolean {
+  // Nunca em produção, mesmo que a flag tenha sobrado no .env.
+  if (process.env.NODE_ENV === 'production') return false;
   const v = process.env.WEBHOOK_VERIFY_DISABLED;
   return v === '1' || v?.toLowerCase() === 'true';
 }

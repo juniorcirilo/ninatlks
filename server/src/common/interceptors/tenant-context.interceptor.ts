@@ -5,7 +5,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { ContextIdFactory, ModuleRef, Reflector } from '@nestjs/core';
-import { catchError, concatMap, Observable } from 'rxjs';
+import { catchError, concatMap, finalize, Observable } from 'rxjs';
 import { DataSource } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { TenantTxHost } from '../tenant-tx.host';
@@ -77,16 +77,31 @@ export class TenantContextInterceptor implements NestInterceptor {
 
     txHost.queryRunner = queryRunner;
 
+    // `released` evita liberar duas vezes; o finalize cobre cliente que aborta
+    // (a subscription é cancelada sem passar por next/error) e devolve a conexão.
+    let released = false;
+    const release = async (action: 'commit' | 'rollback') => {
+      if (released) return;
+      released = true;
+      try {
+        if (action === 'commit') await queryRunner.commitTransaction();
+        else await queryRunner.rollbackTransaction();
+      } finally {
+        await queryRunner.release();
+      }
+    };
+
     return next.handle().pipe(
       concatMap(async (data: unknown) => {
-        await queryRunner.commitTransaction();
-        await queryRunner.release();
+        await release('commit');
         return data;
       }),
       catchError(async (error: unknown) => {
-        await queryRunner.rollbackTransaction();
-        await queryRunner.release();
+        await release('rollback');
         throw error;
+      }),
+      finalize(() => {
+        void release('rollback').catch(() => undefined);
       }),
     );
   }
