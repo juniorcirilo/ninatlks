@@ -15,10 +15,17 @@ services:
       PORT: ${API_PORT}
     ports:
       - "${WEB_HOST_PORT}:8080"
-      - "${API_HOST_PORT}:3001"
+      # Só loopback: o nginx é a única porta de entrada pública da API.
+      - "127.0.0.1:${API_HOST_PORT}:3001"
     networks:
       - srv_default
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     volumes:
       # Sessões WhatsApp (Baileys): /data/sessions/<channelId>/{auth,storage}.
       # Precisa sobreviver a rebuilds do container, senão todo deploy exige novo QR.

@@ -21,7 +21,7 @@ import { transferDepartamento } from '../sales-reps/sales-reps.util';
 import { PlaceCallDto } from './dto/place-call.dto';
 
 const EL_TIMEOUT_MS = 15_000;
-const PT_BR_LANGUAGE = 'pt';
+const PT_BR_LANGUAGE = 'pt-br';
 const PT_BR_LANGUAGE_INSTRUCTION =
   '\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- Use vocabulário, tratamento e pronúncia naturais do Brasil; nunca use português de Portugal.\n- A primeira fala deve ser em português brasileiro.\n- Nunca cumprimente nem responda em inglês.';
 
@@ -283,7 +283,13 @@ export class VoiceElOutboundService {
     callId: string,
     preLeadName: string | null,
   ): Promise<Record<string, string>> {
-    const vars: Record<string, string> = {};
+    // O agente sincronizado (elevenlabs-agent.service.ts) sempre inclui o tool
+    // transfer_to_number referenciando a dynamic variable 'telefone_atendente'
+    // por nome — se ela não vier no payload, a ElevenLabs aborta a conversa
+    // inteira ("Dynamic variable 'telefone_atendente' is not available") assim
+    // que o agente tenta usá-la. Este caminho (ligação avulsa) não resolve um
+    // destino de transferência, então manda vazio para não derrubar a chamada.
+    const vars: Record<string, string> = { telefone_atendente: '' };
     try {
       const [settingsRows, contactRows] = await Promise.all([
         this.tx.manager.query<

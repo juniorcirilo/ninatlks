@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { assertSafeOutboundUrl } from '../../common/outbound-url.util';
 import { agentLlmProviderMeta } from './providers';
 
 const ANTHROPIC_VERSION = '2023-06-01';
@@ -40,6 +41,9 @@ export class AgentLlmProviderService {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {
+      await assertSafeOutboundUrl(baseUrl).catch((e: Error) => {
+        throw new BadRequestException(e.message);
+      });
       const res =
         meta.kind === 'anthropic'
           ? await fetch(`${baseUrl}/v1/models`, {
@@ -96,6 +100,9 @@ export class AgentLlmProviderService {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     try {
+      await assertSafeOutboundUrl(baseUrl).catch((e: Error) => {
+        throw new BadRequestException(e.message);
+      });
       const res =
         meta.kind === 'anthropic'
           ? await fetch(`${baseUrl}/v1/messages`, {

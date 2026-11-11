@@ -6,3 +6,8 @@ supabase/**
 .env
 .env.*
 docs
+
+*.bak
+TESTE.JSON
+*.pem
+*.crt

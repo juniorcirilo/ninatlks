@@ -1,3 +1,5 @@
+import { assertSafeOutboundUrl } from '../../common/outbound-url.util';
+import { evalSafeExpression } from '../../common/safe-expr.util';
 import {
   BadRequestException,
   ConflictException,
@@ -453,6 +455,7 @@ export class AgentSourcesService {
         });
 
       const operationalList = await this.syncOperationalList(source, runStartedAt);
+      if (rows.length > 0) await this.pruneStaleDocuments(source, runStartedAt);
 
       result = {
         ok: true,
@@ -588,6 +591,36 @@ export class AgentSourcesService {
    * `sync_operational_list` (migration OperationalListSyncRun) decide o que
    * é "novo" e faz a gravação inteira numa transação só.
    */
+  /**
+   * A fonte é a verdade: título/orçamento que a API não devolveu nesta corrida
+   * (pago, baixado, cancelado) sai do app. O upsert do ingest só insere/atualiza
+   * (`updated_at = now()`), então o que ficou com `updated_at` anterior ao início
+   * da corrida não veio na resposta. Só roda com resposta não vazia, pra uma
+   * falha da API devolvendo `[]` não apagar tudo.
+   */
+  private async pruneStaleDocuments(
+    source: AgentSourceRow,
+    runStartedAt: Date,
+  ): Promise<void> {
+    const table = await this.dataSource.query<{ document_kind: string | null }[]>(
+      `SELECT document_kind FROM public.agent_personas WHERE id = $1 AND account_id = $2`,
+      [source.agent_id, source.account_id],
+    );
+    const kind = table[0]?.document_kind;
+    const name =
+      kind === 'cobranca' ? 'cobranca_titulos' : kind === 'orcamento' ? 'orcamentos_erp' : null;
+    if (!name) return;
+    const removed: unknown[] = await this.dataSource.query(
+      `DELETE FROM public.${name}
+        WHERE account_id = $1 AND persona_id = $2 AND updated_at < $3
+        RETURNING id`,
+      [source.account_id, source.agent_id, runStartedAt],
+    );
+    if (removed.length > 0) {
+      this.logger.log(`fonte=${source.name} removidos-obsoletos=${removed.length} (${name})`);
+    }
+  }
+
   private async syncOperationalList(
     source: AgentSourceRow,
     runStartedAt: Date,
@@ -738,6 +771,9 @@ export class AgentSourcesService {
 
     let res: Response;
     try {
+      await assertSafeOutboundUrl(source.url);
+      // Redirect manual: um 30x não pode levar a um destino interno.
+      init.redirect = 'error';
       res = await fetch(source.url, init);
     } catch (err) {
       throw new BadRequestException(
@@ -848,18 +884,8 @@ function resolveValue(spec: string, row: Record<string, unknown>): unknown {
   return evalJsExpression(spec, row);
 }
 
-// Só nomes de propriedade que já são identificadores JS válidos viram
-// parâmetro da Function abaixo — uma chave vinda da resposta de uma fonte
-// externa (ex.: `){}();malicious()` como nome de coluna JSON) não pode mais
-// escapar da lista de parâmetros e injetar código.
-const SAFE_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-
 function evalJsExpression(expr: string, row: Record<string, unknown>): unknown {
   try {
-    const safeEntries = Object.entries(row).filter(([k]) => SAFE_IDENTIFIER.test(k));
-    const keys = safeEntries.map(([k]) => k);
-    const values = safeEntries.map(([, v]) => v);
-
     const upper = (s: unknown): string =>
       s == null ? '' : typeof s === 'string' ? s.toUpperCase() : String(s).toUpperCase();
     const lower = (s: unknown): string =>
@@ -867,15 +893,10 @@ function evalJsExpression(expr: string, row: Record<string, unknown>): unknown {
     const trim = (s: unknown): string =>
       s == null ? '' : typeof s === 'string' ? s.trim() : String(s).trim();
 
-    const fn = new Function(
-      ...keys,
-      'upper', 'lower', 'trim',
-      'return (' + expr + ');',
-    );
-    const result = fn(...values, upper, lower, trim);
-
-    if (result === null || result === undefined) return undefined;
-    return result;
+    // Avaliador próprio (sem eval/new Function): a expressão é texto de admin
+    // da conta e não pode executar código arbitrário no processo da API.
+    const result = evalSafeExpression(expr, { ...row, upper, lower, trim });
+    return result === null || result === undefined ? undefined : result;
   } catch {
     return undefined;
   }

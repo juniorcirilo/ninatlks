@@ -429,8 +429,9 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
       toast.success(`${deleted} título(s) removido(s).`);
       setConfirmTruncate(false);
       setTitulos([]);
+      setSyncFailures(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao truncar");
+      toast.error(e instanceof Error ? e.message : "Falha ao limpar");
     } finally {
       setTruncating(false);
     }
@@ -501,11 +502,11 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-destructive hover:text-destructive"
-                disabled={titulos.length === 0}
+                disabled={titulos.length === 0 && !(syncFailures && syncFailures.length > 0)}
                 onClick={() => setConfirmTruncate(true)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Truncar
+                Limpar
               </Button>
             </div>
 
@@ -732,7 +733,7 @@ function CobrancaErpTab({ accountId }: { accountId: string | null }) {
               disabled={truncating}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {truncating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Truncar"}
+              {truncating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Limpar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

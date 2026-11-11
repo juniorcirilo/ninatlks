@@ -1,5 +1,6 @@
 import {
   normalizeE164,
+  isCentralOnlyPersona,
   recordSalesRepPendencia,
   resolveTransferDestination,
   transferDepartamento,
@@ -480,12 +481,14 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
   private async resolveTransferTarget(
     row: PendingRow,
     departamento: Departamento,
+    persona: { name?: string | null; config?: Record<string, unknown> | null },
   ): Promise<{
     phone: string | null;
     atendenteNome: string | null;
     vendedorNome: string | null;
   }> {
     try {
+      const centralOnly = departamento === 'COMERCIAL' && isCentralOnlyPersona(persona);
       const vars = (row.variables ?? {}) as Record<string, unknown>;
       // `vendedor_responsavel` (carteira/lista, editável pelo time) vence `vendedor_nome`
       // (vendedor da cotação no ERP): um contato pode ter as duas chaves com valores
@@ -493,7 +496,7 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       let leadVendedor = ['vendedor_responsavel', 'vendedor_nome', 'vendedor']
         .map((k) => vars[k])
         .find((v) => typeof v === 'string' && v.trim() !== '') as string | undefined;
-      if (!leadVendedor && row.contact_id && departamento === 'COMERCIAL') {
+      if (!leadVendedor && !centralOnly && row.contact_id && departamento === 'COMERCIAL') {
         const co = await this.dataSource.query<{ vendedor_nome_erp: string | null }[]>(
           `SELECT co.vendedor_nome_erp FROM contacts c
              JOIN companies co ON co.id = c.company_id
@@ -506,6 +509,7 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       const dest = await resolveTransferDestination(this.dataSource, {
         accountId: row.account_id,
         departamento,
+        centralOnly,
         vendedorNome: leadVendedor,
       });
 
@@ -542,7 +546,12 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
           accountId: row.account_id,
           departamento,
           key: dest.pendencia.key,
-          vendedorNome: leadVendedor ?? null,
+          // 'sem_atendente_padrao' é do departamento, não de um vendedor específico —
+          // leadVendedor aqui é só o vendedor do lead que gerou a tentativa, e mostrar
+          // o nome dele nessa pendência confundiria (parece que é um problema "do
+          // vendedor X", quando na verdade falta cadastrar o padrão do departamento).
+          vendedorNome:
+            dest.pendencia.reason === 'sem_atendente_padrao' ? null : (leadVendedor ?? null),
           reason: dest.pendencia.reason,
           campaignId: row.campaign_id,
           fallbackNumber: phone,
@@ -551,7 +560,9 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       return {
         phone,
         atendenteNome,
-        vendedorNome: dest.vendedorNome ?? leadVendedor ?? null,
+        // centralOnly: não expõe o vendedor do lead como {{vendedor_nome}} — a IA
+        // sempre fala "central comercial", nunca o nome de quem perdeu a venda.
+        vendedorNome: centralOnly ? null : dest.vendedorNome ?? leadVendedor ?? null,
       };
     } catch (err) {
       this.logger.error(
@@ -584,9 +595,10 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
         system_prompt: string | null;
         voice_clone_id: string | null;
         config: Record<string, unknown> | null;
+        first_message: string | null;
       }[]
     >(
-      `SELECT elevenlabs_agent_id, name, system_prompt, voice_clone_id, config FROM agent_personas WHERE id = $1 LIMIT 1`,
+      `SELECT elevenlabs_agent_id, name, system_prompt, voice_clone_id, config, first_message FROM agent_personas WHERE id = $1 LIMIT 1`,
       [row.campaign_persona_id],
     );
     const persona = personaRows[0];
@@ -642,7 +654,10 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       persona: { name: persona.name, config: persona.config },
       campaignKind: row.campaign_campaign_kind,
     });
-    const transfer = await this.resolveTransferTarget(row, departamento);
+    const transfer = await this.resolveTransferTarget(row, departamento, {
+      name: persona.name,
+      config: persona.config,
+    });
 
     const dynamicVariables: Record<string, string> = {
       ...Object.fromEntries(
@@ -661,9 +676,14 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       company_name: row.company_display_name ?? 'nossa empresa',
       voice_call_id: voiceCallId,
       // Destino da transfer_to_number (phone_dynamic_variable no agente) e como a IA o cita.
-      // Strings vazias NÃO são enviadas: sobrescreveriam o placeholder padrão do agente.
+      // telefone_atendente SEMPRE precisa estar presente (mesmo vazio): o tool
+      // transfer_to_number do agente sincronizado referencia essa dynamic
+      // variable por nome (phone_dynamic_variable), e se ela não vier no payload
+      // da ligação a ElevenLabs aborta a conversa inteira com "Dynamic variable
+      // 'telefone_atendente' is not available" assim que o agente tenta usá-la —
+      // não é só question de sobrescrever um placeholder, é a chamada inteira caindo.
       atendente_departamento: departamento,
-      ...(transfer.phone ? { telefone_atendente: transfer.phone } : {}),
+      telefone_atendente: transfer.phone ?? '',
       ...(transfer.atendenteNome ? { atendente_nome: transfer.atendenteNome } : {}),
       // Compat com o agente comercial já sincronizado ({{vendedor_nome}}/telefone_vendedor).
       // FINANCEIRO não recebe nada de vendedor: nunca pode transbordar para o comercial.
@@ -685,7 +705,11 @@ export class VoiceCampaignDispatchProcessor extends WorkerHost {
       agentId: persona.elevenlabs_agent_id,
       elPhoneId: phoneRow.elevenlabs_phone_number_id,
       toNumber,
-      firstMessage: row.campaign_opening_script ?? 'Olá, tudo bem?',
+      // Sem opening_script na campanha, usa o first_message configurado no
+      // agente (com identificação/empresa) — nunca um "Olá, tudo bem?" genérico,
+      // que fazia o lead desconfiar e desligar sem o agente nunca se identificar.
+      firstMessage:
+        row.campaign_opening_script ?? persona.first_message ?? 'Olá, tudo bem?',
       systemPrompt,
       voiceCloneId: persona.voice_clone_id,
       dynamicVariables,

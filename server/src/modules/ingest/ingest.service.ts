@@ -121,6 +121,7 @@ export class IngestService {
       ingested.listId,
       dto.listKey,
     );
+    await this.cleanInvalidEmails(accountId);
 
     this.logger.log(
       `ingest account=${accountId} lista=${dto.listKey} criados=${ingested.created} atualizados=${ingested.updated} ignorados=${ingested.skipped} removidos=${ingested.removed} lotes=${pendingBatches.length}`,
@@ -167,6 +168,7 @@ export class IngestService {
           String(row.listId),
           String(row.listKey),
         );
+    await this.cleanInvalidEmails(accountId);
 
     this.logger.log(
       `ingest-agent account=${accountId} agente=${dto.agent} phone=${phone} criado=${String(row.created)} ignorado=${String(row.skipped)} lotes=${pendingBatches.length}`,
@@ -277,6 +279,7 @@ export class IngestService {
     for (const [listId, listKey] of lists) {
       pendingBatches.push(...(await this.enrollLiveCampaigns(listId, listKey)));
     }
+    await this.cleanInvalidEmails(accountId);
 
     this.logger.log(
       `ingest-agent-lote account=${accountId} linhas=${rows.length} criados=${created} atualizados=${updated} ignorados=${skipped} lotes=${pendingBatches.length}`,
@@ -374,6 +377,30 @@ export class IngestService {
       throw new BadRequestException('Falha ao gravar o contato');
     }
     return ingested;
+  }
+
+  /**
+   * Último passo de toda sincronização: zera e-mails fora do formato. Não
+   * derruba a ingestão se falhar — a carga já foi gravada e a limpeza roda de
+   * novo na próxima.
+   */
+  private async cleanInvalidEmails(accountId: string): Promise<void> {
+    try {
+      const rows = await this.dataSource.query<{ cleaned: number }[]>(
+        `SELECT public.ingest_clean_invalid_emails($1) AS cleaned`,
+        [accountId],
+      );
+      const cleaned = rows[0]?.cleaned ?? 0;
+      if (cleaned > 0) {
+        this.logger.log(
+          `ingest account=${accountId} emails inválidos zerados=${cleaned}`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `falha ao limpar e-mails inválidos account=${accountId}: ${(err as Error).message}`,
+      );
+    }
   }
 
   /**

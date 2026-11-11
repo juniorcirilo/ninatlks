@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { createReadStream, statSync } from 'node:fs'
-import { join, extname } from 'node:path'
+import { join, extname, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pipeline } from 'node:stream/promises'
 
@@ -26,10 +26,19 @@ const MIME = {
   '.gif': 'image/gif',
 }
 
-const { default: ssrHandler } = await import('./dist/server/index.js')
+const { default: ssrHandler } = await import('./dist/server/server.js')
 
 function tryStatic(pathname) {
-  const filePath = join(CLIENT_DIR, pathname)
+  let decoded
+  try {
+    decoded = decodeURIComponent(pathname)
+  } catch {
+    return null
+  }
+  if (decoded.includes('\0')) return null
+  const filePath = join(CLIENT_DIR, decoded)
+  // Impede path traversal (ex.: /%2e%2e/server.mjs) para fora de dist/client.
+  if (!filePath.startsWith(CLIENT_DIR + sep)) return null
   try {
     const stat = statSync(filePath)
     if (stat.isFile()) return filePath
@@ -43,7 +52,10 @@ const server = createServer(async (req, res) => {
   const staticFile = tryStatic(url.pathname)
   if (staticFile) {
     const contentType = MIME[extname(staticFile)] || 'application/octet-stream'
-    res.writeHead(200, { 'Content-Type': contentType })
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'X-Content-Type-Options': 'nosniff',
+    })
     await pipeline(createReadStream(staticFile), res)
     return
   }

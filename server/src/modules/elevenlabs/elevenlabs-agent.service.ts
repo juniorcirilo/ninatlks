@@ -16,7 +16,7 @@ import { buildSystemPromptWithGuardrails } from '../voice/sdr-guardrails.util';
 import { SecretsService } from '../secrets/secrets.service';
 import { agentLlmProviderMeta } from '../agent-llm-provider/providers';
 
-const PT_LANGUAGE = 'pt';
+const PT_LANGUAGE = 'pt-br';
 const PT_BR_LANGUAGE_INSTRUCTION =
   '\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- Use vocabulário, tratamento e pronúncia naturais do Brasil; nunca use português de Portugal.\n- A primeira fala deve ser em português brasileiro.\n- Nunca cumprimente nem responda em inglês.';
 
@@ -669,7 +669,15 @@ export class ElevenLabsAgentService {
                               type: 'phone_dynamic_variable',
                               phone_number: 'telefone_atendente',
                             },
-                            transfer_type: 'conference',
+                            // 'conference' (testado em produção, 06/11/2026): o atendente
+                            // atendeu e a ligação caiu ~5s depois — a perna de transferência
+                            // aparece "Completed" no Twilio com duração de 5s, batendo com o
+                            // padrão conhecido da ElevenLabs de encerrar a conferência inteira
+                            // ao remover o agente de IA dela. 'blind' transfere direto, sem
+                            // manter o agente numa ponte de 3 vias — perde a mensagem de
+                            // contexto falada ao atendente (agent_message), mas não derruba
+                            // a ligação.
+                            transfer_type: 'blind',
                             condition:
                               departamento === 'FINANCEIRO'
                                 ? 'O cliente pediu para falar com um atendente, com o financeiro ou com um humano.'

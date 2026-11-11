@@ -1,7 +1,7 @@
 import { DataSource } from 'typeorm';
 import { buildSystemPromptWithGuardrails } from '../../voice/sdr-guardrails.util';
 
-const PT_LANGUAGE = 'pt';
+const PT_LANGUAGE = 'pt-br';
 const PT_BR_LANGUAGE_INSTRUCTION =
   '\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- Use vocabulário, tratamento e pronúncia naturais do Brasil; nunca use português de Portugal.\n- A primeira fala deve ser em português brasileiro.\n- Nunca cumprimente nem responda em inglês.';
 
@@ -83,12 +83,22 @@ export async function resolveElevenLabsApiKey(
  * A ElevenLabs derruba a conversa (logo depois da saudação, quando o LLM
  * começa a responder) se o prompt referencia {{variavel}} sem valor. Completa
  * com '' as que não vieram — variáveis de sistema (system__*) são dela.
+ *
+ * 'telefone_atendente' é um caso à parte: não aparece como {{...}} em texto
+ * nenhum, mas o tool transfer_to_number de todo agente sincronizado
+ * (elevenlabs-agent.service.ts) referencia essa dynamic variable pelo nome
+ * (phone_dynamic_variable) — se ela não vier no payload, a ElevenLabs aborta
+ * a ligação assim que o agente tenta usá-la, mesmo sem o tool ser chamado.
+ * Por isso entra sempre, não só quando o regex abaixo a encontra em texto.
  */
 export function fillMissingDynamicVariables(
   dynamicVariables: Record<string, string>,
   ...texts: Array<string | null | undefined>
 ): Record<string, string> {
-  const filled = { ...dynamicVariables };
+  const filled: Record<string, string> = {
+    telefone_atendente: '',
+    ...dynamicVariables,
+  };
   for (const text of texts) {
     for (const m of (text ?? '').matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)) {
       if (!(m[1] in filled)) filled[m[1]] = '';

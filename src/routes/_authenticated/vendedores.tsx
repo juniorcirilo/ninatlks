@@ -32,6 +32,13 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAccount } from "@/lib/account-context";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   bulkSalesReps,
   createSalesRep,
   deleteSalesRep,
@@ -39,10 +46,16 @@ import {
   listSalesReps,
   parseSalesRepsText,
   updateSalesRep,
+  type Departamento,
   type PendenciaReason,
   type SalesRep,
   type SalesRepPendencia,
 } from "@/lib/sales-reps";
+
+const DEPARTAMENTO_LABEL: Record<Departamento, string> = {
+  COMERCIAL: "Comercial",
+  FINANCEIRO: "Financeiro",
+};
 
 export const Route = createFileRoute("/_authenticated/vendedores")({
   head: () => ({
@@ -61,6 +74,7 @@ const REASON_LABEL: Record<PendenciaReason, string> = {
   sem_cadastro: "Sem cadastro",
   sem_telefone: "Sem telefone",
   sem_vendedor: "Lead sem vendedor",
+  sem_atendente_padrao: "Sem atendente padrão do departamento",
 };
 
 const fmtDateTime = (iso: string) =>
@@ -84,9 +98,22 @@ interface FormState {
   phone: string;
   email: string;
   active: boolean;
+  departamento: Departamento;
+  isDefault: boolean;
+  nomeFalado: string;
 }
 
-const emptyForm: FormState = { id: null, nome: "", aliases: "", phone: "", email: "", active: true };
+const emptyForm: FormState = {
+  id: null,
+  nome: "",
+  aliases: "",
+  phone: "",
+  email: "",
+  active: true,
+  departamento: "COMERCIAL",
+  isDefault: false,
+  nomeFalado: "",
+};
 
 function VendedoresPage() {
   const { accountId } = useAccount();
@@ -120,19 +147,42 @@ function VendedoresPage() {
     load();
   }, [load]);
 
-  function openFromRep(r: SalesRep) {
-    setForm({
+  function formFromRep(r: SalesRep): FormState {
+    return {
       id: r.id,
       nome: r.nome,
       aliases: r.aliases.join(", "),
       phone: r.phone_e164 ?? "",
       email: r.email ?? "",
       active: r.active,
-    });
+      departamento: r.departamento,
+      isDefault: r.is_default,
+      nomeFalado: r.nome_falado ?? "",
+    };
+  }
+
+  function openFromRep(r: SalesRep) {
+    setForm(formFromRep(r));
   }
 
   /** Pendência "sem telefone" já tem cadastro: edita o existente; "sem cadastro" abre novo preenchido. */
   function openFromPendencia(p: SalesRepPendencia) {
+    if (p.reason === "sem_atendente_padrao") {
+      // Sem vendedor_key específico — ou marca um cadastro existente do
+      // departamento como padrão, ou abre um novo já configurado como tal.
+      const existingInDept = reps.find((r) => r.departamento === p.departamento);
+      setForm(
+        existingInDept
+          ? { ...emptyForm, ...formFromRep(existingInDept), isDefault: true }
+          : {
+              ...emptyForm,
+              nome: p.departamento === "FINANCEIRO" ? "Setor Financeiro" : "Central Comercial",
+              departamento: p.departamento,
+              isDefault: true,
+            },
+      );
+      return;
+    }
     const existing = reps.find((r) => p.vendedor_key && r.nome && matchesKey(r, p.vendedor_key));
     if (existing) return openFromRep(existing);
     const nome = p.vendedor_nome ?? "";
@@ -145,6 +195,10 @@ function VendedoresPage() {
       toast.error("Informe o nome do vendedor");
       return;
     }
+    if (form.isDefault && !form.phone.trim()) {
+      toast.error("Atendente padrão precisa de telefone");
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -153,6 +207,9 @@ function VendedoresPage() {
         phone: form.phone.trim() || null,
         email: form.email.trim() || null,
         active: form.active,
+        departamento: form.departamento,
+        isDefault: form.isDefault,
+        nomeFalado: form.nomeFalado.trim() || null,
       };
       if (form.id) await updateSalesRep(accountId, form.id, payload);
       else await createSalesRep(accountId, payload);
@@ -291,7 +348,11 @@ function VendedoresPage() {
                         <TableCell className="text-right">
                           {p.reason !== "sem_vendedor" && (
                             <Button size="sm" variant="outline" onClick={() => openFromPendencia(p)}>
-                              {p.reason === "sem_telefone" ? "Adicionar telefone" : "Cadastrar"}
+                              {p.reason === "sem_telefone"
+                                ? "Adicionar telefone"
+                                : p.reason === "sem_atendente_padrao"
+                                  ? "Definir padrão"
+                                  : "Cadastrar"}
                             </Button>
                           )}
                         </TableCell>
@@ -319,6 +380,7 @@ function VendedoresPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nome</TableHead>
+                      <TableHead>Departamento</TableHead>
                       <TableHead>Telefone</TableHead>
                       <TableHead>E-mail</TableHead>
                       <TableHead>Grafias do ERP</TableHead>
@@ -330,6 +392,12 @@ function VendedoresPage() {
                     {reps.map((r) => (
                       <TableRow key={r.id}>
                         <TableCell className="font-medium">{r.nome}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline">{DEPARTAMENTO_LABEL[r.departamento]}</Badge>
+                            {r.is_default && <Badge>Padrão</Badge>}
+                          </div>
+                        </TableCell>
                         <TableCell className="tabular-nums">
                           {r.phone_e164 ? (
                             fmtPhone(r.phone_e164)
@@ -377,6 +445,21 @@ function VendedoresPage() {
                 <Input value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
               </div>
               <div className="space-y-1.5">
+                <Label>Departamento</Label>
+                <Select
+                  value={form.departamento}
+                  onValueChange={(v) => setForm({ ...form, departamento: v as Departamento })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="COMERCIAL">Comercial</SelectItem>
+                    <SelectItem value="FINANCEIRO">Financeiro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
                 <Label>Telefone (com DDD)</Label>
                 <Input
                   placeholder="(41) 3512-0638"
@@ -396,9 +479,31 @@ function VendedoresPage() {
                   onChange={(e) => setForm({ ...form, aliases: e.target.value })}
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>Como a IA cita (opcional)</Label>
+                <Input
+                  placeholder='Ex.: "nossa central de atendimento comercial"'
+                  value={form.nomeFalado}
+                  onChange={(e) => setForm({ ...form, nomeFalado: e.target.value })}
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} />
                 <Label>Ativo</Label>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={form.isDefault}
+                    onCheckedChange={(v) => setForm({ ...form, isDefault: v })}
+                  />
+                  <Label>Atendente padrão do departamento</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Recebe a transferência quando o lead não tem vendedor específico cadastrado
+                  (ou, no Financeiro, sempre — cobrança nunca transborda para o comercial).
+                  Só um padrão ativo por departamento.
+                </p>
               </div>
             </div>
           )}

@@ -44,6 +44,29 @@ export async function changeMemberRole(
   await apiClient.patch(`/accounts/${accountId}/members/${targetUserId}/role`, { role: newRole });
 }
 
+export async function updateMember(
+  accountId: string,
+  targetUserId: string,
+  data: { name: string; email: string },
+): Promise<void> {
+  await apiClient.patch(`/accounts/${accountId}/members/${targetUserId}`, {
+    name: data.name.trim(),
+    email: data.email.trim().toLowerCase(),
+  });
+}
+
+/** Sem `password`, o servidor gera uma senha aleatória e a devolve (só aqui). */
+export async function setMemberPassword(
+  accountId: string,
+  targetUserId: string,
+  password?: string,
+): Promise<{ password: string; generated: boolean }> {
+  return apiClient.put<{ password: string; generated: boolean }>(
+    `/accounts/${accountId}/members/${targetUserId}/password`,
+    password ? { password } : {},
+  );
+}
+
 export async function removeMember(accountId: string, targetUserId: string): Promise<void> {
   await apiClient.delete(`/accounts/${accountId}/members/${targetUserId}`);
 }

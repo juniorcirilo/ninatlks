@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Patch,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { AccountMemberGuard } from '../../../common/guards/account-member.guard';
@@ -13,6 +14,8 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 import { translatePgException } from '../../../common/pg-error.util';
 import { TeamService } from './team.service';
 import { ChangeRoleDto } from './dto/change-role.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
+import { SetMemberPasswordDto } from './dto/set-password.dto';
 
 @UseGuards(AccountMemberGuard, RolesGuard)
 @Controller('accounts/:accountId/members')
@@ -33,6 +36,34 @@ export class TeamController {
   ) {
     try {
       await this.teamService.changeRole(accountId, userId, dto.role);
+    } catch (error) {
+      translatePgException(error);
+    }
+  }
+
+  @Roles('admin')
+  @Patch(':userId')
+  async update(
+    @Param('accountId') accountId: string,
+    @Param('userId') userId: string,
+    @Body() dto: UpdateMemberDto,
+  ) {
+    try {
+      await this.teamService.updateMember(accountId, userId, dto.name, dto.email);
+    } catch (error) {
+      translatePgException(error);
+    }
+  }
+
+  @Roles('admin')
+  @Put(':userId/password')
+  async setPassword(
+    @Param('accountId') accountId: string,
+    @Param('userId') userId: string,
+    @Body() dto: SetMemberPasswordDto,
+  ) {
+    try {
+      return await this.teamService.setPassword(accountId, userId, dto.password);
     } catch (error) {
       translatePgException(error);
     }

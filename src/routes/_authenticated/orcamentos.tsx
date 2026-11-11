@@ -147,7 +147,7 @@ export function OrcamentosPage() {
       // completo é o jeito simples de garantir que as duas listas zerem.
       window.location.reload();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao truncar");
+      toast.error(e instanceof Error ? e.message : "Falha ao limpar");
       setTruncating(false);
     }
   }
@@ -166,7 +166,7 @@ export function OrcamentosPage() {
             onClick={() => setConfirmTruncate(true)}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Truncar
+            Limpar
           </Button>
         }
       />
@@ -190,7 +190,7 @@ export function OrcamentosPage() {
               disabled={truncating}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {truncating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Truncar"}
+              {truncating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Limpar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

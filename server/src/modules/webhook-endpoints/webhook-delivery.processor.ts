@@ -1,3 +1,4 @@
+import { assertSafeOutboundUrl } from '../../common/outbound-url.util';
 import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
@@ -68,7 +69,9 @@ export class WebhookDeliveryProcessor extends WorkerHost {
     }
 
     try {
+      await assertSafeOutboundUrl(target);
       const res = await fetch(target, {
+        redirect: 'error',
         method,
         headers,
         body: method === 'GET' ? undefined : data.body,

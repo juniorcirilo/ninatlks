@@ -90,7 +90,8 @@ export const deleteCobrancaTitulo = createServerFn({ method: "POST" })
   });
 
 /** Apaga TODOS os títulos de cobrança desta conta — reset da tela, não some
- * com os clientes/contatos, só com as linhas de `cobranca_titulos`. */
+ * com os clientes/contatos, só com as linhas de `cobranca_titulos` e as
+ * pendências da última sincronização. */
 export const truncateCobrancaTitulos = createServerFn({ method: "POST" })
   .middleware([requireSessionAuth])
   .inputValidator((d) => z.object({ accountId: z.string().uuid().optional() }).parse(d))
@@ -100,6 +101,13 @@ export const truncateCobrancaTitulos = createServerFn({ method: "POST" })
       context.userId,
       accountId,
       `DELETE FROM public.cobranca_titulos WHERE account_id = $1 RETURNING id`,
+      [accountId],
+    );
+    await query(
+      `DELETE FROM public.agent_source_sync_failures f
+        USING public.agent_inbound_sources s, public.agent_personas p
+        WHERE f.source_id = s.id AND p.id = s.agent_id
+          AND f.account_id = $1 AND p.document_kind = 'cobranca'`,
       [accountId],
     );
     return { deleted: rows.length };

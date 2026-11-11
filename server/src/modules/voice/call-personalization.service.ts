@@ -3,7 +3,7 @@ import { DataSource } from 'typeorm';
 import { buildSystemPromptWithGuardrails } from './sdr-guardrails.util';
 import { transferDepartamento } from '../sales-reps/sales-reps.util';
 
-const PT_LANGUAGE = 'pt';
+const PT_LANGUAGE = 'pt-br';
 const PT_BR_LANGUAGE_INSTRUCTION =
   '\n\n# IDIOMA DA LIGAÇÃO\n- Fale exclusivamente em português do Brasil (PT-BR).\n- Use vocabulário, tratamento e pronúncia naturais do Brasil; nunca use português de Portugal.\n- A primeira fala deve ser em português brasileiro.\n- Nunca cumprimente nem responda em inglês.';
 
@@ -164,6 +164,11 @@ export class CallPersonalizationService {
     }
 
     const dynamicVariables: Record<string, string> = {
+      // Todo agente sincronizado (elevenlabs-agent.service.ts) tem o tool
+      // transfer_to_number referenciando 'telefone_atendente' por nome — sem
+      // essa dynamic variable no payload a ElevenLabs aborta a ligação assim
+      // que o agente tenta usá-la (ver mesmo fix em el-outbound-cron.util.ts).
+      telefone_atendente: '',
       ...negotiationVars,
       ...Object.fromEntries(
         Object.entries(incomingVars).map(([k, v]) => [k, this.stringifyVar(v)]),

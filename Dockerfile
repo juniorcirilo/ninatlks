@@ -5,7 +5,7 @@ WORKDIR /app
 # no docker-compose.yml em tempo de execução (ver .env.example).
 
 # Frontend (TanStack Start / Vite)
-COPY package*.json ./
+COPY package*.json .npmrc ./
 RUN npm install
 
 # Backend (NestJS)

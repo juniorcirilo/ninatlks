@@ -18,17 +18,57 @@ import { queryAsAccount } from "@/lib/db";
  */
 export const truncateAgentContacts = createServerFn({ method: "POST" })
   .middleware([requireSessionAuth])
-  .inputValidator((d) => z.object({ agentId: z.string().uuid() }).parse(d))
+  .inputValidator((d) => z.object({ agentIds: z.array(z.string().uuid()).default([]) }).parse(d))
   .handler(async ({ data, context }) => {
-    if (!context.accountId) throw new Error("Usuário sem conta associada.");
-    if (context.membership?.role !== "admin") {
-      throw new Error("Só administradores podem truncar contatos.");
+    try {
+      return await run(data, context);
+    } catch (e) {
+      console.error("[truncateAgentContacts] falhou:", e);
+      throw e;
     }
+  });
+
+async function run(
+  data: { agentIds: string[] },
+  context: { userId: string; accountId: string | null; membership?: { role?: string } | null },
+) {
+    if (!context.accountId) throw new Error("Usuário sem conta associada.");
+    // `membership.role` vem de auth_get_primary_membership (LEFT JOIN em
+    // user_roles + LIMIT 1, sem ORDER BY): com mais de um papel — ou nenhum —
+    // um admin pode chegar aqui como "agent". Confere o papel direto no banco.
+    const [adm] = await queryAsAccount<{ ok: boolean }>(
+      context.userId,
+      context.accountId,
+      `SELECT public.has_role($1::uuid, $2::uuid, 'admin') AS ok`,
+      [context.userId, context.accountId],
+    );
+    if (!adm?.ok) {
+      throw new Error("Só administradores podem limpar contatos.");
+    }
+    // Persona(s) da Larissa: ids vindos da tela + qualquer persona da conta
+    // com esse nome (a tela filtra por nome; o 1º contato pode vir sem id).
+    const personas = await queryAsAccount<{ id: string }>(
+      context.userId,
+      context.accountId,
+      `SELECT id FROM public.agent_personas
+        WHERE account_id = $1 AND (id = ANY($2::uuid[]) OR name ~* '^larr?iss?a\\y')`,
+      [context.accountId, data.agentIds],
+    );
+    const agentIds = personas.map((p) => p.id);
+    if (agentIds.length === 0) return { deleted: 0 };
     const rows = await queryAsAccount(
       context.userId,
       context.accountId,
-      `DELETE FROM public.contacts WHERE account_id = $1 AND source_agent_id = $2 RETURNING id`,
-      [context.accountId, data.agentId],
+      `DELETE FROM public.contacts WHERE account_id = $1 AND source_agent_id = ANY($2::uuid[]) RETURNING id`,
+      [context.accountId, agentIds],
+    );
+    await queryAsAccount(
+      context.userId,
+      context.accountId,
+      `DELETE FROM public.agent_source_sync_failures f
+        USING public.agent_inbound_sources s
+        WHERE f.source_id = s.id AND f.account_id = $1 AND s.agent_id = ANY($2::uuid[])`,
+      [context.accountId, agentIds],
     );
     return { deleted: rows.length };
-  });
+}

@@ -118,7 +118,10 @@ export function NovosClientesPage() {
 
   // O id da persona é o que sincroniza/trunca de verdade — vem do próprio
   // contato já carregado (source_agent_id), sem precisar de outra chamada.
-  const agentId = fromAgent[0]?.source_agent_id ?? null;
+  const agentIds = useMemo(
+    () => [...new Set(fromAgent.map((r) => r.source_agent_id).filter((x): x is string => !!x))],
+    [fromAgent],
+  );
 
   const statuses = useMemo(
     () => [...new Set(fromAgent.map((r) => r.operational_status).filter(Boolean))],
@@ -191,15 +194,15 @@ export function NovosClientesPage() {
   }
 
   async function handleTruncate() {
-    if (!agentId || truncating) return;
+    if (truncating) return;
     setTruncating(true);
     try {
-      const { deleted } = await fnTruncate({ data: { agentId } });
+      const { deleted } = await fnTruncate({ data: { agentIds } });
       toast.success(`${deleted} contato(s) removido(s).`);
       setConfirmTruncate(false);
       load();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao truncar");
+      toast.error(e instanceof Error ? e.message : "Falha ao limpar");
     } finally {
       setTruncating(false);
     }
@@ -240,7 +243,7 @@ export function NovosClientesPage() {
               disabled={truncating}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {truncating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Truncar"}
+              {truncating ? <Loader2 className="h-4 w-4 animate-spin" /> : "Limpar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -286,11 +289,11 @@ export function NovosClientesPage() {
             variant="outline"
             size="sm"
             className="gap-1.5 text-destructive hover:text-destructive"
-            disabled={fromAgent.length === 0 || !agentId}
+            disabled={fromAgent.length === 0}
             onClick={() => setConfirmTruncate(true)}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Truncar
+            Limpar
           </Button>
         </div>
 

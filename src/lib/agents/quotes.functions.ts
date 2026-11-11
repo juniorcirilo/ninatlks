@@ -189,6 +189,13 @@ export const truncateQuotes = createServerFn({ method: "POST" })
       ),
       query(`DELETE FROM public.quotes WHERE account_id = $1 RETURNING id`, [accountId]),
     ]);
+    await query(
+      `DELETE FROM public.agent_source_sync_failures f
+        USING public.agent_inbound_sources s, public.agent_personas p
+        WHERE f.source_id = s.id AND p.id = s.agent_id
+          AND f.account_id = $1 AND p.document_kind = 'orcamento'`,
+      [accountId],
+    );
     return { deleted: erp.length + chat.length };
   });
 

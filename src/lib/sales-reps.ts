@@ -1,5 +1,7 @@
 import { apiClient } from "@/lib/api-client";
 
+export type Departamento = "COMERCIAL" | "FINANCEIRO";
+
 export interface SalesRep {
   id: string;
   nome: string;
@@ -8,12 +10,20 @@ export interface SalesRep {
   email: string | null;
   user_id: string | null;
   active: boolean;
+  departamento: Departamento;
+  is_default: boolean;
+  nome_falado: string | null;
 }
 
-export type PendenciaReason = "sem_cadastro" | "sem_telefone" | "sem_vendedor";
+export type PendenciaReason =
+  | "sem_cadastro"
+  | "sem_telefone"
+  | "sem_vendedor"
+  | "sem_atendente_padrao";
 
 export interface SalesRepPendencia {
   id: string;
+  departamento: Departamento;
   vendedor_nome: string | null;
   vendedor_key: string;
   reason: PendenciaReason;
@@ -30,6 +40,12 @@ export interface SalesRepInput {
   phone?: string | null;
   email?: string | null;
   active?: boolean;
+  /** COMERCIAL (default) ou FINANCEIRO — cobrança só transborda para FINANCEIRO. */
+  departamento?: Departamento;
+  /** Atendente padrão do departamento (um ativo por departamento). Exige telefone. */
+  isDefault?: boolean;
+  /** Como a IA cita o destino (ex.: "nossa central de atendimento comercial"). */
+  nomeFalado?: string | null;
 }
 
 export interface BulkSalesRepsResult {

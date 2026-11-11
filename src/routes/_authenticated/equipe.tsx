@@ -9,6 +9,9 @@ import {
   Trash2,
   ShieldCheck,
   UserCog,
+  Pencil,
+  KeyRound,
+  Wand2,
   Send,
   AlertCircle,
 } from "lucide-react";
@@ -22,12 +25,15 @@ import {
   revokeInvite,
   changeMemberRole,
   removeMember,
+  updateMember,
+  setMemberPassword,
   buildInviteUrl,
   type TeamMember,
   type Invite,
   type MemberRole,
 } from "@/lib/team";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -92,6 +98,7 @@ function MembersCard({
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<TeamMember | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -184,6 +191,16 @@ function MembersCard({
 
                   <button
                     type="button"
+                    onClick={() => setEditing(m)}
+                    disabled={busy}
+                    aria-label="Editar membro"
+                    className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-foreground/[0.04] hover:text-foreground disabled:opacity-30"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => handleRemove(m)}
                     disabled={busy || isSelf}
                     aria-label="Remover membro"
@@ -204,7 +221,190 @@ function MembersCard({
           })}
         </ul>
       )}
+
+      <EditMemberDialog
+        accountId={accountId}
+        member={editing}
+        onClose={() => setEditing(null)}
+        onSaved={load}
+      />
     </section>
+  );
+}
+
+function EditMemberDialog({
+  accountId,
+  member,
+  onClose,
+  onSaved,
+}: {
+  accountId: string;
+  member: TeamMember | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [pwBusy, setPwBusy] = useState(false);
+  const [shownPassword, setShownPassword] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setName(member?.name ?? "");
+    setEmail(member?.email ?? "");
+    setPassword("");
+    setShownPassword(null);
+    setCopied(false);
+  }, [member]);
+
+  if (!member) return null;
+
+  const inputClass =
+    "h-10 w-full rounded-md border border-gray-200 dark:border-slate-800 bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+
+  const handleSave = async () => {
+    if (!name.trim() || !email.includes("@")) {
+      toast.error("Informe nome e e-mail válidos.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateMember(accountId, member.user_id, { name, email });
+      toast.success("Membro atualizado.");
+      await onSaved();
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao salvar.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const applyPassword = async (custom?: string) => {
+    if (custom !== undefined && custom.length < 8) {
+      toast.error("A senha precisa ter ao menos 8 caracteres.");
+      return;
+    }
+    if (!confirm(`Redefinir a senha de ${member.name}? Ele(a) será desconectado(a) de todos os dispositivos.`)) return;
+    setPwBusy(true);
+    try {
+      const res = await setMemberPassword(accountId, member.user_id, custom);
+      setShownPassword(res.password);
+      setPassword("");
+      setCopied(false);
+      toast.success(res.generated ? "Senha gerada." : "Senha alterada.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao alterar senha.");
+    } finally {
+      setPwBusy(false);
+    }
+  };
+
+  const copyPassword = async () => {
+    if (!shownPassword) return;
+    try {
+      await navigator.clipboard.writeText(shownPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error("Não consegui copiar.");
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar membro</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-muted-foreground">Nome</label>
+          <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="text-xs font-medium text-muted-foreground">E-mail</label>
+          <input
+            type="email"
+            className={inputClass}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2 rounded-lg border border-gray-200 dark:border-slate-800 p-3">
+          <div className="flex items-center gap-1.5 text-xs font-semibold">
+            <KeyRound className="h-3.5 w-3.5" />
+            Senha
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              autoComplete="off"
+              placeholder="Nova senha (mín. 8 caracteres)"
+              className={inputClass}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={pwBusy || password.length === 0}
+              onClick={() => applyPassword(password)}
+              className="h-10 shrink-0 rounded-md border border-gray-200 dark:border-slate-800 bg-background px-3 text-xs font-medium hover:bg-foreground/[0.04] disabled:opacity-50"
+            >
+              Alterar
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled={pwBusy}
+            onClick={() => applyPassword()}
+            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+          >
+            {pwBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+            Gerar senha aleatória
+          </button>
+
+          {shownPassword && (
+            <div className="rounded-md border border-cyan-500/40 bg-cyan-500/10 p-2">
+              <div className="flex gap-2">
+                <input readOnly value={shownPassword} className={cn(inputClass, "h-9 font-mono text-xs")} />
+                <button
+                  type="button"
+                  onClick={copyPassword}
+                  className="flex h-9 items-center gap-1 rounded-md border border-gray-200 dark:border-slate-800 bg-background px-3 text-xs font-medium hover:bg-foreground/[0.04]"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? "Copiado" : "Copiar"}
+                </button>
+              </div>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Copie agora e repasse à pessoa: esta senha não será exibida novamente.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 rounded-md border border-gray-200 dark:border-slate-800 px-4 text-sm hover:bg-foreground/[0.04]"
+          >
+            Fechar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Salvar
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

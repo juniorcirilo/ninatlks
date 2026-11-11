@@ -47,6 +47,23 @@ export function transferDepartamento(args: {
   return 'COMERCIAL';
 }
 
+/**
+ * Larissa é SDR de reativação (cliente sem pedido/orçamento fechado): mesmo quando o
+ * ERP tem um vendedor casado com o lead, a transferência dela é SEMPRE para a central
+ * comercial — nunca de volta para o vendedor específico (negócio já não fechou com ele).
+ * Mesmo padrão de fallback por nome usado em `isCobrancaPersona`.
+ */
+export function isCentralOnlyPersona(persona: {
+  name?: string | null;
+  config?: Record<string, unknown> | null;
+}): boolean {
+  return (
+    persona.config?.transferCentralOnly === true ||
+    // cobre os dois jeitos de grafar o nome já vistos em produção: "Larissa" e "Larrisa".
+    /lar+is+a/i.test(persona.name ?? '')
+  );
+}
+
 export type PendenciaReason =
   | 'sem_vendedor'
   | 'sem_cadastro'
@@ -105,6 +122,8 @@ export async function resolveTransferDestination(
     accountId: string;
     departamento: Departamento;
     vendedorNome?: string | null;
+    /** true = ignora o vendedor do lead e vai direto pro atendente padrão (ver isCentralOnlyPersona). */
+    centralOnly?: boolean;
   },
 ): Promise<TransferDestination> {
   const { accountId, departamento } = args;
@@ -124,6 +143,20 @@ export async function resolveTransferDestination(
       atendenteNome: null,
       source: 'none',
       pendencia: { reason: 'sem_atendente_padrao', key: 'financeiro' },
+    };
+  }
+
+  if (args.centralOnly) {
+    const def = await getDefaultAtendente(dataSource, accountId, 'COMERCIAL');
+    if (def) {
+      return { ...base, phone: def.phone, atendenteNome: def.nomeFalado, source: 'padrao', pendencia: null };
+    }
+    return {
+      ...base,
+      phone: null,
+      atendenteNome: null,
+      source: 'none',
+      pendencia: { reason: 'sem_atendente_padrao', key: 'comercial' },
     };
   }
 
